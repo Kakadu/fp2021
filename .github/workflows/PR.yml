@@ -98,12 +98,15 @@ jobs:
           echo "RDJSON_DIR_PATH=_build/default/_found_lints" >> $GITHUB_ENV
       - run: cd ${{ env.latest }} && mkdir -p ${{ env.RDJSON_DIR_PATH }}
       - run: |
-          echo "RDJSON_FILE_PATH=${{ env.RDJSON_DIR_PATH }}/$(date +%Y-%m-%d_%H_%M).rdjsonl" >> $GITHUB_ENV
+          #echo "RDJSON_FILE_PATH=${{ env.RDJSON_DIR_PATH }}/$(date +%Y-%m-%d_%H_%M).rdjsonl" >> $GITHUB_ENV
+          echo "RDJSON_FILE_PATH=${{ env.RDJSON_DIR_PATH }}/lints.rdjsonl" >> $GITHUB_ENV
 
       - name: running mylinter
         run: cd ${{ env.latest }} && opam exec -- mylinter -dir . -add-prefix ${{ env.latest }}/ -ordjsonl ${{ env.RDJSON_FILE_PATH }}
 
       - run: cat ${{ env.latest }}/${{ env.RDJSON_FILE_PATH }}
+      - run: echo ${{ env.latest }} > ${{ env.RDJSON_DIR_PATH }}/projectname.txt
+      - run: echo ${{ github.event.pull_request.user.login }} > ${{ env.RDJSON_DIR_PATH }}/piarast.txt
 
       - name: Run reviewdog
         #env:
@@ -115,12 +118,12 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: rdjson
-          path: ${{ env.latest }}/${{ env.RDJSON_FILE_PATH }}/
+          path: ${{ env.latest }}/${{ env.RDJSON_DIR_PATH }}
 
       - uses: actions/upload-artifact@v2
         with:
           name: docs
-          path: ${{ env.latest }}/_build/default/_doc/_html/
+          path: ${{ env.latest }}/_build/default/_doc/_html
 
       #- name: Deploy found lints
       #  uses: peaceiris/actions-gh-pages@v3
