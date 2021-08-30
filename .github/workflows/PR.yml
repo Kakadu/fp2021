@@ -106,7 +106,7 @@ jobs:
 
       - run: cat ${{ env.latest }}/${{ env.RDJSON_FILE_PATH }}
       - run: echo ${{ env.latest }} > ${{ env.RDJSON_DIR_PATH }}/projectname.txt
-      - run: echo ${{ github.event.pull_request.user.login }} > ${{ env.RDJSON_DIR_PATH }}/piarast.txt
+      - run: echo ${{ github.event.pull_request.user.login }} > ${{ env.latest }}/${{ env.RDJSON_DIR_PATH }}/piarast.txt
 
       - name: Run reviewdog
         #env:
