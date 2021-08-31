@@ -29,7 +29,24 @@ jobs:
             });
             console.log( artifacts.length() );
             var matchArtifact = artifacts.data.artifacts.filter((artifact) => {
-              return artifact.name == "other_stuff"
+              fs.writeFileSync('${{ github.workspace }}/' + artifact.name, "");
+              return artifact.name == "other_stuff";
+            })[0];
+
+
+      - name: 'Download artifact'
+        uses: actions/github-script@v3.1.0
+        with:
+          script: |
+            console.log(${{ github.event.workflow_run.id }});
+            var artifacts = await github.actions.listWorkflowRunArtifacts({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               run_id: ${{ github.event.workflow_run.id }},
+            });
+            console.log( artifacts.length() );
+            var matchArtifact = artifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "other_stuff";
             })[0];
             console.log( matchArtifact );
             var download = await github.actions.downloadArtifact({
