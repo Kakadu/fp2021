@@ -70,7 +70,7 @@ jobs:
           ./detect_latest.sh >> $GITHUB_ENV
           echo "${{ env.latest }}"
 
-      #- run: cd ${{ env.latest }} && opam install . --deps-only --with-test --with-doc
+      - run: cd ${{ env.latest }} && opam install . --deps-only --with-test --with-doc
       - run: |
           cd ${{ env.latest }} && opam install mylinter $(dune external-lib-deps @install @@default @test | tail -n +2 | cut -f2 -d' ' | xargs echo) --yes
 
