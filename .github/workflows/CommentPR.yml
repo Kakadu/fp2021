@@ -15,7 +15,7 @@ jobs:
       ${{ github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - run: echo "${{github.event.workflow_run.id }}"
+      - run: echo "${{ github.event.workflow_run.id }}"
 
       - name: 'Download artifact'
         uses: actions/github-script@v3.1.0
@@ -39,7 +39,7 @@ jobs:
                archive_format: 'zip',
             });
             var fs = require('fs');
-            fs.writeFileSync('${{github.workspace}}/other_stuff.zip', Buffer.from(download.data));
+            fs.writeFileSync('${{ github.workspace }}/other_stuff.zip', Buffer.from(download.data));
 
       - run: unzip other_stuff.zip
       - run: |
