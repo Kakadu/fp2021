@@ -107,6 +107,8 @@ jobs:
       - run: cat ${{ env.latest }}/${{ env.RDJSON_FILE_PATH }}
       - run: echo ${{ env.latest }} > ${{ env.latest }}/${{ env.RDJSON_DIR_PATH }}/projectname.txt
       - run: echo ${{ github.event.pull_request.user.login }} > ${{ env.latest }}/${{ env.RDJSON_DIR_PATH }}/piarast.txt
+      - run: echo ${{ github.event.number }} > ${{ env.latest }}/${{ env.RDJSON_DIR_PATH }}/PR_number.txt
+        # TODO: maybe PR_number is not required
 
       - name: Run reviewdog
         #env:
@@ -117,8 +119,10 @@ jobs:
 
       - uses: actions/upload-artifact@v2
         with:
-          name: rdjson
-          path: ${{ env.latest }}/${{ env.RDJSON_DIR_PATH }}
+          name: other_stuff
+          path: |
+            ${{ env.latest }}/${{ env.RDJSON_DIR_PATH }}
+
 
       - uses: actions/upload-artifact@v2
         with:
