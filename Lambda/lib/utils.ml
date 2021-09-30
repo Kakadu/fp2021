@@ -6,9 +6,12 @@ let list_remove x = List.filter ~f:(fun a -> not (String.equal a x))
 
 let free_vars =
   let rec helper acc = function
-    | Var s -> s :: acc
-    | Abs (s, l) -> acc @ list_remove s (helper [] l)
-    | App (l, r) -> helper (helper acc r) l
+    | Var s ->
+        s :: acc
+    | Abs (s, l) ->
+        acc @ list_remove s (helper [] l)
+    | App (l, r) ->
+        helper (helper acc r) l
   in
   helper []
 ;;
