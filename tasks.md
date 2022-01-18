@@ -334,12 +334,19 @@
     * Какой-нибудь тайпчекер на случай, чтобы отфильтровывать бредовые программы.
     * [new методы](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/new-modifier)
         * Я слышал, что при их использовании вместе с интерфейсами, там возникает какая-то нетривиальная семантика. Надо будет разобраться. [Вот](https://gist.github.com/Kakadu/331354abae0269e6495bbb0af416853c) пример.
+1. Go с горутинами
+    * Стандартные типы данных(int, bool, string)
+    * Циклы
+    * Условный оператор(if)
+    * Массивы
+    * Функции(обычные, анонимные и рекурсивные)
+    * Каналы(достать, положить, закрыть)
+    * Горутины(переключение по ожиданию данных из канала)
 
-##### Определюсь/допишу потом если тем будет не хватать/или кому-то очень захочется/и не будет лениво их доформулировать
+##### Определюсь/допишу потом если тем будет не хватать/или кому-то очень захочется/и не будет лениво их доформулировать, а может на 2022й оставлю
 
 1. Pascal (записан за Казанцевым)
    + алгебраические типы данных [variant records](https://www.bestprog.net/en/2016/10/10/records/#q12) (пункт 12).
-1. Go
 1. Fortran?
 1. Visual Basic.NET (клон C# с другим синтаксисом)
     * [На вики есть](https://en.wikipedia.org/wiki/Comparison_of_C_Sharp_and_Visual_Basic_.NET#Features_of_Visual_Basic_.NET_not_found_in_C#) список отличий. Если сесть и посмотреть, то наверняка можно придумать задачу.
@@ -355,7 +362,7 @@
 1. C# c [Goto](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/goto) и ещё чем-нибудь
 1. Scala где есть и аргументы call-by-value, и аргументы call-by-name. И ещё что-нибудь
 1. Refinement types by [Ranjit Jhala](https://github.com/ranjitjhala/sprite-lang)
-
+1. Sed (а тестировать будем примером реализации [brainfuck на sed](https://github.com/stedolan/bf.sed))
 
 ##### Прочие замечания
 
