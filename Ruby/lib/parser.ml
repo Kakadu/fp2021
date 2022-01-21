@@ -1,172 +1,256 @@
 open Ast
 open Angstrom
 
-(*          *)
 (* Checkers *)
-(*          *)
+let is_whitespace = function ' ' | '\t' -> true | _ -> false
+let is_stmt_sep = function '\n' | ';' | ' ' | '\t' -> true | _ -> false
+let is_digit = function '0' .. '9' -> true | _ -> false
+let is_sign = function '-' -> true | _ -> false
+let is_dot = function '.' -> true | _ -> false
+let is_quote = function '\"' -> true | _ -> false
 
-let is_reserved = function
-  | "__ENCODING__" | "__LINE__" | "__FILE__" | "BEGIN" | "END" | "alias" | "and"
-  | "begin" | "break" | "case" | "class" | "def" | "do" | "else" | "elsif"
-  | "end" | "ensure" | "false" | "for" | "if" | "in" | "module" | "next" | "nil"
-  | "not" | "return" | "self" | "super" | "or" | "then" | "true" | "undef"
-  | "unless" | "until" | "when" | "while" | "yield" | "retry" | "redo"
-  | "resque" | "lambda" ->
-      true
+let is_allowed_first_letter = function
+  | 'a' .. 'z' | 'A' .. 'Z' | '$' | '@' | '_' -> true
   | _ -> false
 
-let is_digit = function '0' .. '9' -> true | _ -> false
-let is_sign = function '+' | '-' -> true | _ -> false
-let is_point = function '.' -> true | _ -> false
-let is_quote = function '\"' -> true | _ -> false
-let is_whitespace = function ' ' | '\t' -> true | _ -> false
-let is_eol = function '\r' | '\n' -> true | _ -> false
-
-let if_reserved identifier =
-  match is_reserved identifier with
-  | true -> fail "Error: using reserved words is prohibited"
-  | false -> return identifier
-
-let is_allowed_identifier_char = function
+let is_variable = function
   | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> true
   | _ -> false
 
-let is_variable_first_char = function 'a' .. 'z' | '_' -> true | _ -> false
-let is_class_first_char = function 'A' .. 'Z' | '_' -> true | _ -> false
+let is_reserved = function
+  | "and" | "or" | "true" | "false" | "return" | "if" | "end" | "else" | "while"
+  | "def" | "class" | "e_lambda" | "break" | "next" | "nil" ->
+      true
+  | _ -> false
 
-(*                *)
-(* Parser helpers *)
-(*                *)
+(* Void Slaughterers *)
+let skip_whitespace = skip_while is_whitespace
+let skip_stmt_sep = skip_while is_stmt_sep
+let token t = skip_whitespace *> string t
 
-let token t = take_while is_whitespace *> t
+(* Brackets & Bars *)
+let between t1 t2 e1 = t1 *> skip_whitespace *> e1 <* skip_whitespace <* t2
+let round_brackets e1 = between (string "(") (string ")") e1
+let curly_brackets e1 = between (string "{") (string "}") e1
+let square_brackets e1 = between (string "[") (string "]") e1
+let vertical_bars e1 = between (string "|") (string "|") e1
 
-let between p1 p2 p =
-  p1 *> take_while is_whitespace *> p <* take_while is_whitespace <* p2
+(* Takers *)
+let take_number = take_while is_digit
+let take_sign = take_while is_sign
+let take_dot = take_while1 is_dot
+let take_string = take_till is_quote
+let take_variable = take_while is_variable
 
-let take_from _ = function
-  | "left" -> return fst
-  | "right" -> return snd
-  | _ -> fail "Error: unknown side"
+(* Expression & Statement & Identifier builders *)
+let e_add e1 e2 = Add (e1, e2)
+let e_sub e1 e2 = Sub (e1, e2)
+let e_mul e1 e2 = Mul (e1, e2)
+let e_div e1 e2 = Div (e1, e2)
+let e_mod e1 e2 = Mod (e1, e2)
+let e_eq e1 e2 = Equal (e1, e2)
+let e_gr e1 e2 = Greater (e1, e2)
+let e_gr_eq e1 e2 = GreaterOrEq (e1, e2)
+let e_less e1 e2 = Less (e1, e2)
+let e_less_eq e1 e2 = LessOrEq (e1, e2)
+let e_and e1 e2 = And (e1, e2)
+let e_or e1 e2 = Or (e1, e2)
+let e_list el1 = List el1
+let e_lambda el1 sl1 = Lambda (el1, sl1)
+let e_func_call i1 i2 el1 = Call (i1, i2, el1)
+let ps_assign e1 e2 = Assign (e1, e2)
+let ps_expression e1 = Expression e1
+let ps_return e1 = Return e1
+let ps_if_else e1 sl1 sl2 = IfElse (e1, sl1, sl2)
+let ps_while e1 sl1 = While (e1, sl1)
+let ps_class i1 sl1 = Class (i1, sl1)
+let ps_func i1 el1 sl1 = Function (i1, el1, sl1)
+let i_identifier i1 = Identifier i1
 
-let between_brackets brackets_type p =
-  let brackets =
-    match brackets_type with
-    | "rb" -> return ("(", ")")
-    | "sb" -> return ("[", "]")
-    | "cb" -> return ("{", "}")
-    | "vb" -> return ("|", "|")
-    | _ ->
-        fail
-          "Error: only round, square or curly brackets OR vertical bars are \
-           allowed"
+(* Lifters *)
+let lift_return = lift ps_return
+let lift_class = lift2 ps_class
+let lift_lambda = lift2 e_lambda
+let lift_assign = lift2 ps_assign
+let lift_while = lift2 ps_while
+let lift_func = lift3 ps_func
+let lift_func_call = lift3 e_func_call
+let lift_if_else = lift3 ps_if_else
+
+(* Tokens *)
+let t_comma = token ","
+let t_quote = token "\""
+let t_assign = token "="
+let t_end = token "end"
+let t_if = token "if"
+let t_else = token "else"
+let t_while = token "while"
+let t_def = token "def"
+let t_class = token "class"
+let t_lambda = token "lambda"
+let t_return = token "return"
+let t_instance_v = token "@"
+let t_global_v = token "$"
+let t_class_v = token "@@"
+
+(* Chains *)
+let chainl1 e op =
+  let rec go acc = lift2 (fun f x -> f acc x) op e >>= go <|> return acc in
+  e >>= fun init -> go init
+
+(* Single Parsers *)
+let p_add = token "+" *> return e_add
+let p_sub = token "-" *> return e_sub
+let p_mul = token "*" *> return e_mul
+let p_div = token "/" *> return e_div
+let p_mod = token "%" *> return e_mod
+let p_eq = token "==" *> return e_eq
+let p_gr = token ">" *> return e_gr
+let p_gr_eq = token ">=" *> return e_gr_eq
+let p_less = token "<" *> return e_less
+let p_less_eq = token "<=" *> return e_less_eq
+let p_and = token "and" *> return e_and
+let p_and_1 = token "&&" *> return e_and
+let p_or = token "or" *> return e_or
+let p_or_1 = token "||" *> return e_or
+let p_break = token "break" *> return Break
+let p_next = token "next" *> return Next
+let p_nil = token "nil" *> return Nil
+let p_true = token "true" *> return (Constant (Boolean true))
+let p_false = token "false" *> return (Constant (Boolean false))
+
+let p_identifier =
+  take_variable >>= function
+  | x when not (is_reserved x) -> return @@ Identifier x
+  | _ -> fail "variables with reserved words are prohibited"
+
+let p_local_variable =
+  take_variable >>= function
+  | x when not (is_reserved x) -> return @@ Variable (Local, Identifier x)
+  | _ -> fail "variables with reserved words are prohibited"
+
+let p_instance_variable =
+  t_instance_v *> take_variable >>= function
+  | x when not (is_reserved x) -> return @@ Variable (Instance, Identifier x)
+  | _ -> fail "variables with reserved words are prohibited"
+
+let p_global_variable =
+  t_global_v *> take_variable >>= function
+  | x when not (is_reserved x) -> return @@ Variable (Global, Identifier x)
+  | _ -> fail "variables with reserved words are prohibited"
+
+let p_class_variable =
+  t_class_v *> take_variable >>= function
+  | x when not (is_reserved x) -> return @@ Variable (Class, Identifier x)
+  | _ -> fail "variables with reserved words are prohibited"
+
+let p_integer =
+  take_sign >>= fun sign ->
+  take_number >>= fun x ->
+  return @@ Constant (Integer (int_of_string (sign ^ x)))
+
+let p_float =
+  take_sign >>= fun sign ->
+  take_number >>= fun x ->
+  take_dot >>= fun dot ->
+  take_number >>= fun part ->
+  return @@ Constant (Float (float_of_string (((sign ^ x) ^ dot) ^ part)))
+
+let p_string =
+  t_quote *> take_string <* t_quote >>= fun x -> return @@ Constant (String x)
+
+let p_lambda el1 sl1 =
+  t_lambda *> skip_whitespace
+  *> curly_brackets
+       (lift_lambda (vertical_bars el1) (sl1 <* skip_stmt_sep <|> return []))
+
+let p_func_call el1 =
+  lift_func_call p_identifier (take_dot *> p_identifier) (round_brackets el1)
+  <|> lift_func_call (return None) p_identifier (round_brackets el1)
+
+let p_func el1 sl1 =
+  let i = t_def *> p_identifier <* skip_stmt_sep in
+  lift_func i
+    (round_brackets el1 <* skip_stmt_sep <|> return [])
+    (sl1 <* skip_stmt_sep <* t_end)
+
+let p_class sl1 =
+  let i = t_class *> p_identifier <* skip_stmt_sep in
+  lift_class i sl1 <* skip_stmt_sep <* t_end
+
+let p_while el1 sl1 =
+  let e = t_while *> skip_whitespace *> el1 <* skip_stmt_sep in
+  lift_while e sl1 <* skip_stmt_sep <* t_end
+
+let p_if_else el1 sl1 =
+  let e = t_if *> skip_whitespace *> el1 <* skip_stmt_sep in
+  lift_if_else e (sl1 <* skip_stmt_sep)
+    (t_else *> sl1 <* skip_stmt_sep <|> return [] <* t_end)
+
+let p_return el1 =
+  let e = t_return *> skip_whitespace *> el1 in
+  lift_return e
+
+let p_assign el1 = lift_assign (el1 <* t_assign) el1
+
+(* Grouped Parsers *)
+let gp_low_pr_op = p_add <|> p_sub
+let gp_high_pr_op = p_mul <|> p_div <|> p_mod
+let gp_compare_op = p_eq <|> p_gr_eq <|> p_less_eq <|> p_gr <|> p_less
+let gp_logic_op = p_and <|> p_and_1 <|> p_or <|> p_or_1
+let gp_number = p_float <|> p_integer
+let gp_pseudo = p_true <|> p_false <|> p_nil
+
+let gp_variable =
+  p_class_variable <|> p_global_variable <|> p_instance_variable
+  <|> p_local_variable
+
+(* Big Things Doers *)
+type dispatch = {
+  p_expression : dispatch -> expression t;
+  p_statement : dispatch -> statement t;
+}
+
+let bundle =
+  let p_expression duo =
+    fix @@ fun p_expression ->
+    let statement_list = sep_by skip_stmt_sep (duo.p_statement duo) in
+    let expression_list = sep_by t_comma p_expression in
+    let pe_picker =
+      skip_whitespace *> peek_char_fail >>= function
+      | x when is_allowed_first_letter x ->
+          p_func_call expression_list
+          <|> p_lambda expression_list statement_list
+          <|> gp_variable <|> gp_pseudo
+      | x when is_digit x || is_sign x -> gp_number
+      | '\"' -> p_string
+      | '(' -> round_brackets p_expression
+      | '[' -> square_brackets expression_list >>| e_list
+      | _ -> fail "Unsupported 〇 got in the way"
+    in
+    let pe_high_pr = chainl1 pe_picker gp_high_pr_op in
+    let pe_low_pr = chainl1 pe_high_pr gp_low_pr_op in
+    let pe_compare = chainl1 pe_low_pr gp_compare_op in
+    chainl1 pe_compare gp_logic_op
   in
-  return
-    (* (take_from brackets "left" *> take_while is_whitespace *> p
-       <* take_while is_whitespace <* take_from brackets "right") *)
-    (((between (take_from brackets "left")) (take_from brackets "right")) p)
+  let p_statement duo =
+    fix @@ fun p_statement ->
+    let expression_list = sep_by t_comma (duo.p_expression duo) in
+    let statement_list = sep_by skip_stmt_sep p_statement in
+    let ps_expression = duo.p_expression duo >>| ps_expression in
+    let ps_break = p_break in
+    let ps_next = p_next in
+    let ps_assign = p_assign (duo.p_expression duo) in
+    let ps_return = p_return (duo.p_expression duo) in
+    let ps_if_else = p_if_else (duo.p_expression duo) statement_list in
+    let ps_while = p_while (duo.p_expression duo) statement_list in
+    let ps_class = p_class statement_list in
+    let ps_func = p_func expression_list statement_list in
+    skip_stmt_sep
+    *> (ps_assign <|> ps_return <|> ps_break <|> ps_next <|> ps_if_else
+      <|> ps_while <|> ps_class <|> ps_func <|> ps_expression)
+  in
+  { p_expression; p_statement }
 
-(*              *)
-(* Parser parts *)
-(*              *)
-
-(* Number parser *)
-let sign =
-  peek_char >>= function
-  | Some s when is_sign s -> take 1 >>= fun s -> return s
-  | _ -> return String.empty
-
-let integer_part = take_while1 is_digit
-
-let is_float =
-  peek_char >>= function
-  | Some p when is_point p -> advance 1 >>| fun () -> true
-  (* | Some p when is_point p -> return true *)
-  | _ -> return false
-
-let number_parser =
-  take_while is_whitespace *> sign >>= function
-  | sign -> (
-      integer_part >>= function
-      | integer_part -> (
-          is_float >>= function
-          | true -> (
-              take_while1 is_digit <* take_while is_whitespace >>= function
-              | fractional_part ->
-                  return
-                    (Constant
-                       (Float
-                          (float_of_string
-                             (sign ^ integer_part ^ "." ^ fractional_part)))))
-          | false ->
-              return (Constant (Int (int_of_string (sign ^ integer_part))))))
-
-(* String parser *)
-let string_parser =
-  char '\"' *> take_till is_quote <* char '\"' >>= function
-  | str -> return (Constant (String str))
-
-(* Identifiers parser *)
-let identifier_parser allowed_first_char =
-  take_while is_whitespace *> peek_char >>= function
-  | Some c when allowed_first_char c -> (
-      take_while is_allowed_identifier_char >>= function
-      | identifier -> if_reserved identifier)
-  | _ -> fail "Error: wrong identifier naming"
-
-let variable_identifier_parser = identifier_parser is_variable_first_char
-let method_identifier_parser = identifier_parser is_variable_first_char
-let class_identifier_parser = identifier_parser is_class_first_char
-
-(* Something parser *)
-(* Something parser *)
-(* Something parser *)
-(* Something parser *)
-(* Something parser *)
-
-(*        *)
-(* Parser *)
-(*        *)
-
+let p_final = sep_by skip_stmt_sep (bundle.p_statement bundle) <* skip_stmt_sep
 let parse p s = parse_string ~consume:All p s
-
-(* Stand-alone parser goes here *)
-
-(*       *)
-(* Tests *)
-(*       *)
-
-(* Number parser *)
-let%test _ = parse number_parser "420" = Ok (Constant (Int 420))
-let%test _ = parse number_parser "-420" = Ok (Constant (Int (-420)))
-let%test _ = parse number_parser "420.69" = Ok (Constant (Float 420.69))
-let%test _ = parse number_parser "-420.69" = Ok (Constant (Float (-420.69)))
-
-(* String parser *)
-let%test _ =
-  parse string_parser "\"tasuketekudasai\""
-  = Ok (Constant (String "tasuketekudasai"))
-
-(* Variables identifier parser *)
-let%test _ = parse variable_identifier_parser "x" = Ok "x"
-
-let%test _ =
-  parse variable_identifier_parser "X"
-  = Error ": Error: wrong identifier naming"
-
-let%test _ =
-  parse variable_identifier_parser "1"
-  = Error ": Error: wrong identifier naming"
-
-(* Methods identifier parser *)
-let%test _ = parse method_identifier_parser "calc" = Ok "calc"
-
-let%test _ =
-  parse method_identifier_parser "Calc"
-  = Error ": Error: wrong identifier naming"
-
-(* Classes identifier parser *)
-let%test _ = parse class_identifier_parser "Vehicle" = Ok "Vehicle"
-
-let%test _ =
-  parse class_identifier_parser "vehicle"
-  = Error ": Error: wrong identifier naming"
