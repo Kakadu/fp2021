@@ -19,7 +19,7 @@ let is_variable = function
 
 let is_reserved = function
   | "and" | "or" | "true" | "false" | "return" | "if" | "end" | "else" | "while"
-  | "def" | "class" | "e_lambda" | "break" | "next" | "nil" ->
+  | "def" | "class" | "lambda" | "break" | "next" | "nil" ->
       true
   | _ -> false
 
