@@ -1,18 +1,17 @@
-### An implementation of OCaml with typed effects
+### An implementaion of OCaml effects mini-language
 
 This is a homework for functional programming course.
 
 License: LGPL for implementation code + WTFPL for test examles in miniLanguage
 
-Author: IlyaMuravjov, muravjovilya@gmail.com
+Authors: Sergey Loktev, Alexander Fedkin
 
 Features done (append only):
 
 - Parser
-- Type checker
+- Typechecker
 - Interpreter
 
-Features in progress (and TODOs):
 
 ##### Замечания по стилю кодирования
 

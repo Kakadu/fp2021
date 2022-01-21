@@ -1,18 +1,16 @@
-### An implementation of OCaml with typed effects
+### An implementaion of Lambda mini-language
 
 This is a homework for functional programming course.
 
 License: LGPL for implementation code + WTFPL for test examles in miniLanguage
 
-Author: IlyaMuravjov, muravjovilya@gmail.com
+Author: MIkhail Vintcukevich, mishavint@mail.ru
 
 Features done (append only):
 
 - Parser
-- Type checker
-- Interpreter
+- interpreter of functions
 
-Features in progress (and TODOs):
 
 ##### Замечания по стилю кодирования
 
