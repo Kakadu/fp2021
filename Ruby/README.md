@@ -5,12 +5,11 @@
 #### author: Andrey Tarbeev
 
 ### Features done:
-- ...
+- parser (?)
 - ...
 - ...
 
 ### Features in progress:
-- parser
 - interpreter
 - tests
 - ...
