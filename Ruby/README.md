@@ -4,14 +4,18 @@
 
 #### author: Andrey Tarbeev
 
+### Consists of:
+- `parser`
+- `interpreter`
+
 ### Features done:
-- parser (?)
-- ...
+- `tl;dr (later)`
 - ...
 
 ### Features in progress:
-- interpreter
-- tests
+- `multiple assignment (x, y = 1, 2)`
+- `fix list output (puts list)`
+- `add power operation (1 ** 2)`
 - ...
 
 #### license: LGPL for implementation + WTFPL for tests
