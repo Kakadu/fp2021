@@ -44,6 +44,8 @@ let tmp_ctx =
     output = [];
   }
 
+let tmp_class_ctx = { id = Identifier "tmp"; vars = []; funcs = [] }
+
 (* Context Interface *)
 (* Existence *)
 let if_var_exists_in_ctx i ctx =
@@ -310,16 +312,15 @@ let rec eval env single_statement =
         checker env
     | Function (i, a, s) ->
         add_func_in_ctx i (get_identifiers_from_args a) s env
-    | Class (i, s) ->
-        let class_ctx = doer2 tmp_ctx s in
-        if if_class_exists_in_ctx i env then env
-        else
-          {
-            env with
-            classes =
-              env.classes
-              @ [ { id = i; vars = class_ctx.vars; funcs = class_ctx.funcs } ];
-          }
+    | Class (i, s) -> (
+        let gl_ctx = doer2 tmp_ctx s in
+        let cl_ctx =
+          { tmp_class_ctx with vars = gl_ctx.vars; funcs = gl_ctx.funcs }
+        in
+        match if_class_exists_in_ctx i env with
+        | true -> env
+        | false ->
+            { env with classes = env.classes @ [ { cl_ctx with id = i } ] })
   in
   stmt single_statement
 
@@ -335,8 +336,8 @@ and add_output eval_expr ctx = function
       let tmp = List.map (eval_expr ctx) e in
       let tmp1 = List.map (add_output eval_expr ctx) tmp in
       let tmp2 = List.map (fun x -> x.output) tmp1 in
-      let tmp3 = List.concat tmp2 in
-      { ctx with output = tmp3 }
+      let result = List.concat tmp2 in
+      { ctx with output = result }
 
 let rec eval_stmts eval ctx = function
   | [] -> ctx
