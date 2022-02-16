@@ -99,8 +99,9 @@ let unpack_string_in_identifier = function
   | Identifier x -> x
   | _ -> failwith "object was expected"
 
-let unpack_int_in_value e =
-  match e with Integer i -> i | _ -> failwith "not a integer"
+let unpack_int_in_value = function
+  | Integer i -> i
+  | _ -> failwith "not a integer"
 
 let unpack_list_in_value = function List l -> l | _ -> failwith "not a List"
 
@@ -109,15 +110,13 @@ let if_list i ctx =
   match get_var_value_from_ctx i ctx with List _ -> true | _ -> false
 
 let combine_args_and_params args params =
-  let rec doer rest =
-    match rest with
+  let rec doer = function
     | [] -> []
     | hd :: tl -> { id = fst hd; value = snd hd } :: doer tl
   in
   doer (List.combine args params)
 
-let rec get_identifiers_from_args e =
-  match e with
+let rec get_identifiers_from_args = function
   | hd :: tl ->
       (match hd with Variable (Local, i) -> i | _ -> failwith "")
       :: get_identifiers_from_args tl
@@ -129,9 +128,7 @@ let rec eval env single_statement =
     if c.sgnl == 3 then c.last_return
     else match s with [] -> Nil | hd :: tl -> doer1 (eval c hd) tl
   in
-  let rec doer2 c s =
-    match s with [] -> c | hd :: tl -> doer2 (eval c hd) tl
-  in
+  let rec doer2 c = function [] -> c | hd :: tl -> doer2 (eval c hd) tl in
   let rec expr e_env = function
     | Constant x -> x
     | Add (l, r) -> (
@@ -174,13 +171,11 @@ let rec eval env single_statement =
     | GreaterOrEq (l, r) -> Boolean (expr e_env l >= expr e_env r)
     | And (l, r) -> Boolean (expr e_env l = expr e_env r)
     | Or (l, r) ->
-        Boolean
-          (if expr e_env l = Boolean true || expr e_env r = Boolean true then
-           true
-          else false)
-    | Variable (_, i) ->
-        if if_var_exists_in_ctx i e_env then get_var_value_from_ctx i e_env
-        else failwith "undefined Variable"
+        Boolean (expr e_env l = Boolean true || expr e_env r = Boolean true)
+    | Variable (_, i) -> (
+        match if_var_exists_in_ctx i e_env with
+        | true -> get_var_value_from_ctx i e_env
+        | false -> failwith "undefined Variable")
     | ListAccess (i, e) -> (
         match if_var_exists_in_ctx i e_env with
         | false -> failwith "undefined Variable"
@@ -289,25 +284,28 @@ let rec eval env single_statement =
     | Expression _ -> env
     | Assign (l, r) -> (
         match l with
-        | Variable (Local, i) ->
-            if if_var_exists_in_ctx i env == false then
-              add_var_in_ctx i (expr env r) env
-            else change_var_in_ctx i (expr env r) env
+        | Variable (Local, i) -> (
+            match if_var_exists_in_ctx i env with
+            | false -> add_var_in_ctx i (expr env r) env
+            | true -> change_var_in_ctx i (expr env r) env)
         | _ -> failwith "L or R has unsupported type")
-    | IfElse (e, s1, s2) ->
-        if expr env e = Boolean true then doer2 env s1 else doer2 env s2
+    | IfElse (e, s1, s2) -> (
+        match expr env e = Boolean true with
+        | true -> doer2 env s1
+        | false -> doer2 env s2)
     | Puts x -> add_output expr env (expr env x)
     | While (e, s) ->
         let rec checker ctx =
           match expr ctx e with Boolean false -> ctx | _ -> doer ctx s
         and doer ctx1 s =
-          if ctx1.sgnl == 1 then { ctx1 with sgnl = 0 }
-          else if ctx1.sgnl == 2 then checker { ctx1 with sgnl = 0 }
-          else if ctx1.sgnl == 3 then ctx1
-          else
-            match s with
-            | [] -> checker ctx1
-            | hd :: tl -> doer (eval ctx1 hd) tl
+          match ctx1.sgnl with
+          | 1 -> { ctx1 with sgnl = 0 }
+          | 2 -> checker { ctx1 with sgnl = 0 }
+          | 3 -> ctx1
+          | _ -> (
+              match s with
+              | [] -> checker ctx1
+              | hd :: tl -> doer (eval ctx1 hd) tl)
         in
         checker env
     | Function (i, a, s) ->
@@ -325,8 +323,7 @@ let rec eval env single_statement =
   in
   stmt single_statement
 
-and add_output eval_expr ctx v =
-  match v with
+and add_output eval_expr ctx = function
   | Integer x -> { ctx with output = ctx.output @ [ Int.to_string x ] }
   | Float x -> { ctx with output = ctx.output @ [ Float.to_string x ] }
   | String x -> { ctx with output = ctx.output @ [ x ] }
