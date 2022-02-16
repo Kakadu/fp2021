@@ -24,7 +24,7 @@ nil
         Expression (Constant (Boolean true));
         Expression (Constant (String "bread"));
         Expression (Constant (Boolean false));
-        Expression Nil;
+        Expression (Constant Nil);
       ]
 
 let%test _ =
@@ -142,11 +142,7 @@ let%test _ =
       [
         Expression
           (Lambda
-             ( [
-                 Variable (Local, Identifier "x");
-                 Variable (Local, Identifier "y");
-                 Variable (Local, Identifier "z");
-               ],
+             ( [ Identifier "x"; Identifier "y"; Identifier "z" ],
                [
                  Expression
                    (Add
@@ -178,7 +174,7 @@ z = @x + @@y * $g
         Assign
           ( Variable (Local, Identifier "x"),
             Lambda
-              ( [ Variable (Local, Identifier "x") ],
+              ( [ Identifier "x" ],
                 [ Expression (Variable (Local, Identifier "x")) ] ) );
         Assign
           ( Variable (Local, Identifier "x"),
@@ -195,16 +191,21 @@ z = @x + @@y * $g
                     Constant (Integer 8) ) ) );
         Assign
           ( Variable (Local, Identifier "x"),
-            List
-              [
-                Constant (Integer 1); Constant (Integer 2); Constant (Integer 3);
-              ] );
+            Constant
+              (List
+                 [
+                   Constant (Integer 1);
+                   Constant (Integer 2);
+                   Constant (Integer 3);
+                 ]) );
         Assign
           ( Variable (Local, Identifier "y"),
-            List
-              [
-                Call (Null, Identifier "f", []); Call (Null, Identifier "x", []);
-              ] );
+            Constant
+              (List
+                 [
+                   Call (Null, Identifier "f", []);
+                   Call (Null, Identifier "x", []);
+                 ]) );
         Assign
           ( Variable (Local, Identifier "z"),
             Add
@@ -238,7 +239,7 @@ end
             [],
             [
               Assign (Variable (Local, Identifier "x"), Constant (Integer 1));
-              Return Nil;
+              Return (Constant Nil);
             ] );
         Function
           ( Identifier "func3",
@@ -345,6 +346,7 @@ item.yeet(true)
 let%test _ =
   parse p_final {|
 1 == 1
+1 != 0
 1 > 0
 0 < 1
 1 >= 1
@@ -353,6 +355,7 @@ let%test _ =
   = Ok
       [
         Expression (Equal (Constant (Integer 1), Constant (Integer 1)));
+        Expression (NotEqual (Constant (Integer 1), Constant (Integer 0)));
         Expression (Greater (Constant (Integer 1), Constant (Integer 0)));
         Expression (Less (Constant (Integer 0), Constant (Integer 1)));
         Expression (GreaterOrEq (Constant (Integer 1), Constant (Integer 1)));

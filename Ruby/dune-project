@@ -20,7 +20,6 @@
  (description "A 2021-2022 functional programming course homework.")
  (version 0.01)
  (depends
-  base
   dune
   angstrom
   ppx_expect
