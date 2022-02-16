@@ -17,5 +17,6 @@
 - `fix list output (puts list)`
 - `mutable list elements (list[0] = 1)`
 - `add power operation (1 ** 2)`
+- `add conscious/not-pythonish variable types (instance, class, global)`
 
 #### license: LGPL for implementation + WTFPL for tests
