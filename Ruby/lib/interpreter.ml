@@ -331,7 +331,7 @@ and add_output eval_expr ctx v =
   | Float x -> { ctx with output = ctx.output @ [ Float.to_string x ] }
   | String x -> { ctx with output = ctx.output @ [ x ] }
   | Boolean x -> { ctx with output = ctx.output @ [ Bool.to_string x ] }
-  | Nil -> { ctx with output = ctx.output @ [ String.empty ] }
+  | Nil -> { ctx with output = ctx.output @ [ "" ] }
   | Object (Identifier x) -> { ctx with output = ctx.output @ [ "obj:" ^ x ] }
   | Object Null -> ctx
   | List e ->
