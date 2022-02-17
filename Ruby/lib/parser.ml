@@ -318,3 +318,6 @@ let bundle =
 
 let p_final = sep_by skip_stmt_sep (bundle.p_statement bundle) <* skip_stmt_sep
 let parse p s = parse_string ~consume:All p s
+
+let parser_result_to_stmt_list str =
+  match parse p_final str with Ok p_final -> p_final | Error _ -> []

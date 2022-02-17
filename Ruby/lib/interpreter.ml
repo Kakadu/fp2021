@@ -79,9 +79,8 @@ let add_func_in_ctx i a s ctx =
   { ctx with funcs = ctx.funcs @ [ { id = i; args = a; stmts = s } ] }
 
 (* Getting *)
-let get_var_value_from_ctx i ctx =
-  let rcd = List.find (fun (x : var_ctx) -> i = x.id) ctx.vars in
-  (fun x -> x.value) rcd
+let get_var_ctx_from_ctx i ctx =
+  List.find (fun (x : var_ctx) -> i = x.id) ctx.vars
 
 let get_func_ctx_from_ctx i ctx =
   List.find (fun (x : func_ctx) -> i = x.id) ctx.funcs
@@ -109,7 +108,7 @@ let unpack_list_in_value = function List l -> l | _ -> failwith "not a List"
 
 (* Misc *)
 let if_list i ctx =
-  match get_var_value_from_ctx i ctx with List _ -> true | _ -> false
+  match (get_var_ctx_from_ctx i ctx).value with List _ -> true | _ -> false
 
 let combine_args_and_params args params =
   let rec doer = function
@@ -176,7 +175,7 @@ let rec eval env single_statement =
         Boolean (expr e_env l = Boolean true || expr e_env r = Boolean true)
     | Variable (_, i) -> (
         match if_var_exists_in_ctx i e_env with
-        | true -> get_var_value_from_ctx i e_env
+        | true -> (get_var_ctx_from_ctx i e_env).value
         | false -> failwith "undefined Variable")
     | ListAccess (i, e) -> (
         match if_var_exists_in_ctx i e_env with
@@ -185,7 +184,9 @@ let rec eval env single_statement =
             match if_list i e_env with
             | false -> failwith "not a List"
             | true ->
-                let l = unpack_list_in_value (get_var_value_from_ctx i e_env) in
+                let l =
+                  unpack_list_in_value (get_var_ctx_from_ctx i e_env).value
+                in
                 let index = unpack_int_in_value (expr e_env e) in
                 expr e_env (List.nth l index)))
     | Call (i1, i2, e) -> (
@@ -209,7 +210,7 @@ let rec eval env single_statement =
             | false -> failwith "undefined Variable"
             | true -> (
                 let obj_class =
-                  unpack_identifier_in_value (get_var_value_from_ctx i env)
+                  unpack_identifier_in_value (get_var_ctx_from_ctx i env).value
                 in
                 let obj_class_ctx = get_class_ctx_from_ctx obj_class env in
                 match if_class_exists_in_ctx obj_class env with
@@ -345,11 +346,8 @@ let rec eval_stmts eval ctx = function
 
 let init_main_ctx = eval_stmts eval main_ctx
 
-let parser_result_to_stmt_list str =
-  let tmp = Parser.parse Parser.p_final str in
-  match tmp with Ok p_final -> p_final | Error msg -> failwith msg
-
-let run_ruby_debug_ctx str = init_main_ctx @@ parser_result_to_stmt_list str
+let run_ruby_debug_ctx str =
+  init_main_ctx @@ Parser.parser_result_to_stmt_list str
 
 let run_ruby str =
   let print_output = List.iter (Printf.printf "%s\n") in
