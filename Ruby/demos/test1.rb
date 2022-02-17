@@ -3,8 +3,8 @@ puts "=al dente Smol Ruby Demo="
 puts "========================="
 
 class Magic
-  def method_missing(m, args)
-      if m == "fly"
+  def method_missing(m, *args)
+      if m.to_s() == "fly"
         return args[0] + args[1]
       else
         return 0
@@ -74,3 +74,7 @@ while true
     break
   end
 end
+
+puts "--"
+puts "<naninani.to_s()>"
+puts i.to_s() == "10"

@@ -286,6 +286,7 @@ let bundle =
           <|> p_lambda identifier_list statement_list
           <|> gp_variable <|> gp_pseudo
       | x when is_digit x || is_sign x -> gp_number
+      | '*' -> char '*' *> p_expression
       | '\"' -> p_string
       | '(' -> round_brackets p_expression
       | '[' -> square_brackets expression_list >>| e_list

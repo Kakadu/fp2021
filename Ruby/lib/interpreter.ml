@@ -92,6 +92,13 @@ let get_func_ctx_from_class_ctx i (ctx : class_ctx) =
   List.find (fun (x : func_ctx) -> i = x.id) ctx.funcs
 
 (* Unpackers *)
+let multliple_str_unpacker = function
+  | Integer x -> Int.to_string x
+  | Float x -> Float.to_string x
+  | String x -> x
+  | Boolean x -> Bool.to_string x
+  | Nil | List _ | Object _ -> ""
+
 let unpack_identifier_in_value = function
   | Object x -> x
   | _ -> failwith "object was expected"
@@ -107,6 +114,8 @@ let unpack_int_in_value = function
 let unpack_list_in_value = function List l -> l | _ -> failwith "not a List"
 
 (* Misc *)
+let if_object = function Object _ -> true | _ -> false
+
 let if_list i ctx =
   match (get_var_ctx_from_ctx i ctx).value with List _ -> true | _ -> false
 
@@ -119,7 +128,9 @@ let combine_args_and_params args params =
 
 let rec get_identifiers_from_args = function
   | hd :: tl ->
-      (match hd with Variable (Local, i) -> i | _ -> failwith "")
+      (match hd with
+      | Variable (Local, i) -> i
+      | _ -> failwith "Local variables only")
       :: get_identifiers_from_args tl
   | [] -> []
 
@@ -209,57 +220,70 @@ let rec eval env single_statement =
             match if_var_exists_in_ctx i env with
             | false -> failwith "undefined Variable"
             | true -> (
-                let obj_class =
-                  unpack_identifier_in_value (get_var_ctx_from_ctx i env).value
-                in
-                let obj_class_ctx = get_class_ctx_from_ctx obj_class env in
-                match if_class_exists_in_ctx obj_class env with
-                | false -> failwith "undefined Class"
+                match not (if_object (get_var_ctx_from_ctx i env).value) with
                 | true -> (
-                    match if_func_exists_in_class_ctx i2 obj_class_ctx with
-                    | true ->
-                        doer1
-                          {
-                            tmp_ctx with
-                            vars =
-                              obj_class_ctx.vars
-                              @ combine_args_and_params
-                                  (get_func_ctx_from_class_ctx i2 obj_class_ctx)
-                                    .args
-                                  (List.map (expr env) e);
-                            funcs = obj_class_ctx.funcs;
-                          }
-                          (get_func_ctx_from_class_ctx i2 obj_class_ctx).stmts
-                    | false -> (
-                        match
-                          if_func_exists_in_class_ctx
-                            (Identifier "method_missing") obj_class_ctx
-                        with
-                        | false -> failwith "undefined Class Function"
+                    match i2 with
+                    | Identifier "to_s" ->
+                        String
+                          (multliple_str_unpacker
+                             (get_var_ctx_from_ctx i env).value)
+                    | _ -> failwith "std:unsupported")
+                | false -> (
+                    let obj_class =
+                      unpack_identifier_in_value
+                        (get_var_ctx_from_ctx i env).value
+                    in
+                    let obj_class_ctx = get_class_ctx_from_ctx obj_class env in
+                    match if_class_exists_in_ctx obj_class env with
+                    | false -> failwith "undefined Class"
+                    | true -> (
+                        match if_func_exists_in_class_ctx i2 obj_class_ctx with
                         | true ->
-                            let f_cl_ctx =
-                              get_func_ctx_from_class_ctx
-                                (Identifier "method_missing") obj_class_ctx
-                            in
                             doer1
                               {
                                 tmp_ctx with
                                 vars =
                                   obj_class_ctx.vars
                                   @ combine_args_and_params
-                                      [ List.hd f_cl_ctx.args ]
-                                      [
-                                        String (unpack_string_in_identifier i2);
-                                      ]
-                                  @ combine_args_and_params
-                                      [
-                                        List.hd
-                                          (List.rev (List.tl f_cl_ctx.args));
-                                      ]
-                                      [ List e ];
+                                      (get_func_ctx_from_class_ctx i2
+                                         obj_class_ctx)
+                                        .args
+                                      (List.map (expr env) e);
                                 funcs = obj_class_ctx.funcs;
                               }
-                              f_cl_ctx.stmts)))))
+                              (get_func_ctx_from_class_ctx i2 obj_class_ctx)
+                                .stmts
+                        | false -> (
+                            match
+                              if_func_exists_in_class_ctx
+                                (Identifier "method_missing") obj_class_ctx
+                            with
+                            | false -> failwith "undefined Class Function"
+                            | true ->
+                                let f_cl_ctx =
+                                  get_func_ctx_from_class_ctx
+                                    (Identifier "method_missing") obj_class_ctx
+                                in
+                                doer1
+                                  {
+                                    tmp_ctx with
+                                    vars =
+                                      obj_class_ctx.vars
+                                      @ combine_args_and_params
+                                          [ List.hd f_cl_ctx.args ]
+                                          [
+                                            String
+                                              (unpack_string_in_identifier i2);
+                                          ]
+                                      @ combine_args_and_params
+                                          [
+                                            List.hd
+                                              (List.rev (List.tl f_cl_ctx.args));
+                                          ]
+                                          [ List e ];
+                                    funcs = obj_class_ctx.funcs;
+                                  }
+                                  f_cl_ctx.stmts))))))
     | CallLambda (e1, s1, e2) ->
         let rec doer c s =
           if c.sgnl == 3 then c.last_return

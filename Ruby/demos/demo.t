@@ -36,3 +36,6 @@ Use `dune promote` after you change things that should runned
   7
   8
   9
+  --
+  <naninani.to_s()>
+  true
