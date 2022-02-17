@@ -2,6 +2,7 @@ Cram tests here. They run and compare program output to the expected output
 https://dune.readthedocs.io/en/stable/tests.html#cram-tests
 Use `dune promote` after you change things that should runned
 
+  $ ruby test1.rb
   $ ./demo.exe
   =========================
   =al dente Smol Ruby Demo=

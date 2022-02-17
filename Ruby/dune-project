@@ -23,6 +23,7 @@
   dune
   angstrom
   ppx_expect
+  ppx_blob
   ppx_deriving
   (odoc :with-doc)
   (ocamlformat :build)

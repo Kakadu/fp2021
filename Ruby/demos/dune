@@ -2,7 +2,9 @@
  (name demo)
  (modules demo)
  (public_name demo)
- (libraries ruby_lib))
+ (libraries ruby_lib)
+ (preprocess
+  (pps ppx_blob)))
 
 (cram
- (deps ./demo.exe))
+ (deps test1.rb ./demo.exe))
