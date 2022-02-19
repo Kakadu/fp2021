@@ -2,76 +2,52 @@ Cram tests here. They run and compare program output to the expected output
 https://dune.readthedocs.io/en/stable/tests.html#cram-tests
 Use `dune promote` after you change things that should runned
 
-  $ ruby test1.rb
-  =========================
-  =al dente Smol Ruby Demo=
-  =========================
-  --
-  <method missing>
-  42
-  0
-  --
-  <recursion>
-  10946
-  --
-  <anonymous func>
-  true
-  --
-  <list with index access>
-  131
-  --
-  <while with break and next>
-  5
-  10
-  15
-  20
-  --
-  1
-  2
-  3
-  4
-  5
-  6
-  7
-  8
-  9
-  --
-  <naninani.to_s()>
-  true
+  $ ./anonymous.exe
+  タイムマシン
 
-  $ ./demo.exe
-  =========================
-  =al dente Smol Ruby Demo=
-  =========================
-  --
-  <method missing>
+  $ ruby ./rbs/anonymous.rb
+  タイムマシン
+
+  $ ./closure.exe
+  2
+
+  $ ruby ./rbs/closure.rb
+  2
+
+  $ ./method_missing.exe
   42
-  0
-  --
-  <recursion>
-  10946
-  --
-  <anonymous func>
-  true
-  --
-  <list with index access>
-  131
-  --
-  <while with break and next>
-  5
-  10
-  15
-  20
-  --
+  no such method!
+
+  $ ruby ./rbs/method_missing.rb
+  42
+  no such method!
+
+  $ ./multiple_assignment.exe
   1
   2
-  3
-  4
-  5
-  6
-  7
-  8
-  9
-  --
-  <naninani.to_s()>
-  true
+  13
+  :)
+  20
+
+  $ ruby ./rbs/multiple_assignment.rb
+  1
+  2
+  13
+  :)
+  20
+
+  $ ./object.exe
+  13
+  1998
+
+  $ ruby ./rbs/object.rb
+  13
+  1998
+
+  $ ./recursion.exe
+  55
+  3628800
+
+  $ ruby ./rbs/recursion.rb
+  55
+  3628800

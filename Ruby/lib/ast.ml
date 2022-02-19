@@ -1,3 +1,9 @@
+type signal =
+  | Work
+  | Break
+  | Next
+  | Return  (** to track the last impact in environment *)
+
 type identifier = Null | Identifier of string
 [@@deriving show { with_path = false }]
 
@@ -9,9 +15,10 @@ type value =
   | Integer of int
   | Float of float
   | Boolean of bool
-  | Nil
-  | Object of identifier
-  | List of expression list
+  | Nil  (** "null" *)
+  | Object of identifier  (** shows who's object a value is *)
+  | Lambda of identifier list * statement list
+  | List of expression list  (** calcs [expr -> value] when needed *)
 [@@deriving show { with_path = false }]
 
 and expression =
@@ -33,7 +40,6 @@ and expression =
   | ListAccess of identifier * expression
   | Call of identifier * identifier * expression list
       (** (name of the parent: instance OR "Null" in case of stand-alone func) (name of the called func) [expr list] *)
-  | Lambda of identifier list * statement list  (** [var list] [stmt list] *)
   | CallLambda of identifier list * statement list * expression list
       (** [var list] [stmt list] [call parameters] *)
 [@@deriving show { with_path = false }]
@@ -41,6 +47,7 @@ and expression =
 and statement =
   | Expression of expression
   | Assign of expression * expression
+  | MultipleAssign of expression list * expression list  (** x, y = 1, 2 *)
   | Return of expression
   | IfElse of expression * statement list * statement list
       (** (expr) [stmt list] [stmt list OR [] in case of "else" absence] *)

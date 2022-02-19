@@ -14,9 +14,10 @@ type class_ctx = { id : identifier; vars : var_ctx list; funcs : func_ctx list }
 type global_ctx = {
   id : identifier;
   vars : var_ctx list;
+  gl_vars : var_ctx list;
   funcs : func_ctx list;
   classes : class_ctx list;
-  sgnl : int;  (** SIGNAL: 0 -- nothing; 1 -- break; 2 -- next; 3 -- return *)
+  signal : signal;
   last_return : value;
   output : string list;
 }
@@ -26,9 +27,10 @@ let main_ctx =
   {
     id = Identifier "main";
     vars = [];
+    gl_vars = [];
     funcs = [];
     classes = [];
-    sgnl = 0;
+    signal = Work;
     last_return = Nil;
     output = [];
   }
@@ -37,9 +39,10 @@ let tmp_ctx =
   {
     id = Identifier "tmp";
     vars = [];
+    gl_vars = [];
     funcs = [];
     classes = [];
-    sgnl = 0;
+    signal = Work;
     last_return = Nil;
     output = [];
   }
@@ -62,7 +65,7 @@ let if_func_exists_in_class_ctx i (ctx : class_ctx) =
 
 (* Changing *)
 let add_var_in_ctx i v ctx =
-  { ctx with vars = ctx.vars @ [ { id = i; value = v } ] }
+  { ctx with vars = { id = i; value = v } :: ctx.vars }
 
 let change_var_in_ctx i v ctx =
   let rec new_vars vl =
@@ -76,7 +79,7 @@ let change_var_in_ctx i v ctx =
   { ctx with vars = new_vars ctx.vars }
 
 let add_func_in_ctx i a s ctx =
-  { ctx with funcs = ctx.funcs @ [ { id = i; args = a; stmts = s } ] }
+  { ctx with funcs = { id = i; args = a; stmts = s } :: ctx.funcs }
 
 (* Getting *)
 let get_var_ctx_from_ctx i ctx =
@@ -97,7 +100,7 @@ let multliple_str_unpacker = function
   | Float x -> Float.to_string x
   | String x -> x
   | Boolean x -> Bool.to_string x
-  | Nil | List _ | Object _ -> ""
+  | Nil | List _ | Object _ | Lambda _ -> ""
 
 let unpack_identifier_in_value = function
   | Object x -> x
@@ -114,8 +117,6 @@ let unpack_int_in_value = function
 let unpack_list_in_value = function List l -> l | _ -> failwith "not a List"
 
 (* Misc *)
-let if_object = function Object _ -> true | _ -> false
-
 let if_list i ctx =
   match (get_var_ctx_from_ctx i ctx).value with List _ -> true | _ -> false
 
@@ -134,13 +135,26 @@ let rec get_identifiers_from_args = function
       :: get_identifiers_from_args tl
   | [] -> []
 
+let rec concat_var_lists base = function
+  | [] -> base
+  | (hd : var_ctx) :: tl -> (
+      match if_var_exists_in_ctx hd.id base with
+      | false -> concat_var_lists { base with vars = hd :: base.vars } tl
+      | true -> concat_var_lists (change_var_in_ctx hd.id hd.value base) tl)
+
+let concat_gl_var_lists base = function
+  | [] -> base
+  | (hd : var_ctx) :: tl -> (
+      match if_var_exists_in_ctx hd.id base with
+      | false -> concat_var_lists { base with vars = hd :: base.gl_vars } tl
+      | true -> concat_var_lists (change_var_in_ctx hd.id hd.value base) tl)
+
 (* Machine *)
 let rec eval env single_statement =
   let rec doer1 c s =
-    if c.sgnl == 3 then c.last_return
+    if c.signal == Return then c.last_return
     else match s with [] -> Nil | hd :: tl -> doer1 (eval c hd) tl
   in
-  let rec doer2 c = function [] -> c | hd :: tl -> doer2 (eval c hd) tl in
   let rec expr e_env = function
     | Constant x -> x
     | Add (l, r) -> (
@@ -208,11 +222,13 @@ let rec eval env single_statement =
             | true ->
                 doer1
                   {
-                    tmp_ctx with
-                    vars =
-                      combine_args_and_params
-                        (get_func_ctx_from_ctx i2 env).args
-                        (List.map (expr env) e);
+                    (concat_var_lists env
+                       (combine_args_and_params
+                          (get_func_ctx_from_ctx i2 env).args
+                          (List.map (expr env) e)))
+                    with
+                    id = Identifier "tmp";
+                    gl_vars = env.vars;
                     funcs = [ get_func_ctx_from_ctx i2 env ];
                   }
                   (get_func_ctx_from_ctx i2 env).stmts)
@@ -220,15 +236,39 @@ let rec eval env single_statement =
             match if_var_exists_in_ctx i env with
             | false -> failwith "undefined Variable"
             | true -> (
-                match not (if_object (get_var_ctx_from_ctx i env).value) with
-                | true -> (
-                    match i2 with
-                    | Identifier "to_s" ->
-                        String
-                          (multliple_str_unpacker
-                             (get_var_ctx_from_ctx i env).value)
-                    | _ -> failwith "std:unsupported")
-                | false -> (
+                match i2 with
+                | Identifier "call" -> (
+                    match (get_var_ctx_from_ctx i env).value with
+                    | Lambda (il, sl) ->
+                        let rec doer2 c s =
+                          if c.signal == Return then c.last_return
+                          else
+                            match s with
+                            | [] -> Nil
+                            | hd :: tl -> (
+                                match hd with
+                                | Expression e ->
+                                    expr
+                                      {
+                                        c with
+                                        signal = Return;
+                                        last_return = expr c e;
+                                      }
+                                      e
+                                | _ -> doer2 (eval c hd) tl)
+                        in
+                        doer2
+                          (concat_gl_var_lists
+                             (concat_var_lists env
+                                (combine_args_and_params il
+                                   (List.map (expr env) e)))
+                             env.gl_vars)
+                          sl
+                    | _ -> failwith "lambda was expected")
+                | Identifier "to_s" ->
+                    String
+                      (multliple_str_unpacker (get_var_ctx_from_ctx i env).value)
+                | _ -> (
                     let obj_class =
                       unpack_identifier_in_value
                         (get_var_ctx_from_ctx i env).value
@@ -286,28 +326,25 @@ let rec eval env single_statement =
                                   f_cl_ctx.stmts))))))
     | CallLambda (e1, s1, e2) ->
         let rec doer c s =
-          if c.sgnl == 3 then c.last_return
+          if c.signal == Return then c.last_return
           else
             match s with
             | [] -> Nil
             | hd :: tl -> (
                 match hd with
                 | Expression e ->
-                    expr { c with sgnl = 3; last_return = expr c e } e
+                    expr { c with signal = Return; last_return = expr c e } e
                 | _ -> doer (eval c hd) tl)
         in
         doer
-          {
-            tmp_ctx with
-            vars = combine_args_and_params e1 (List.map (expr env) e2);
-          }
+          (concat_var_lists env
+             (combine_args_and_params e1 (List.map (expr env) e2)))
           s1
-    | Lambda _ -> failwith "...counting roaches"
   in
   let stmt = function
-    | Break -> { env with sgnl = 1 }
-    | Next -> { env with sgnl = 2 }
-    | Return e -> { env with sgnl = 3; last_return = expr env e }
+    | Break -> { env with signal = Break }
+    | Next -> { env with signal = Next }
+    | Return e -> { env with signal = Return; last_return = expr env e }
     | Expression _ -> env
     | Assign (l, r) -> (
         match l with
@@ -315,20 +352,42 @@ let rec eval env single_statement =
             match if_var_exists_in_ctx i env with
             | false -> add_var_in_ctx i (expr env r) env
             | true -> change_var_in_ctx i (expr env r) env)
-        | _ -> failwith "L or R has unsupported type")
+        | _ -> failwith "L has unsupported type")
+    | MultipleAssign (ll, rl) ->
+        let rec through = function
+          | [] -> []
+          | hd :: tl -> (
+              match hd with
+              | Variable (Local, i) -> i :: through tl
+              | _ -> failwith "L has unsupported type")
+        in
+        let rec through1 ctx elst = function
+          | [] -> ctx
+          | hd :: tl -> (
+              match if_var_exists_in_ctx hd env with
+              | false ->
+                  through1
+                    (add_var_in_ctx hd (expr ctx (List.hd elst)) ctx)
+                    (List.tl elst) tl
+              | true ->
+                  through1
+                    (change_var_in_ctx hd (expr ctx (List.hd elst)) ctx)
+                    (List.tl elst) tl)
+        in
+        through1 env rl (through ll)
     | IfElse (e, s1, s2) -> (
         match expr env e = Boolean true with
-        | true -> doer2 env s1
-        | false -> doer2 env s2)
+        | true -> List.fold_left eval env s1
+        | false -> List.fold_left eval env s2)
     | Puts x -> add_output expr env (expr env x)
     | While (e, s) ->
         let rec checker ctx =
           match expr ctx e with Boolean false -> ctx | _ -> doer ctx s
         and doer ctx1 s =
-          match ctx1.sgnl with
-          | 1 -> { ctx1 with sgnl = 0 }
-          | 2 -> checker { ctx1 with sgnl = 0 }
-          | 3 -> ctx1
+          match ctx1.signal with
+          | Break -> { ctx1 with signal = Work }
+          | Next -> checker { ctx1 with signal = Work }
+          | Return -> ctx1
           | _ -> (
               match s with
               | [] -> checker ctx1
@@ -338,41 +397,36 @@ let rec eval env single_statement =
     | Function (i, a, s) ->
         add_func_in_ctx i (get_identifiers_from_args a) s env
     | Class (i, s) -> (
-        let gl_ctx = doer2 tmp_ctx s in
+        let gl_ctx = List.fold_left eval tmp_ctx s in
         let cl_ctx =
           { tmp_class_ctx with vars = gl_ctx.vars; funcs = gl_ctx.funcs }
         in
         match if_class_exists_in_ctx i env with
         | true -> env
-        | false ->
-            { env with classes = env.classes @ [ { cl_ctx with id = i } ] })
+        | false -> { env with classes = { cl_ctx with id = i } :: env.classes })
   in
   stmt single_statement
 
 and add_output eval_expr ctx = function
-  | Integer x -> { ctx with output = ctx.output @ [ Int.to_string x ] }
-  | Float x -> { ctx with output = ctx.output @ [ Float.to_string x ] }
-  | String x -> { ctx with output = ctx.output @ [ x ] }
-  | Boolean x -> { ctx with output = ctx.output @ [ Bool.to_string x ] }
-  | Nil -> { ctx with output = ctx.output @ [ "" ] }
-  | Object (Identifier x) -> { ctx with output = ctx.output @ [ "obj:" ^ x ] }
-  | Object Null -> ctx
+  | Integer x -> { ctx with output = Int.to_string x :: ctx.output }
+  | Float x -> { ctx with output = Float.to_string x :: ctx.output }
+  | String x -> { ctx with output = x :: ctx.output }
+  | Boolean x -> { ctx with output = Bool.to_string x :: ctx.output }
+  | Nil -> { ctx with output = "" :: ctx.output }
+  | Object (Identifier x) -> { ctx with output = ("obj:" ^ x) :: ctx.output }
+  | Object Null | Lambda _ -> ctx
   | List e ->
-      let tmp = List.map (eval_expr ctx) e in
-      let tmp1 = List.map (add_output eval_expr ctx) tmp in
-      let tmp2 = List.map (fun x -> x.output) tmp1 in
-      let result = List.concat tmp2 in
+      let vlist = List.map (eval_expr ctx) e in
+      let gl_ctx_list = List.map (add_output eval_expr ctx) vlist in
+      let str_list_str = List.map (fun x -> x.output) gl_ctx_list in
+      let result = List.concat str_list_str in
       { ctx with output = result }
 
-let rec eval_stmts eval ctx = function
-  | [] -> ctx
-  | hd :: tl -> eval_stmts eval (eval ctx hd) tl
-
-let init_main_ctx = eval_stmts eval main_ctx
+let init_main_ctx = List.fold_left eval main_ctx
 
 let run_ruby_debug_ctx str =
   init_main_ctx @@ Parser.parser_result_to_stmt_list str
 
 let run_ruby str =
   let print_output = List.iter (Printf.printf "%s\n") in
-  print_output (run_ruby_debug_ctx str).output
+  print_output (List.rev (run_ruby_debug_ctx str).output)

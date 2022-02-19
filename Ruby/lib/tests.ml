@@ -141,16 +141,17 @@ let%test _ =
   = Ok
       [
         Expression
-          (Lambda
-             ( [ Identifier "x"; Identifier "y"; Identifier "z" ],
-               [
-                 Expression
-                   (Add
-                      ( Add
-                          ( Variable (Local, Identifier "x"),
-                            Variable (Local, Identifier "y") ),
-                        Variable (Local, Identifier "z") ));
-               ] ));
+          (Constant
+             (Lambda
+                ( [ Identifier "x"; Identifier "y"; Identifier "z" ],
+                  [
+                    Expression
+                      (Add
+                         ( Add
+                             ( Variable (Local, Identifier "x"),
+                               Variable (Local, Identifier "y") ),
+                           Variable (Local, Identifier "z") ));
+                  ] )));
       ]
 
 let%test _ =
@@ -173,9 +174,10 @@ z = @x + @@y * $g
           (Variable (Local, Identifier "x"), Call (Null, Identifier "f", []));
         Assign
           ( Variable (Local, Identifier "x"),
-            Lambda
-              ( [ Identifier "x" ],
-                [ Expression (Variable (Local, Identifier "x")) ] ) );
+            Constant
+              (Lambda
+                 ( [ Identifier "x" ],
+                   [ Expression (Variable (Local, Identifier "x")) ] )) );
         Assign
           ( Variable (Local, Identifier "x"),
             Add

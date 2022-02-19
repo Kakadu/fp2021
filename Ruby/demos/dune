@@ -1,10 +1,62 @@
 (executable
- (name demo)
- (modules demo)
- (public_name demo)
+ (name anonymous)
+ (modules anonymous)
+ (public_name anonymous)
+ (libraries ruby_lib)
+ (preprocess
+  (pps ppx_blob)))
+
+(executable
+ (name closure)
+ (modules closure)
+ (public_name closure)
+ (libraries ruby_lib)
+ (preprocess
+  (pps ppx_blob)))
+
+(executable
+ (name method_missing)
+ (modules method_missing)
+ (public_name method_missing)
+ (libraries ruby_lib)
+ (preprocess
+  (pps ppx_blob)))
+
+(executable
+ (name multiple_assignment)
+ (modules multiple_assignment)
+ (public_name multiple_assignment)
+ (libraries ruby_lib)
+ (preprocess
+  (pps ppx_blob)))
+
+(executable
+ (name object)
+ (modules object)
+ (public_name object)
+ (libraries ruby_lib)
+ (preprocess
+  (pps ppx_blob)))
+
+(executable
+ (name recursion)
+ (modules recursion)
+ (public_name recursion)
  (libraries ruby_lib)
  (preprocess
   (pps ppx_blob)))
 
 (cram
- (deps test1.rb ./demo.exe))
+ (deps
+  ./rbs/anonymous.rb
+  ./anonymous.exe
+  ./rbs/closure.rb
+  ./closure.exe
+  ./rbs/method_missing.rb
+  ./method_missing.exe
+  ./rbs/multiple_assignment.rb
+  ./multiple_assignment.exe
+  ./rbs/object.rb
+  ./object.exe
+  ./rbs/recursion.rb
+  ./recursion.exe))

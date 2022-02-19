@@ -19,8 +19,7 @@ let is_variable = function
 
 let is_reserved = function
   | "and" | "or" | "true" | "false" | "return" | "if" | "end" | "else" | "while"
-  | "def" | "class" | "lambda" | "break" | "next" | "nil" | "puts" | "call"
-  | "new" ->
+  | "def" | "class" | "lambda" | "break" | "next" | "nil" | "puts" | "new" ->
       true
   | _ -> false
 
@@ -58,17 +57,17 @@ let e_less_eq e1 e2 = LessOrEq (e1, e2)
 let e_and e1 e2 = And (e1, e2)
 let e_or e1 e2 = Or (e1, e2)
 let e_list el1 = Constant (List el1)
-let e_lambda el1 sl1 = Lambda (el1, sl1)
+let e_lambda el1 sl1 = Constant (Lambda (el1, sl1))
 let e_call_lambda i1 sl1 el1 = CallLambda (i1, sl1, el1)
 let e_func_call i1 i2 el1 = Call (i1, i2, el1)
 let e_list_access i1 e1 = ListAccess (i1, e1)
 let e_nil = Constant Nil
 let e_true = Constant (Boolean true)
 let e_false = Constant (Boolean false)
-let e_object i1 = Object i1
 let s_break = Break
 let s_next = Next
 let s_assign e1 e2 = Assign (e1, e2)
+let s_multiple_assign el1 el2 = MultipleAssign (el1, el2)
 let s_expression e1 = Expression e1
 let s_return e1 = Return e1
 let s_puts e1 = Puts e1
@@ -79,7 +78,6 @@ let s_func i1 el1 sl1 = Function (i1, el1, sl1)
 let i_identifier i1 = Identifier i1
 
 (* Lifters *)
-let lift_object = lift e_object
 let lift_return = lift s_return
 let lift_puts = lift s_puts
 let lift_class = lift2 s_class
@@ -87,6 +85,7 @@ let lift_lambda = lift2 e_lambda
 let lift_list_access = lift2 e_list_access
 let lift_call_lambda = lift3 e_call_lambda
 let lift_assign = lift2 s_assign
+let lift_multiple_assign = lift2 s_multiple_assign
 let lift_while = lift2 s_while
 let lift_func = lift3 s_func
 let lift_func_call = lift3 e_func_call
@@ -217,7 +216,6 @@ let p_func_call el1 =
   <|> lift_func_call (return Null) p_identifier (round_brackets el1)
 
 let p_list_access i1 e1 = lift_list_access i1 (square_brackets e1)
-let p_obj_instantiator i1 = lift_object (i1 <* take_dot <* t_new)
 
 let p_func el1 sl1 =
   let i = t_def *> skip_whitespace *> p_identifier <* skip_stmt_sep in
@@ -247,6 +245,7 @@ let p_puts el1 =
   lift_puts e
 
 let p_assign el1 = lift_assign (el1 <* t_assign) el1
+let p_multiple_assign el1 = lift_multiple_assign (el1 <* t_assign) el1
 
 (* Grouped Parsers *)
 let gp_low_pr_op = p_add <|> p_sub
@@ -292,10 +291,6 @@ let bundle =
       | '[' -> square_brackets expression_list >>| e_list
       | _ -> fail "Unsupported 〇 got in the way"
     in
-    (* let pe_high_pr = chainl1 pe_picker gp_high_pr_op in
-       let pe_low_pr = chainl1 pe_high_pr gp_low_pr_op in
-       let pe_compare = chainl1 pe_low_pr gp_compare_op in
-       chainl1 pe_compare gp_logic_op *)
     List.fold_left chainl1 pe_picker
       [ gp_high_pr_op; gp_low_pr_op; gp_compare_op; gp_logic_op ]
   in
@@ -305,6 +300,7 @@ let bundle =
     let statement_list = sep_by skip_stmt_sep p_statement in
     let ps_expression = duo.p_expression duo >>| s_expression in
     let ps_assign = p_assign (duo.p_expression duo) in
+    let ps_multiple_assign = p_multiple_assign expression_list in
     let ps_return = p_return (duo.p_expression duo) in
     let ps_puts = p_puts (duo.p_expression duo) in
     let ps_if_else = p_if_else (duo.p_expression duo) statement_list in
@@ -313,7 +309,8 @@ let bundle =
     let ps_func = p_func expression_list statement_list in
     skip_stmt_sep
     *> (ps_assign <|> ps_return <|> ps_puts <|> gp_loop_jumps <|> ps_if_else
-      <|> ps_while <|> ps_class <|> ps_func <|> ps_expression)
+      <|> ps_while <|> ps_class <|> ps_func <|> ps_multiple_assign
+      <|> ps_expression)
   in
   { p_expression; p_statement }
 
@@ -322,3 +319,10 @@ let parse p s = parse_string ~consume:All p s
 
 let parser_result_to_stmt_list str =
   match parse p_final str with Ok p_final -> p_final | Error _ -> []
+
+(* let test = parse p_final {| x, y = 1, 2 |}
+
+   let () =
+     match test with
+     | Ok p_final -> Format.pp_print_list pp_statement Format.std_formatter p_final
+     | Error _ -> Format.printf "syntax error" *)
