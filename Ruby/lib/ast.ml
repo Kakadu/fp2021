@@ -4,7 +4,10 @@ type signal =
   | Next
   | Return  (** to track the last impact in environment *)
 
-type identifier = Null | Identifier of string
+type identifier =
+  | Null
+  | Identifier of string
+      (** Identifier is also used in Call, where the first Identifier shows call on what instance was made (see Call comment) *)
 [@@deriving show { with_path = false }]
 
 type modifier = Local | Instance | Global | Class
@@ -41,7 +44,7 @@ and expression =
   | Call of identifier * identifier * expression list
       (** (name of the parent: instance OR "Null" in case of stand-alone func) (name of the called func) [expr list] *)
   | CallLambda of identifier list * statement list * expression list
-      (** [var list] [stmt list] [call parameters] *)
+      (** stand-alone lambda call: [var list] [stmt list] [parameters] ( lambda{ |x| x }.call(1) ) *)
 [@@deriving show { with_path = false }]
 
 and statement =

@@ -19,7 +19,7 @@ type global_ctx = {
   classes : class_ctx list;
   signal : signal;
   last_return : value;
-  output : string list;
+  output : string list;  (** holds values to be printed on a console *)
 }
 
 (* Init Context *)
