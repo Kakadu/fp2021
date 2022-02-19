@@ -155,6 +155,17 @@ let rec eval env single_statement =
     if c.signal == Return then c.last_return
     else match s with [] -> Nil | hd :: tl -> doer1 (eval c hd) tl
   in
+  let rec doer2 expr c s =
+    if c.signal == Return then c.last_return
+    else
+      match s with
+      | [] -> Nil
+      | hd :: tl -> (
+          match hd with
+          | Expression e ->
+              expr { c with signal = Return; last_return = expr c e } e
+          | _ -> doer2 expr (eval c hd) tl)
+  in
   let rec expr e_env = function
     | Constant x -> x
     | Add (l, r) -> (
@@ -240,24 +251,7 @@ let rec eval env single_statement =
                 | Identifier "call" -> (
                     match (get_var_ctx_from_ctx i env).value with
                     | Lambda (il, sl) ->
-                        let rec doer2 c s =
-                          if c.signal == Return then c.last_return
-                          else
-                            match s with
-                            | [] -> Nil
-                            | hd :: tl -> (
-                                match hd with
-                                | Expression e ->
-                                    expr
-                                      {
-                                        c with
-                                        signal = Return;
-                                        last_return = expr c e;
-                                      }
-                                      e
-                                | _ -> doer2 (eval c hd) tl)
-                        in
-                        doer2
+                        doer2 expr
                           (concat_gl_var_lists
                              (concat_var_lists env
                                 (combine_args_and_params il
@@ -325,18 +319,7 @@ let rec eval env single_statement =
                                   }
                                   f_cl_ctx.stmts))))))
     | CallLambda (e1, s1, e2) ->
-        let rec doer c s =
-          if c.signal == Return then c.last_return
-          else
-            match s with
-            | [] -> Nil
-            | hd :: tl -> (
-                match hd with
-                | Expression e ->
-                    expr { c with signal = Return; last_return = expr c e } e
-                | _ -> doer (eval c hd) tl)
-        in
-        doer
+        doer2 expr
           (concat_var_lists env
              (combine_args_and_params e1 (List.map (expr env) e2)))
           s1
