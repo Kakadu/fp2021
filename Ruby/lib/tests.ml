@@ -16,35 +16,35 @@ false
 nil
 |}
   = Ok
-      [ Expression (Constant (Integer 1))
-      ; Expression (Constant (Integer (-1)))
-      ; Expression (Constant (Float 1.))
-      ; Expression (Constant (Float (-1.)))
-      ; Expression (Constant (Boolean true))
-      ; Expression (Constant (String "bread"))
-      ; Expression (Constant (Boolean false))
-      ; Expression (Constant Nil)
+      [
+        Expression (Constant (Integer 1));
+        Expression (Constant (Integer (-1)));
+        Expression (Constant (Float 1.));
+        Expression (Constant (Float (-1.)));
+        Expression (Constant (Boolean true));
+        Expression (Constant (String "bread"));
+        Expression (Constant (Boolean false));
+        Expression (Constant Nil);
       ]
-;;
 
 let%test _ =
-  parse p_final {|
+  parse p_final
+    {|
 iam_local_var
 @iam_instance_var
 @@iam_class_var
 $iam_global_var
 |}
   = Ok
-      [ Expression (Variable (Local, Identifier "iam_local_var"))
-      ; Expression (Variable (Instance, Identifier "iam_instance_var"))
-      ; Expression (Variable (Class, Identifier "iam_class_var"))
-      ; Expression (Variable (Global, Identifier "iam_global_var"))
+      [
+        Expression (Variable (Local, Identifier "iam_local_var"));
+        Expression (Variable (Instance, Identifier "iam_instance_var"));
+        Expression (Variable (Class, Identifier "iam_class_var"));
+        Expression (Variable (Global, Identifier "iam_global_var"));
       ]
-;;
 
 let%test _ =
-  parse
-    p_final
+  parse p_final
     {|
 1 + 1
 1 + 1 + 1
@@ -63,33 +63,53 @@ let%test _ =
 1 % (1 % 1)
 |}
   = Ok
-      [ Expression (Add (Constant (Integer 1), Constant (Integer 1)))
-      ; Expression
-          (Add (Add (Constant (Integer 1), Constant (Integer 1)), Constant (Integer 1)))
-      ; Expression
-          (Add (Constant (Integer 1), Add (Constant (Integer 1), Constant (Integer 1))))
-      ; Expression (Sub (Constant (Integer 1), Constant (Integer 1)))
-      ; Expression
-          (Sub (Sub (Constant (Integer 1), Constant (Integer 1)), Constant (Integer 1)))
-      ; Expression
-          (Sub (Constant (Integer 1), Sub (Constant (Integer 1), Constant (Integer 1))))
-      ; Expression (Mul (Constant (Integer 1), Constant (Integer 1)))
-      ; Expression
-          (Mul (Mul (Constant (Integer 1), Constant (Integer 1)), Constant (Integer 1)))
-      ; Expression
-          (Mul (Constant (Integer 1), Mul (Constant (Integer 1), Constant (Integer 1))))
-      ; Expression (Div (Constant (Integer 1), Constant (Integer 1)))
-      ; Expression
-          (Div (Div (Constant (Integer 1), Constant (Integer 1)), Constant (Integer 1)))
-      ; Expression
-          (Div (Constant (Integer 1), Div (Constant (Integer 1), Constant (Integer 1))))
-      ; Expression (Mod (Constant (Integer 1), Constant (Integer 1)))
-      ; Expression
-          (Mod (Mod (Constant (Integer 1), Constant (Integer 1)), Constant (Integer 1)))
-      ; Expression
-          (Mod (Constant (Integer 1), Mod (Constant (Integer 1), Constant (Integer 1))))
+      [
+        Expression (Add (Constant (Integer 1), Constant (Integer 1)));
+        Expression
+          (Add
+             ( Add (Constant (Integer 1), Constant (Integer 1)),
+               Constant (Integer 1) ));
+        Expression
+          (Add
+             ( Constant (Integer 1),
+               Add (Constant (Integer 1), Constant (Integer 1)) ));
+        Expression (Sub (Constant (Integer 1), Constant (Integer 1)));
+        Expression
+          (Sub
+             ( Sub (Constant (Integer 1), Constant (Integer 1)),
+               Constant (Integer 1) ));
+        Expression
+          (Sub
+             ( Constant (Integer 1),
+               Sub (Constant (Integer 1), Constant (Integer 1)) ));
+        Expression (Mul (Constant (Integer 1), Constant (Integer 1)));
+        Expression
+          (Mul
+             ( Mul (Constant (Integer 1), Constant (Integer 1)),
+               Constant (Integer 1) ));
+        Expression
+          (Mul
+             ( Constant (Integer 1),
+               Mul (Constant (Integer 1), Constant (Integer 1)) ));
+        Expression (Div (Constant (Integer 1), Constant (Integer 1)));
+        Expression
+          (Div
+             ( Div (Constant (Integer 1), Constant (Integer 1)),
+               Constant (Integer 1) ));
+        Expression
+          (Div
+             ( Constant (Integer 1),
+               Div (Constant (Integer 1), Constant (Integer 1)) ));
+        Expression (Mod (Constant (Integer 1), Constant (Integer 1)));
+        Expression
+          (Mod
+             ( Mod (Constant (Integer 1), Constant (Integer 1)),
+               Constant (Integer 1) ));
+        Expression
+          (Mod
+             ( Constant (Integer 1),
+               Mod (Constant (Integer 1), Constant (Integer 1)) ));
       ]
-;;
 
 let%test _ =
   parse p_final {|
@@ -104,37 +124,38 @@ else
 end
 |}
   = Ok
-      [ IfElse
-          ( Constant (Boolean true)
-          , [ Assign (Variable (Local, Identifier "x"), Constant (Integer 0)) ]
-          , [] )
-      ; IfElse
-          ( Constant (Boolean false)
-          , [ Assign (Variable (Local, Identifier "x"), Constant (Integer 0)) ]
-          , [ Assign (Variable (Local, Identifier "x"), Constant (Integer 1)) ] )
+      [
+        IfElse
+          ( Constant (Boolean true),
+            [ Assign (Variable (Local, Identifier "x"), Constant (Integer 0)) ],
+            [] );
+        IfElse
+          ( Constant (Boolean false),
+            [ Assign (Variable (Local, Identifier "x"), Constant (Integer 0)) ],
+            [ Assign (Variable (Local, Identifier "x"), Constant (Integer 1)) ]
+          );
       ]
-;;
 
 let%test _ =
   parse p_final {| lambda{|x, y, z| x + y + z } |}
   = Ok
-      [ Expression
+      [
+        Expression
           (Constant
              (Lambda
-                ( [ Identifier "x"; Identifier "y"; Identifier "z" ]
-                , [ Expression
+                ( [ Identifier "x"; Identifier "y"; Identifier "z" ],
+                  [
+                    Expression
                       (Add
                          ( Add
-                             ( Variable (Local, Identifier "x")
-                             , Variable (Local, Identifier "y") )
-                         , Variable (Local, Identifier "z") ))
-                  ] )))
+                             ( Variable (Local, Identifier "x"),
+                               Variable (Local, Identifier "y") ),
+                           Variable (Local, Identifier "z") ));
+                  ] )));
       ]
-;;
 
 let%test _ =
-  parse
-    p_final
+  parse p_final
     {|
 x = 1
 x = true
@@ -146,50 +167,58 @@ y = [f(), x()]
 z = @x + @@y * $g
 |}
   = Ok
-      [ Assign (Variable (Local, Identifier "x"), Constant (Integer 1))
-      ; Assign (Variable (Local, Identifier "x"), Constant (Boolean true))
-      ; Assign (Variable (Local, Identifier "x"), Call (Null, Identifier "f", []))
-      ; Assign
-          ( Variable (Local, Identifier "x")
-          , Constant
+      [
+        Assign (Variable (Local, Identifier "x"), Constant (Integer 1));
+        Assign (Variable (Local, Identifier "x"), Constant (Boolean true));
+        Assign
+          (Variable (Local, Identifier "x"), Call (Null, Identifier "f", []));
+        Assign
+          ( Variable (Local, Identifier "x"),
+            Constant
               (Lambda
-                 ([ Identifier "x" ], [ Expression (Variable (Local, Identifier "x")) ]))
-          )
-      ; Assign
-          ( Variable (Local, Identifier "x")
-          , Add
-              ( Constant (Integer 1)
-              , Div
+                 ( [ Identifier "x" ],
+                   [ Expression (Variable (Local, Identifier "x")) ] )) );
+        Assign
+          ( Variable (Local, Identifier "x"),
+            Add
+              ( Constant (Integer 1),
+                Div
                   ( Mul
                       ( Div
-                          ( Mul (Constant (Integer 2), Constant (Integer 3))
-                          , Add
-                              ( Add (Constant (Integer 4), Constant (Integer 5))
-                              , Constant (Integer 6) ) )
-                      , Constant (Integer 7) )
-                  , Constant (Integer 8) ) ) )
-      ; Assign
-          ( Variable (Local, Identifier "x")
-          , Constant
-              (List [ Constant (Integer 1); Constant (Integer 2); Constant (Integer 3) ])
-          )
-      ; Assign
-          ( Variable (Local, Identifier "y")
-          , Constant
-              (List [ Call (Null, Identifier "f", []); Call (Null, Identifier "x", []) ])
-          )
-      ; Assign
-          ( Variable (Local, Identifier "z")
-          , Add
-              ( Variable (Instance, Identifier "x")
-              , Mul (Variable (Class, Identifier "y"), Variable (Global, Identifier "g"))
-              ) )
+                          ( Mul (Constant (Integer 2), Constant (Integer 3)),
+                            Add
+                              ( Add (Constant (Integer 4), Constant (Integer 5)),
+                                Constant (Integer 6) ) ),
+                        Constant (Integer 7) ),
+                    Constant (Integer 8) ) ) );
+        Assign
+          ( Variable (Local, Identifier "x"),
+            Constant
+              (List
+                 [
+                   Constant (Integer 1);
+                   Constant (Integer 2);
+                   Constant (Integer 3);
+                 ]) );
+        Assign
+          ( Variable (Local, Identifier "y"),
+            Constant
+              (List
+                 [
+                   Call (Null, Identifier "f", []);
+                   Call (Null, Identifier "x", []);
+                 ]) );
+        Assign
+          ( Variable (Local, Identifier "z"),
+            Add
+              ( Variable (Instance, Identifier "x"),
+                Mul
+                  ( Variable (Class, Identifier "y"),
+                    Variable (Global, Identifier "g") ) ) );
       ]
-;;
 
 let%test _ =
-  parse
-    p_final
+  parse p_final
     {|
 def func1
 end
@@ -205,29 +234,31 @@ def func3
 end
 |}
   = Ok
-      [ Function (Identifier "func1", [], [])
-      ; Function
-          ( Identifier "func2"
-          , []
-          , [ Assign (Variable (Local, Identifier "x"), Constant (Integer 1))
-            ; Return (Constant Nil)
-            ] )
-      ; Function
-          ( Identifier "func3"
-          , []
-          , [ Assign (Variable (Local, Identifier "x"), Constant (Integer 1))
-            ; Return
+      [
+        Function (Identifier "func1", [], []);
+        Function
+          ( Identifier "func2",
+            [],
+            [
+              Assign (Variable (Local, Identifier "x"), Constant (Integer 1));
+              Return (Constant Nil);
+            ] );
+        Function
+          ( Identifier "func3",
+            [],
+            [
+              Assign (Variable (Local, Identifier "x"), Constant (Integer 1));
+              Return
                 (Add
                    ( Add
-                       (Variable (Local, Identifier "x"), Variable (Local, Identifier "y"))
-                   , Constant (Integer 1) ))
-            ] )
+                       ( Variable (Local, Identifier "x"),
+                         Variable (Local, Identifier "y") ),
+                     Constant (Integer 1) ));
+            ] );
       ]
-;;
 
 let%test _ =
-  parse
-    p_final
+  parse p_final
     {|
 class a1
 end
@@ -242,17 +273,20 @@ class vehicle
 end
 |}
   = Ok
-      [ Class (Identifier "a1", [])
-      ; Class
-          ( Identifier "a2"
-          , [ Assign (Variable (Class, Identifier "x"), Constant (Integer 1)) ] )
-      ; Class
-          (Identifier "vehicle", [ Function (Identifier "start", [ Identifier "a" ], []) ])
+      [
+        Class (Identifier "a1", []);
+        Class
+          ( Identifier "a2",
+            [ Assign (Variable (Class, Identifier "x"), Constant (Integer 1)) ]
+          );
+        Class
+          ( Identifier "vehicle",
+            [ Function (Identifier "start", [ Identifier "a" ], []) ] );
       ]
-;;
 
 let%test _ =
-  parse p_final {|
+  parse p_final
+    {|
 while true
 end
 
@@ -265,13 +299,15 @@ while x >= 1
 end
 |}
   = Ok
-      [ While (Constant (Boolean true), [])
-      ; While
-          (Equal (Variable (Local, Identifier "x"), Constant (Boolean true)), [ Break ])
-      ; While
-          (GreaterOrEq (Variable (Local, Identifier "x"), Constant (Integer 1)), [ Next ])
+      [
+        While (Constant (Boolean true), []);
+        While
+          ( Equal (Variable (Local, Identifier "x"), Constant (Boolean true)),
+            [ Break ] );
+        While
+          ( GreaterOrEq (Variable (Local, Identifier "x"), Constant (Integer 1)),
+            [ Next ] );
       ]
-;;
 
 let%test _ =
   parse p_final {|
@@ -281,24 +317,30 @@ f(1, 1.5, -6.8)
 item.yeet(true)
 |}
   = Ok
-      [ Expression (Call (Null, Identifier "f", []))
-      ; Expression
+      [
+        Expression (Call (Null, Identifier "f", []));
+        Expression
           (Call
-             ( Null
-             , Identifier "f"
-             , [ Variable (Local, Identifier "a")
-               ; Variable (Local, Identifier "b")
-               ; Variable (Local, Identifier "c")
-               ] ))
-      ; Expression
+             ( Null,
+               Identifier "f",
+               [
+                 Variable (Local, Identifier "a");
+                 Variable (Local, Identifier "b");
+                 Variable (Local, Identifier "c");
+               ] ));
+        Expression
           (Call
-             ( Null
-             , Identifier "f"
-             , [ Constant (Integer 1); Constant (Float 1.5); Constant (Float (-6.8)) ] ))
-      ; Expression
-          (Call (Identifier "item", Identifier "yeet", [ Constant (Boolean true) ]))
+             ( Null,
+               Identifier "f",
+               [
+                 Constant (Integer 1);
+                 Constant (Float 1.5);
+                 Constant (Float (-6.8));
+               ] ));
+        Expression
+          (Call
+             (Identifier "item", Identifier "yeet", [ Constant (Boolean true) ]));
       ]
-;;
 
 let%test _ =
   parse p_final {|
@@ -310,11 +352,11 @@ let%test _ =
 2 <= 3
 |}
   = Ok
-      [ Expression (Equal (Constant (Integer 1), Constant (Integer 1)))
-      ; Expression (NotEqual (Constant (Integer 1), Constant (Integer 0)))
-      ; Expression (Greater (Constant (Integer 1), Constant (Integer 0)))
-      ; Expression (Less (Constant (Integer 0), Constant (Integer 1)))
-      ; Expression (GreaterOrEq (Constant (Integer 1), Constant (Integer 1)))
-      ; Expression (LessOrEq (Constant (Integer 2), Constant (Integer 3)))
+      [
+        Expression (Equal (Constant (Integer 1), Constant (Integer 1)));
+        Expression (NotEqual (Constant (Integer 1), Constant (Integer 0)));
+        Expression (Greater (Constant (Integer 1), Constant (Integer 0)));
+        Expression (Less (Constant (Integer 0), Constant (Integer 1)));
+        Expression (GreaterOrEq (Constant (Integer 1), Constant (Integer 1)));
+        Expression (LessOrEq (Constant (Integer 2), Constant (Integer 3)));
       ]
-;;

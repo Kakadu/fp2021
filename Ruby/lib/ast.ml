@@ -2,7 +2,7 @@ type signal =
   | Work
   | Break
   | Next
-  | Return (** to track the last impact in environment *)
+  | Return  (** to track the last impact in environment *)
 
 type identifier =
   | Null
@@ -10,11 +10,7 @@ type identifier =
       (** Identifier is also used in Call, where the first Identifier shows call on what instance was made (see Call comment) *)
 [@@deriving show { with_path = false }]
 
-type modifier =
-  | Local
-  | Instance
-  | Global
-  | Class
+type modifier = Local | Instance | Global | Class
 [@@deriving show { with_path = false }]
 
 type value =
@@ -22,10 +18,10 @@ type value =
   | Integer of int
   | Float of float
   | Boolean of bool
-  | Nil (** "null" *)
-  | Object of identifier (** shows who's object a value is *)
+  | Nil  (** "null" *)
+  | Object of identifier  (** shows who's object a value is *)
   | Lambda of identifier list * statement list
-  | List of expression list (** calcs [expr -> value] when needed *)
+  | List of expression list  (** calcs [expr -> value] when needed *)
 [@@deriving show { with_path = false }]
 
 and expression =
@@ -54,7 +50,7 @@ and expression =
 and statement =
   | Expression of expression
   | Assign of expression * expression
-  | MultipleAssign of expression list * expression list (** x, y = 1, 2 *)
+  | MultipleAssign of expression list * expression list  (** x, y = 1, 2 *)
   | Return of expression
   | IfElse of expression * statement list * statement list
       (** (expr) [stmt list] [stmt list OR [] in case of "else" absence] *)
@@ -63,6 +59,6 @@ and statement =
   | Function of identifier * identifier list * statement list
       (** (id) [args list] [stmt list] *)
   | Break
-  | Next (** "continue" *)
-  | Puts of expression (** console output *)
+  | Next  (** "continue" *)
+  | Puts of expression  (** console output *)
 [@@deriving show { with_path = false }]
