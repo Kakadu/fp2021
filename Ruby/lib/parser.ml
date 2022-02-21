@@ -2,26 +2,66 @@ open Ast
 open Angstrom
 
 (* Checkers *)
-let is_whitespace = function ' ' | '\t' -> true | _ -> false
-let is_stmt_sep = function '\n' | ';' | ' ' | '\t' -> true | _ -> false
-let is_digit = function '0' .. '9' -> true | _ -> false
-let is_sign = function '-' -> true | _ -> false
-let is_dot = function '.' -> true | _ -> false
-let is_quote = function '\"' -> true | _ -> false
+let is_whitespace = function
+  | ' ' | '\t' -> true
+  | _ -> false
+;;
+
+let is_stmt_sep = function
+  | '\n' | ';' | ' ' | '\t' -> true
+  | _ -> false
+;;
+
+let is_digit = function
+  | '0' .. '9' -> true
+  | _ -> false
+;;
+
+let is_sign = function
+  | '-' -> true
+  | _ -> false
+;;
+
+let is_dot = function
+  | '.' -> true
+  | _ -> false
+;;
+
+let is_quote = function
+  | '\"' -> true
+  | _ -> false
+;;
 
 let is_allowed_first_letter = function
   | 'a' .. 'z' | 'A' .. 'Z' | '$' | '@' | '_' -> true
   | _ -> false
+;;
 
 let is_variable = function
   | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> true
   | _ -> false
+;;
 
 let is_reserved = function
-  | "and" | "or" | "true" | "false" | "return" | "if" | "end" | "else" | "while"
-  | "def" | "class" | "lambda" | "break" | "next" | "nil" | "puts" | "new" ->
-      true
+  | "and"
+  | "or"
+  | "true"
+  | "false"
+  | "return"
+  | "if"
+  | "end"
+  | "else"
+  | "while"
+  | "def"
+  | "class"
+  | "lambda"
+  | "break"
+  | "next"
+  | "nil"
+  | "puts"
+  | "new" -> true
   | _ -> false
+;;
 
 (* Void Slaughterers *)
 let skip_whitespace = skip_while is_whitespace
@@ -133,6 +173,7 @@ let t_new = token "new"
 let chainl1 e op =
   let rec go acc = lift2 (fun f x -> f acc x) op e >>= go <|> return acc in
   e >>= fun init -> go init
+;;
 
 (* Single Parsers *)
 let p_add = t_add *> return e_add
@@ -162,89 +203,120 @@ let p_identifier =
   >>= function
   | x when not (is_reserved x) -> return @@ Identifier x
   | _ -> fail "variables with reserved words are prohibited"
+;;
 
 let p_local_variable =
-  take_variable >>= function
+  take_variable
+  >>= function
   | x when not (is_reserved x) -> return @@ Variable (Local, Identifier x)
   | _ -> fail "variables with reserved words are prohibited"
+;;
 
 let p_instance_variable =
-  t_instance_v *> take_variable >>= function
+  t_instance_v *> take_variable
+  >>= function
   | x when not (is_reserved x) -> return @@ Variable (Instance, Identifier x)
   | _ -> fail "variables with reserved words are prohibited"
+;;
 
 let p_global_variable =
-  t_global_v *> take_variable >>= function
+  t_global_v *> take_variable
+  >>= function
   | x when not (is_reserved x) -> return @@ Variable (Global, Identifier x)
   | _ -> fail "variables with reserved words are prohibited"
+;;
 
 let p_class_variable =
-  t_class_v *> take_variable >>= function
+  t_class_v *> take_variable
+  >>= function
   | x when not (is_reserved x) -> return @@ Variable (Class, Identifier x)
   | _ -> fail "variables with reserved words are prohibited"
+;;
 
 let p_integer =
-  take_sign >>= fun sign ->
-  take_number >>= fun x ->
-  return @@ Constant (Integer (int_of_string (sign ^ x)))
+  take_sign
+  >>= fun sign ->
+  take_number >>= fun x -> return @@ Constant (Integer (int_of_string (sign ^ x)))
+;;
 
 let p_float =
-  take_sign >>= fun sign ->
-  take_number >>= fun x ->
-  take_dot >>= fun dot ->
-  take_number >>= fun part ->
-  return @@ Constant (Float (float_of_string (((sign ^ x) ^ dot) ^ part)))
+  take_sign
+  >>= fun sign ->
+  take_number
+  >>= fun x ->
+  take_dot
+  >>= fun dot ->
+  take_number
+  >>= fun part -> return @@ Constant (Float (float_of_string (((sign ^ x) ^ dot) ^ part)))
+;;
 
 let p_string =
   t_quote *> take_string <* t_quote >>= fun x -> return @@ Constant (String x)
+;;
 
 let p_object =
-  p_identifier >>= fun id ->
-  take_dot *> t_new >>= fun _ -> return @@ Constant (Object id)
+  p_identifier >>= fun id -> take_dot *> t_new >>= fun _ -> return @@ Constant (Object id)
+;;
 
 let p_lambda el1 sl1 =
-  t_lambda *> skip_whitespace
-  *> curly_brackets
-       (lift_lambda (vertical_bars el1) (sl1 <* skip_stmt_sep <|> return []))
+  t_lambda
+  *> skip_whitespace
+  *> curly_brackets (lift_lambda (vertical_bars el1) (sl1 <* skip_stmt_sep <|> return []))
+;;
 
 let p_call_lambda i1 sl1 el1 =
-  t_lambda *> skip_whitespace *> string "{" *> skip_whitespace
-  *> lift_call_lambda (vertical_bars i1)
+  t_lambda
+  *> skip_whitespace
+  *> string "{"
+  *> skip_whitespace
+  *> lift_call_lambda
+       (vertical_bars i1)
        (sl1 <* skip_stmt_sep <|> return [])
        (string "}" *> take_dot *> string "call" *> round_brackets el1)
+;;
 
 let p_func_call el1 =
   lift_func_call p_identifier (take_dot *> p_identifier) (round_brackets el1)
   <|> lift_func_call (return Null) p_identifier (round_brackets el1)
+;;
 
 let p_list_access i1 e1 = lift_list_access i1 (square_brackets e1)
 
 let p_func el1 sl1 =
   let i = t_def *> skip_whitespace *> p_identifier <* skip_stmt_sep in
-  lift_func i
+  lift_func
+    i
     (round_brackets el1 <* skip_stmt_sep <|> return [])
     (sl1 <* skip_stmt_sep <* t_end)
+;;
 
 let p_class sl1 =
   let i = t_class *> skip_whitespace *> p_identifier <* skip_stmt_sep in
   lift_class i sl1 <* skip_stmt_sep <* t_end
+;;
 
 let p_while el1 sl1 =
   let e = t_while *> skip_whitespace *> el1 <* skip_stmt_sep in
   lift_while e sl1 <* skip_stmt_sep <* t_end
+;;
 
 let p_if_else el1 sl1 =
   let e = t_if *> skip_whitespace *> el1 <* skip_stmt_sep in
-  lift_if_else e (sl1 <* skip_stmt_sep)
+  lift_if_else
+    e
+    (sl1 <* skip_stmt_sep)
     (t_else *> sl1 <* skip_stmt_sep <|> return [] <* t_end)
+;;
 
 let p_return el1 =
   let e = t_return *> skip_whitespace *> (el1 <|> return e_nil) in
   lift_return e
+;;
 
 let p_puts el1 =
   let e = t_puts *> skip_whitespace *> (el1 <|> return e_nil) in
   lift_puts e
+;;
 
 let p_assign el1 = lift_assign (el1 <* t_assign) el1
 let p_multiple_assign el1 = lift_multiple_assign (el1 <* t_assign) el1
@@ -252,51 +324,54 @@ let p_multiple_assign el1 = lift_multiple_assign (el1 <* t_assign) el1
 (* Grouped Parsers *)
 let gp_low_pr_op = p_add <|> p_sub
 let gp_high_pr_op = p_mul <|> p_div <|> p_mod
-
-let gp_compare_op =
-  p_eq <|> p_not_eq <|> p_gr_eq <|> p_less_eq <|> p_gr <|> p_less
-
+let gp_compare_op = p_eq <|> p_not_eq <|> p_gr_eq <|> p_less_eq <|> p_gr <|> p_less
 let gp_logic_op = p_and <|> p_and_1 <|> p_or <|> p_or_1
 let gp_number = p_float <|> p_integer
 let gp_pseudo = p_true <|> p_false <|> p_nil
 let gp_loop_jumps = p_break <|> p_next
 
 let gp_variable =
-  p_class_variable <|> p_global_variable <|> p_instance_variable
-  <|> p_local_variable
+  p_class_variable <|> p_global_variable <|> p_instance_variable <|> p_local_variable
+;;
 
 (* Big Things Doers *)
-type dispatch = {
-  p_expression : dispatch -> expression t;
-  p_statement : dispatch -> statement t;
-}
+type dispatch =
+  { p_expression : dispatch -> expression t
+  ; p_statement : dispatch -> statement t
+  }
 
 let bundle =
   let p_expression duo =
-    fix @@ fun p_expression ->
+    fix
+    @@ fun p_expression ->
     let statement_list = sep_by skip_stmt_sep (duo.p_statement duo) in
     let expression_list = sep_by t_comma p_expression in
     let identifier_list = sep_by t_comma p_identifier in
     let pe_picker =
-      skip_whitespace *> peek_char_fail >>= function
+      skip_whitespace *> peek_char_fail
+      >>= function
       | x when is_allowed_first_letter x ->
-          p_func_call expression_list
-          <|> p_object
-          <|> p_list_access p_identifier p_expression
-          <|> p_call_lambda identifier_list statement_list expression_list
-          <|> p_lambda identifier_list statement_list
-          <|> gp_variable <|> gp_pseudo
+        p_func_call expression_list
+        <|> p_object
+        <|> p_list_access p_identifier p_expression
+        <|> p_call_lambda identifier_list statement_list expression_list
+        <|> p_lambda identifier_list statement_list
+        <|> gp_variable
+        <|> gp_pseudo
       | x when is_digit x || is_sign x -> gp_number
       | '\"' -> p_string
       | '(' -> round_brackets p_expression
       | '[' -> square_brackets expression_list >>| e_list
       | _ -> fail "Unsupported 〇 got in the way"
     in
-    List.fold_left chainl1 pe_picker
+    List.fold_left
+      chainl1
+      pe_picker
       [ gp_high_pr_op; gp_low_pr_op; gp_compare_op; gp_logic_op ]
   in
   let p_statement duo =
-    fix @@ fun p_statement ->
+    fix
+    @@ fun p_statement ->
     let expression_list = sep_by t_comma (duo.p_expression duo) in
     let statement_list = sep_by skip_stmt_sep p_statement in
     let identifier_list = sep_by t_comma p_identifier in
@@ -310,14 +385,25 @@ let bundle =
     let ps_class = p_class statement_list in
     let ps_func = p_func identifier_list statement_list in
     skip_stmt_sep
-    *> (ps_assign <|> ps_return <|> ps_puts <|> gp_loop_jumps <|> ps_if_else
-      <|> ps_while <|> ps_class <|> ps_func <|> ps_multiple_assign
-      <|> ps_expression)
+    *> (ps_assign
+       <|> ps_return
+       <|> ps_puts
+       <|> gp_loop_jumps
+       <|> ps_if_else
+       <|> ps_while
+       <|> ps_class
+       <|> ps_func
+       <|> ps_multiple_assign
+       <|> ps_expression)
   in
   { p_expression; p_statement }
+;;
 
 let p_final = sep_by skip_stmt_sep (bundle.p_statement bundle) <* skip_stmt_sep
 let parse p s = parse_string ~consume:All p s
 
 let parser_result_to_stmt_list str =
-  match parse p_final str with Ok p_final -> p_final | Error _ -> []
+  match parse p_final str with
+  | Ok p_final -> p_final
+  | Error _ -> []
+;;
