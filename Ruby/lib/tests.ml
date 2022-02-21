@@ -360,9 +360,3 @@ let%test _ =
         Expression (GreaterOrEq (Constant (Integer 1), Constant (Integer 1)));
         Expression (LessOrEq (Constant (Integer 2), Constant (Integer 3)));
       ]
-
-let%test _ = parse p_final {||} = Ok []
-let%test _ = parse p_final {||} = Ok []
-let%test _ = parse p_final {||} = Ok []
-let%test _ = parse p_final {||} = Ok []
-let%test _ = parse p_final {||} = Ok []

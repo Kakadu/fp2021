@@ -321,18 +321,3 @@ let parse p s = parse_string ~consume:All p s
 
 let parser_result_to_stmt_list str =
   match parse p_final str with Ok p_final -> p_final | Error _ -> []
-
-(* let test = parse p_final {|
-
-   def kek(a)
-     return 1
-   end
-
-   puts kek(1)
-
-          |}
-
-   let () =
-     match test with
-     | Ok p_final -> Format.pp_print_list pp_statement Format.std_formatter p_final
-     | Error _ -> Format.printf "syntax error" *)

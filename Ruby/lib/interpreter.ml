@@ -415,7 +415,6 @@ module Eval (M : MONADERROR) = struct
       | Expression _ -> return s_env
       | Return e ->
           duo.expr duo s_env e >>= fun rtrn ->
-          (* failwith  ((fun x -> multliple_str_unpacker x) rtrn) *)
           return { s_env with signal = Return; last_return = rtrn }
       | Assign (l, r) -> (
           match l with
