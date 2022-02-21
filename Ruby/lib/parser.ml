@@ -157,7 +157,9 @@ let p_true = t_true *> return e_true
 let p_false = t_false *> return e_false
 
 let p_identifier =
-  skip_whitespace *> take_variable >>= function
+  skip_whitespace *> char '*' *> take_variable
+  <|> skip_whitespace *> take_variable
+  >>= function
   | x when not (is_reserved x) -> return @@ Identifier x
   | _ -> fail "variables with reserved words are prohibited"
 
@@ -285,7 +287,6 @@ let bundle =
           <|> p_lambda identifier_list statement_list
           <|> gp_variable <|> gp_pseudo
       | x when is_digit x || is_sign x -> gp_number
-      | '*' -> char '*' *> p_expression
       | '\"' -> p_string
       | '(' -> round_brackets p_expression
       | '[' -> square_brackets expression_list >>| e_list
@@ -298,6 +299,7 @@ let bundle =
     fix @@ fun p_statement ->
     let expression_list = sep_by t_comma (duo.p_expression duo) in
     let statement_list = sep_by skip_stmt_sep p_statement in
+    let identifier_list = sep_by t_comma p_identifier in
     let ps_expression = duo.p_expression duo >>| s_expression in
     let ps_assign = p_assign (duo.p_expression duo) in
     let ps_multiple_assign = p_multiple_assign expression_list in
@@ -306,7 +308,7 @@ let bundle =
     let ps_if_else = p_if_else (duo.p_expression duo) statement_list in
     let ps_while = p_while (duo.p_expression duo) statement_list in
     let ps_class = p_class statement_list in
-    let ps_func = p_func expression_list statement_list in
+    let ps_func = p_func identifier_list statement_list in
     skip_stmt_sep
     *> (ps_assign <|> ps_return <|> ps_puts <|> gp_loop_jumps <|> ps_if_else
       <|> ps_while <|> ps_class <|> ps_func <|> ps_multiple_assign
@@ -320,7 +322,15 @@ let parse p s = parse_string ~consume:All p s
 let parser_result_to_stmt_list str =
   match parse p_final str with Ok p_final -> p_final | Error _ -> []
 
-(* let test = parse p_final {| x, y = 1, 2 |}
+(* let test = parse p_final {|
+
+   def kek(a)
+     return 1
+   end
+
+   puts kek(1)
+
+          |}
 
    let () =
      match test with

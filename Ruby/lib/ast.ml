@@ -56,7 +56,7 @@ and statement =
       (** (expr) [stmt list] [stmt list OR [] in case of "else" absence] *)
   | While of expression * statement list
   | Class of identifier * statement list
-  | Function of identifier * expression list * statement list
+  | Function of identifier * identifier list * statement list
       (** (id) [args list] [stmt list] *)
   | Break
   | Next  (** "continue" *)

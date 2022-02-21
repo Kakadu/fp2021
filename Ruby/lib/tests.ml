@@ -281,10 +281,7 @@ end
           );
         Class
           ( Identifier "vehicle",
-            [
-              Function
-                (Identifier "start", [ Variable (Local, Identifier "a") ], []);
-            ] );
+            [ Function (Identifier "start", [ Identifier "a" ], []) ] );
       ]
 
 let%test _ =
