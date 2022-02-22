@@ -13,7 +13,8 @@ repl:
 test:
 	dune runtest
 
-c:
+c : clean
+clean:
 	@$(RM) -r _build
 
 fmt:

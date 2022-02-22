@@ -2,19 +2,22 @@ Cram tests here. They run and compare program output to the expected output
 https://dune.readthedocs.io/en/stable/tests.html#cram-tests
 Use `dune promote` after you change things that should runned
 
-  $ ./anonymous.exe
+  $ ./demo_launcher.exe <<-EOF
+  > ./rbs/anonymous.rb
   タイムマシン
 
   $ ruby ./rbs/anonymous.rb
   タイムマシン
 
-  $ ./closure.exe
+  $ ./demo_launcher.exe <<-EOF
+  > ./rbs/closure.rb
   2
 
   $ ruby ./rbs/closure.rb
   2
 
-  $ ./method_missing.exe
+  $ ./demo_launcher.exe <<-EOF
+  > ./rbs/method_missing.rb
   42
   no such method!
 
@@ -22,7 +25,8 @@ Use `dune promote` after you change things that should runned
   42
   no such method!
 
-  $ ./multiple_assignment.exe
+  $ ./demo_launcher.exe <<-EOF
+  > ./rbs/multiple_assignment.rb
   1
   2
   13
@@ -36,7 +40,8 @@ Use `dune promote` after you change things that should runned
   :)
   20
 
-  $ ./object.exe
+  $ ./demo_launcher.exe <<-EOF
+  > ./rbs/object.rb
   13
   1998
 
@@ -44,7 +49,8 @@ Use `dune promote` after you change things that should runned
   13
   1998
 
-  $ ./recursion.exe
+  $ ./demo_launcher.exe <<-EOF
+  > ./rbs/recursion.rb
   55
   3628800
 

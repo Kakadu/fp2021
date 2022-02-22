@@ -6,15 +6,16 @@ type signal =
 
 type identifier =
   | Null
+      (** explanation: "f()" is Call(Null, Identifier "f", []), while "x.f()" is Call(Identifier "x", Identifier "f", []); as you can see in the first example there is Null instead of Indentifier, so it used to show that a function, or in other words stand-alone function was just called. Only for this purpose there is Null in identifier *)
   | Identifier of string
       (** Identifier is also used in Call, where the first Identifier shows call on what instance was made (see Call comment) *)
 [@@deriving show { with_path = false }]
 
 type modifier =
-  | Local
-  | Instance
-  | Global
-  | Class
+  | Local (** starts with lowercase letter *)
+  | Instance (** starts with @, might be unique for different object instances *)
+  | Global (** starts with $, global variables *)
+  | Class (** starts with @@, is the same for all object instances *)
 [@@deriving show { with_path = false }]
 
 type value =

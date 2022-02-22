@@ -97,14 +97,12 @@ module Eval (M : MONADERROR) = struct
   let add_var_in_ctx i v ctx = { ctx with vars = { id = i; value = v } :: ctx.vars }
 
   let change_var_in_ctx i v ctx =
-    let rec new_vars vl =
-      match vl with
-      | [] -> vl
-      | hd :: tl ->
-        (fun (x : var_ctx) -> if i = x.id then { x with value = v } else x) hd
-        :: new_vars tl
+    let new_vars =
+      List.map
+        (fun (x : var_ctx) -> if i = x.id then { x with value = v } else x)
+        ctx.vars
     in
-    { ctx with vars = new_vars ctx.vars }
+    { ctx with vars = new_vars }
   ;;
 
   let add_func_in_ctx i a s ctx =
@@ -120,7 +118,9 @@ module Eval (M : MONADERROR) = struct
   ;;
 
   let get_func_ctx_from_class_ctx i (ctx : class_ctx) =
-    List.find (fun (x : func_ctx) -> i = x.id) ctx.funcs
+    match if_func_exists_in_class_ctx i ctx with
+    | true -> Some (List.find (fun (x : func_ctx) -> i = x.id) ctx.funcs)
+    | false -> None
   ;;
 
   (* Unpackers *)
@@ -192,6 +192,16 @@ module Eval (M : MONADERROR) = struct
       | true -> concat_var_lists (change_var_in_ctx hd.id hd.value base) tl)
   ;;
 
+  let rec mmap f = function
+    | [] -> return []
+    | h :: tl -> f h >>= fun c -> mmap f tl >>= fun lst -> return @@ (c :: lst)
+  ;;
+
+  let rec fold_left f init = function
+    | [] -> return init
+    | hd :: tl -> f init hd >>= fun init -> fold_left f init tl
+  ;;
+
   type dispatch =
     { expr : dispatch -> global_ctx -> expression -> value t
     ; stmt : dispatch -> global_ctx -> statement -> global_ctx t
@@ -199,10 +209,6 @@ module Eval (M : MONADERROR) = struct
 
   let bundle =
     let rec expr (duo : dispatch) (e_env : global_ctx) ex =
-      let rec mmap f = function
-        | [] -> return []
-        | h :: tl -> f h >>= fun c -> mmap f tl >>= fun lst -> return @@ (c :: lst)
-      in
       let rec doer1 c s =
         if c.signal == Return
         then return c.last_return
@@ -369,56 +375,42 @@ module Eval (M : MONADERROR) = struct
               (match if_class_exists_in_ctx x e_env with
               | false -> fail "undefined Class"
               | true ->
-                (match if_func_exists_in_class_ctx i2 obj_class_ctx with
-                | true ->
+                (match get_func_ctx_from_class_ctx i2 obj_class_ctx with
+                | Some func ->
                   mmap (fun x -> expr duo e_env x) e
                   >>= fun x ->
                   doer1
                     { tmp_ctx with
-                      vars =
-                        obj_class_ctx.vars
-                        @ combine_args_and_params
-                            (get_func_ctx_from_class_ctx i2 obj_class_ctx).args
-                            x
+                      vars = obj_class_ctx.vars @ combine_args_and_params func.args x
                     ; funcs = obj_class_ctx.funcs
                     }
-                    (get_func_ctx_from_class_ctx i2 obj_class_ctx).stmts
-                | false ->
+                    func.stmts
+                | None ->
                   (match
-                     if_func_exists_in_class_ctx
+                     get_func_ctx_from_class_ctx
                        (Identifier "method_missing")
                        obj_class_ctx
                    with
-                  | false -> fail "undefined Class Function"
-                  | true ->
-                    let f_cl_ctx =
-                      get_func_ctx_from_class_ctx
-                        (Identifier "method_missing")
-                        obj_class_ctx
-                    in
+                  | None -> fail "undefined Class Function"
+                  | Some mm_func ->
                     unpack_string_in_identifier i2
                     >>= fun x ->
                     doer1
                       { tmp_ctx with
                         vars =
                           obj_class_ctx.vars
-                          @ combine_args_and_params [ List.hd f_cl_ctx.args ] [ String x ]
+                          @ combine_args_and_params [ List.hd mm_func.args ] [ String x ]
                           @ combine_args_and_params
-                              [ List.hd (List.rev (List.tl f_cl_ctx.args)) ]
+                              [ List.hd (List.rev (List.tl mm_func.args)) ]
                               [ List e ]
                       ; funcs = obj_class_ctx.funcs
                       }
-                      f_cl_ctx.stmts))))))
+                      mm_func.stmts))))))
       | CallLambda (e1, s1, e2) ->
         mmap (fun x -> expr duo e_env x) e2
         >>= fun x -> doer2 (concat_var_lists e_env (combine_args_and_params e1 x)) s1
     in
-    let rec stmt (duo : dispatch) (s_env : global_ctx) st =
-      let rec fold_left f init = function
-        | [] -> return init
-        | hd :: tl -> f init hd >>= fun init -> fold_left f init tl
-      in
-      match st with
+    let rec stmt (duo : dispatch) (s_env : global_ctx) = function
       | Break -> return { s_env with signal = Break }
       | Next -> return { s_env with signal = Next }
       | Expression _ -> return s_env
@@ -435,33 +427,30 @@ module Eval (M : MONADERROR) = struct
           | true -> return @@ change_var_in_ctx i r s_env)
         | _ -> fail "L has unsupported type")
       | MultipleAssign (ll, rl) ->
-        let rec through = function
-          | [] -> return []
-          | hd :: tl ->
-            through tl
-            >>= fun ttl ->
-            (match hd with
-            | Variable (Local, i) -> return @@ (i :: ttl)
-            | _ -> fail "L has unsupported type")
+        let through =
+          mmap
+            (function
+              | Variable (Local, i) -> return i
+              | _ -> fail "L has unsupported type")
+            ll
         in
         let rec through1 ctx elst = function
           | [] -> return ctx
           | hd :: tl ->
+            duo.expr duo ctx (List.hd elst)
+            >>= fun x ->
             (match if_var_exists_in_ctx hd s_env with
-            | false ->
-              duo.expr duo ctx (List.hd elst)
-              >>= fun x -> through1 (add_var_in_ctx hd x ctx) (List.tl elst) tl
-            | true ->
-              duo.expr duo ctx (List.hd elst)
-              >>= fun x -> through1 (change_var_in_ctx hd x ctx) (List.tl elst) tl)
+            | false -> through1 (add_var_in_ctx hd x ctx) (List.tl elst) tl
+            | true -> through1 (change_var_in_ctx hd x ctx) (List.tl elst) tl)
         in
-        through ll >>= fun x -> through1 s_env rl x
+        through >>= fun x -> through1 s_env rl x
       | IfElse (e, s1, s2) ->
+        let fl = fold_left (fun x -> stmt duo x) s_env in
         duo.expr duo s_env e
-        >>= fun x ->
-        (match x = Boolean true with
-        | true -> fold_left (fun x -> stmt duo x) s_env s1
-        | false -> fold_left (fun x -> stmt duo x) s_env s2)
+        >>= (function
+        | Boolean true -> fl s1
+        | Boolean false -> fl s2
+        | _ -> fail "condition was expected")
       | Puts x -> duo.expr duo s_env x >>= fun x -> return @@ add_output s_env x
       | While (e, s) ->
         let rec checker ctx =
@@ -499,19 +488,14 @@ module Eval (M : MONADERROR) = struct
       | Float x -> { ctx with output = Float.to_string x :: ctx.output }
       | String x -> { ctx with output = x :: ctx.output }
       | Boolean x -> { ctx with output = Bool.to_string x :: ctx.output }
-      | Nil -> { ctx with output = "nil" :: ctx.output }
+      | Nil -> { ctx with output = "" :: ctx.output }
       | Object (Identifier x) -> { ctx with output = ("obj:" ^ x) :: ctx.output }
       | Object Null | Lambda _ | List _ -> ctx
     in
     { expr; stmt }
   ;;
 
-  let rec eval_stmts eval ctx = function
-    | [] -> return ctx
-    | hd :: tl -> eval ctx hd >>= fun x -> eval_stmts eval x tl
-  ;;
-
-  let init_main_ctx = eval_stmts (bundle.stmt bundle) main_ctx
+  let init_main_ctx = fold_left (bundle.stmt bundle) main_ctx
 end
 
 open Eval (Result)
