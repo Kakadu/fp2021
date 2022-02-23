@@ -148,7 +148,7 @@ z = @x + @@y * $g
   = Ok
       [ Assign (Variable (Local, Identifier "x"), Constant (Integer 1))
       ; Assign (Variable (Local, Identifier "x"), Constant (Boolean true))
-      ; Assign (Variable (Local, Identifier "x"), Call (Null, Identifier "f", []))
+      ; Assign (Variable (Local, Identifier "x"), MonoCall (Identifier "f", []))
       ; Assign
           ( Variable (Local, Identifier "x")
           , Constant
@@ -176,8 +176,7 @@ z = @x + @@y * $g
       ; Assign
           ( Variable (Local, Identifier "y")
           , Constant
-              (List [ Call (Null, Identifier "f", []); Call (Null, Identifier "x", []) ])
-          )
+              (List [ MonoCall (Identifier "f", []); MonoCall (Identifier "x", []) ]) )
       ; Assign
           ( Variable (Local, Identifier "z")
           , Add
@@ -281,22 +280,20 @@ f(1, 1.5, -6.8)
 item.yeet(true)
 |}
   = Ok
-      [ Expression (Call (Null, Identifier "f", []))
+      [ Expression (MonoCall (Identifier "f", []))
       ; Expression
-          (Call
-             ( Null
-             , Identifier "f"
+          (MonoCall
+             ( Identifier "f"
              , [ Variable (Local, Identifier "a")
                ; Variable (Local, Identifier "b")
                ; Variable (Local, Identifier "c")
                ] ))
       ; Expression
-          (Call
-             ( Null
-             , Identifier "f"
+          (MonoCall
+             ( Identifier "f"
              , [ Constant (Integer 1); Constant (Float 1.5); Constant (Float (-6.8)) ] ))
       ; Expression
-          (Call (Identifier "item", Identifier "yeet", [ Constant (Boolean true) ]))
+          (PolyCall (Identifier "item", Identifier "yeet", [ Constant (Boolean true) ]))
       ]
 ;;
 

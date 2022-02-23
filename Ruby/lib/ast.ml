@@ -4,12 +4,7 @@ type signal =
   | Next
   | Return (** to track the last impact in environment *)
 
-type identifier =
-  | Null
-      (** explanation: "f()" is Call(Null, Identifier "f", []), while "x.f()" is Call(Identifier "x", Identifier "f", []); as you can see in the first example there is Null instead of Indentifier, so it used to show that a function, or in other words stand-alone function was just called. Only for this purpose there is Null in identifier *)
-  | Identifier of string
-      (** Identifier is also used in Call, where the first Identifier shows call on what instance was made (see Call comment) *)
-[@@deriving show { with_path = false }]
+type identifier = Identifier of string [@@deriving show { with_path = false }]
 
 type modifier =
   | Local (** starts with lowercase letter *)
@@ -25,7 +20,7 @@ type value =
   | Boolean of bool
   | Nil (** "null" *)
   | Object of identifier (** shows who's object a value is *)
-  | Lambda of identifier list * statement list
+  | Lambda of identifier list * statement list (** lambda{ |x| x + 1 } *)
   | List of expression list (** calcs [expr -> value] when needed *)
 [@@deriving show { with_path = false }]
 
@@ -46,8 +41,8 @@ and expression =
   | And of expression * expression
   | Or of expression * expression
   | ListAccess of identifier * expression
-  | Call of identifier * identifier * expression list
-      (** (name of the parent: instance OR "Null" in case of stand-alone func) (name of the called func) [expr list] *)
+  | MonoCall of identifier * expression list (** f() *)
+  | PolyCall of identifier * identifier * expression list (** x.f() *)
   | CallLambda of identifier list * statement list * expression list
       (** stand-alone lambda call: [var list] [stmt list] [parameters] ( lambda{ |x| x }.call(1) ) *)
 [@@deriving show { with_path = false }]

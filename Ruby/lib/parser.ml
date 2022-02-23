@@ -99,7 +99,8 @@ let e_or e1 e2 = Or (e1, e2)
 let e_list el1 = Constant (List el1)
 let e_lambda el1 sl1 = Constant (Lambda (el1, sl1))
 let e_call_lambda i1 sl1 el1 = CallLambda (i1, sl1, el1)
-let e_func_call i1 i2 el1 = Call (i1, i2, el1)
+let e_func_mono_call i el = MonoCall (i, el)
+let e_func_poly_call i1 i2 el = PolyCall (i1, i2, el)
 let e_list_access i1 e1 = ListAccess (i1, e1)
 let e_nil = Constant Nil
 let e_true = Constant (Boolean true)
@@ -128,7 +129,8 @@ let lift_assign = lift2 s_assign
 let lift_multiple_assign = lift2 s_multiple_assign
 let lift_while = lift2 s_while
 let lift_func = lift3 s_func
-let lift_func_call = lift3 e_func_call
+let lift_func_mono_call = lift2 e_func_mono_call
+let lift_func_poly_call = lift3 e_func_poly_call
 let lift_if_else = lift3 s_if_else
 
 (* Tokens *)
@@ -275,9 +277,10 @@ let p_call_lambda i1 sl1 el1 =
        (string "}" *> take_dot *> string "call" *> round_brackets el1)
 ;;
 
-let p_func_call el1 =
-  lift_func_call p_identifier (take_dot *> p_identifier) (round_brackets el1)
-  <|> lift_func_call (return Null) p_identifier (round_brackets el1)
+let p_func_mono_call el1 = lift_func_mono_call p_identifier (round_brackets el1)
+
+let p_func_poly_call el1 =
+  lift_func_poly_call p_identifier (take_dot *> p_identifier) (round_brackets el1)
 ;;
 
 let p_list_access i1 e1 = lift_list_access i1 (square_brackets e1)
@@ -351,7 +354,8 @@ let bundle =
       skip_whitespace *> peek_char_fail
       >>= function
       | x when is_allowed_first_letter x ->
-        p_func_call expression_list
+        p_func_mono_call expression_list
+        <|> p_func_poly_call expression_list
         <|> p_object
         <|> p_list_access p_identifier p_expression
         <|> p_call_lambda identifier_list statement_list expression_list
