@@ -1,19 +1,16 @@
-.PHONY: repl test fmt lint c clean
+.PHONY: repl tests test fmt lint celan
 
 all:
-	clear
-	@$(RM) -r _build
 	dune build
-	dune build @fmt --auto-promote
-	dune runtest
 
 repl:
 	dune build ./REPL.exe && rlwrap _build/default/REPL.exe
 
+tests: test
 test:
 	dune runtest
 
-c : clean
+celan: clean
 clean:
 	@$(RM) -r _build
 
