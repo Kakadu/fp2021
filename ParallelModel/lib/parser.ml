@@ -20,7 +20,7 @@ type stmt =
   | SMP_MB
   | NO_OP
 
-type thread = THREAD of stmt list
+type thread = THREAD of (int * stmt list)
 
 type prog = PROG of thread list
 
@@ -45,6 +45,8 @@ let splitter s = Str.split (Str.regexp "|||") (" " ^ s ^ " ")
 let split_on_parts s =
   let lines = String.split_on_char '\n' (String.trim s) in
   split lines splitter
+
+let get_threads_number s = split_on_parts s |> List.hd |> List.length
 
 let trim_list list = List.map String.trim list
 
@@ -223,6 +225,12 @@ let stmt thread_number =
       <|> if_stmt stmt thread_number <|> assignment thread_number
       <|> mem_barrier thread_number <|> no_op thread_number)
 
-let thread n = many (stmt n) >>= fun stmts -> return @@ THREAD stmts
+let thread n = many (stmt n) >>= fun stmts -> return @@ THREAD (n, stmts)
 
-(* let prog =  *)
+let prog s =
+  let n = get_threads_number s in
+  let nums = List.init n (fun x -> x) in
+  let f1 k = parse (thread k) s in
+  let results = List.map f1 nums in
+  let oks = List.map Result.get_ok results in
+  PROG oks
