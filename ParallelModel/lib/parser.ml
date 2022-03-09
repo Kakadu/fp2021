@@ -1,5 +1,64 @@
 open Angstrom
-open Ast
+
+(* open Ast *)
+type expr =
+  | INT of int
+  | VAR_NAME of string
+  | REGISTER of string
+  | PLUS of expr * expr
+  | SUB of expr * expr
+  | MUL of expr * expr
+  | DIV of expr * expr
+
+type stmt =
+  | ASSIGN of expr * expr
+  | IF of expr * stmt
+  | IF_ELSE of expr * stmt * stmt
+  | BLOCK of stmt list
+  | SMP_RMB
+  | SMP_WMB
+  | SMP_MB
+  | NO_OP
+
+type thread = THREAD of stmt list
+
+type prog = PROG of thread list
+
+let rec put_parens s = "(" ^ s ^ ")"
+
+let expr_to_string expr =
+  let rec expr_to_str = function
+    | INT i -> string_of_int i
+    | VAR_NAME v -> v
+    | REGISTER r -> r
+    | PLUS (l, r) -> put_parens (expr_to_str l ^ " + " ^ expr_to_str r)
+    | SUB (l, r) -> put_parens (expr_to_str l ^ " - " ^ expr_to_str r)
+    | MUL (l, r) -> put_parens (expr_to_str l ^ " * " ^ expr_to_str r)
+    | DIV (l, r) -> put_parens (expr_to_str l ^ " / " ^ expr_to_str r)
+  in
+  expr_to_str expr ^ "\n"
+
+let rec split list f = match list with h :: tl -> f h :: split tl f | _ -> []
+
+let splitter s = Str.split (Str.regexp "|||") (s ^ " ")
+
+let split_on_parts s =
+  let lines = String.split_on_char '\n' (String.trim s) in
+  split lines splitter
+
+let trim_list list = List.map String.trim list
+
+let empty_str_to_no_op list =
+  List.map (fun s -> match s with "" -> "no_op" | _ -> s) list
+
+let concat_list = String.concat " ||| "
+
+let concat_lines = String.concat "\n"
+
+let preprocess input =
+  split_on_parts input |> List.map trim_list
+  |> List.map empty_str_to_no_op
+  |> List.map concat_list |> String.concat "\n"
 
 let is_whitespace = function ' ' | '\n' | '\r' | '\t' -> true | _ -> false
 
@@ -14,11 +73,17 @@ let token s = whitespace *> string s
 
 let is_digit = function '0' .. '9' -> true | _ -> false
 
-let parse p s = parse_string ~consume:All p s
+let parse p s = parse_string ~consume:All p (preprocess s)
 
 let jump_to_new_line = take_till is_end_of_line *> take_while is_end_of_line
 
 let cross_thread_delim = take_till (fun c -> c = '|') *> token "|||"
+
+(* пересечение n- границ потоков т.е символа ||| позволяет попасть в начало блока потока с номером n *)
+let cross_n_delims n = count n cross_thread_delim
+
+let go_to_next_line_for_thread n =
+  jump_to_new_line *> count n cross_thread_delim
 
 let number =
   let digits = whitespace *> take_while1 is_digit in
@@ -99,55 +164,41 @@ let expr =
       let newexpr = fix (fun newexpr -> arexpr <|> parens newexpr) in
       newexpr)
 
-(* let mem_barrier = token "smp_rmb" <|> token "smp_wmb" *)
-
-let mem_barrier =
+let mem_barrier thread_num =
   let smp_rmb = token "smp_rmb" *> return SMP_RMB in
   let smp_wmb = token "smp_wmb" *> return SMP_WMB in
   let smp_mb = token "smp_mb" *> return SMP_MB in
-  smp_rmb <|> smp_wmb <|> smp_mb
+  cross_n_delims thread_num *> (smp_rmb <|> smp_wmb <|> smp_mb)
+  <* jump_to_new_line
 
-let assignment =
-  reg <|> var_name >>= fun named_loc ->
-  token "<-" *> expr >>= fun e -> return @@ ASSIGN (named_loc, e)
+let assignment thread_num =
+  cross_n_delims thread_num *> (reg <|> var_name) >>= fun named_loc ->
+  token "<-" *> expr <* jump_to_new_line >>= fun e ->
+  return @@ ASSIGN (named_loc, e)
 
 let del_space_newline =
   take_while (fun c -> is_whitespace c || is_end_of_line c)
 
-let block stmt_parser =
-  del_space_newline *> token "{"
-  *> many1 (del_space_newline *> stmt_parser <* del_space_newline)
-  <* token "}"
-  >>= fun stmt_list -> del_space_newline *> (return @@ BLOCK stmt_list)
+let block stmt_parser thread_number =
+  token "{" *> jump_to_new_line *> many1 stmt_parser
+  <* cross_n_delims thread_number
+  <* token "}" <* jump_to_new_line
+  >>= fun stmt_list -> return @@ BLOCK stmt_list
 
-let if_stmt stmt_parser =
-  token "if" *> token "(" *> expr <* token ")" >>= fun e ->
-  block stmt_parser >>= fun block -> return @@ IF (e, block)
+let if_stmt stmt_parser thread_number =
+  cross_n_delims thread_number *> token "if" *> token "(" *> expr <* token ")"
+  >>= fun e ->
+  block stmt_parser thread_number >>= fun block -> return @@ IF (e, block)
 
-let stmt = fix (fun stmt -> if_stmt stmt <|> assignment <|> mem_barrier)
+let no_op thread_num =
+  cross_n_delims thread_num *> token "no_op" <* jump_to_new_line >>= fun _ ->
+  return NO_OP
 
-(* let thread = many stmt >>= fun stmts -> return @@ THREAD stmts *)
+let stmt thread_number =
+  fix (fun stmt ->
+      if_stmt stmt thread_number <|> assignment thread_number
+      <|> mem_barrier thread_number <|> no_op thread_number)
 
-let thread id = 3
+let thread n = many (stmt n) >>= fun stmts -> return @@ THREAD stmts
 
-(* f : string -> string list
-   split : string list -> string list list*)
-(* let rec split list f = match list with h :: tl -> f h :: split tl f | _ -> []
-
-   let splitter s = Str.split (Str.regexp "|||") (s ^ " ")
-
-   let nth n list = List.nth list n
-
-   let split_on_parts s =
-     let lines = String.split_on_char '\n' (String.trim s) in
-     split lines splitter
-
-   let separate_thread n input =
-     let lines = String.split_on_char '\n' (String.trim input) in
-     let parts = split lines splitter in
-     List.map (nth n) parts |> String.concat "\n" |> String.trim
-
-   let get_code_of_thread n input =
-     try separate_thread n input with Failure "nth" -> ""
-
-   let thread_number s = split_on_parts s |> List.hd |> List.length *)
+(* let prog = *)
