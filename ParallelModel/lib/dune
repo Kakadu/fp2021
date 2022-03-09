@@ -1,8 +1,7 @@
 (library
  (name parallelmodel_lib)
  (public_name Parallelmodel.Lib)
- (modules Ast Parallelmodel Interpret Parser Printast Pprintast utils Tests)
- (modules_without_implementation ast)
+ (modules Ast Parallelmodel Interpret Parser Tests)
  (libraries base opal angstrom ppx_show.runtime)
  (preprocess
   (pps ppx_expect ppx_show))
