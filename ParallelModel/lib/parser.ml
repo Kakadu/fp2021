@@ -40,7 +40,7 @@ let expr_to_string expr =
 
 let rec split list f = match list with h :: tl -> f h :: split tl f | _ -> []
 
-let splitter s = Str.split (Str.regexp "|||") (s ^ " ")
+let splitter s = Str.split (Str.regexp "|||") (" " ^ s ^ " ")
 
 let split_on_parts s =
   let lines = String.split_on_char '\n' (String.trim s) in
@@ -60,9 +60,10 @@ let preprocess input =
   |> List.map empty_str_to_no_op
   |> List.map concat_list |> String.concat "\n"
 
+let reserved = [ "smp_rmb"; "smp_wmb"; "smp_mb"; "if" ]
+
 let is_whitespace = function ' ' | '\n' | '\r' | '\t' -> true | _ -> false
 
-(* string t - значит string parser. t это основной тип Angstrom *)
 let whitespace = take_while is_whitespace
 
 let is_end_of_line = function '\n' | '\r' -> true | _ -> false
@@ -75,11 +76,14 @@ let is_digit = function '0' .. '9' -> true | _ -> false
 
 let parse p s = parse_string ~consume:All p (preprocess s)
 
+let parse_unproc p s = parse_string ~consume:All p s
+
 let jump_to_new_line = take_till is_end_of_line *> take_while is_end_of_line
 
-let cross_thread_delim = take_till (fun c -> c = '|') *> token "|||"
+let cross_thread_delim =
+  take_till (fun c -> match c with '|' | '\n' | '\r' -> true | _ -> false)
+  *> token "|||"
 
-(* пересечение n- границ потоков т.е символа ||| позволяет попасть в начало блока потока с номером n *)
 let cross_n_delims n = count n cross_thread_delim
 
 let go_to_next_line_for_thread n =
@@ -113,6 +117,8 @@ let reg =
   | true -> return @@ REGISTER s
   | false -> fail "No register with such name"
 
+let is_allowed_var_name name = not @@ List.mem name (reserved @ registers)
+
 let var_name =
   let is_allowed_fst_char = function
     | 'a' .. 'z' | 'A' .. 'Z' | '_' -> true
@@ -125,16 +131,19 @@ let var_name =
   whitespace *> peek_char >>= function
   | Some c when is_allowed_fst_char c ->
       take_while is_allowed_var_name_char >>= fun var_name ->
-      return @@ VAR_NAME var_name
+      if is_allowed_var_name var_name then return @@ VAR_NAME var_name
+      else fail "Variable's name is key word or register name"
   | _ -> fail "invalid variable name"
 
-let left_of p1 p = p <* whitespace <* p1
+(* let left_of p1 p = p <* whitespace <* p1
 
-let right_of p1 p = p1 *> whitespace *> p
+   let right_of p1 p = p1 *> whitespace *> p
 
-let between p1 p2 p = left_of p2 (right_of p1 p)
+   let between p1 p2 p = left_of p2 (right_of p1 p)
 
-let parens p = between (token "(") (token ")") p
+   let parens p = between (token "(") (token ")") p *)
+
+let parens p = token "(" *> p <* token ")"
 
 let chainl1 e op =
   let rec go acc = lift2 (fun f x -> f acc x) op e >>= go <|> return acc in
@@ -190,15 +199,30 @@ let if_stmt stmt_parser thread_number =
   >>= fun e ->
   block stmt_parser thread_number >>= fun block -> return @@ IF (e, block)
 
+(* the only way to use if-else statement!
+   if () {
+   }
+   else {
+   } *)
+let if_else_stmt stmt_parser thread_number =
+  cross_n_delims thread_number *> token "if" *> token "(" *> expr <* token ")"
+  >>= fun e ->
+  block stmt_parser thread_number >>= fun bk1 ->
+  cross_n_delims thread_number
+  *> token "else"
+  *> block stmt_parser thread_number
+  >>= fun bk2 -> return @@ IF_ELSE (e, bk1, bk2)
+
 let no_op thread_num =
   cross_n_delims thread_num *> token "no_op" <* jump_to_new_line >>= fun _ ->
   return NO_OP
 
 let stmt thread_number =
   fix (fun stmt ->
-      if_stmt stmt thread_number <|> assignment thread_number
+      if_else_stmt stmt thread_number
+      <|> if_stmt stmt thread_number <|> assignment thread_number
       <|> mem_barrier thread_number <|> no_op thread_number)
 
 let thread n = many (stmt n) >>= fun stmts -> return @@ THREAD stmts
 
-(* let prog = *)
+(* let prog =  *)
