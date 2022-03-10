@@ -14,6 +14,10 @@ let is_ws = function
  | _ -> false
 
 let is_eol = function
+
+
+
+
  | '\r' | '\n' -> true
  | _ -> false
 
@@ -145,6 +149,10 @@ let cint =
   >>= fun num -> return (Int.of_string (sign ^ num)) >>| cint
 
 let cbool = 
+
+
+
+  
   let ctrue = kwd "True" *> return (cbool true) in
   let cfalse = kwd "False" *> return (cbool false) in
   ctrue <|> cfalse
@@ -167,20 +175,20 @@ type pdispatch =
   ; adt: pdispatch -> pat t }
 
 let pack = 
-  let pat d = fix (fun _self -> trim (choice [d.tuple d; d.cons d; d.adt d])) in
+  let pat d = fix @@ fun _self -> trim @@ choice [d.tuple d; d.cons d; d.adt d] in
   let tuple d = 
-    fix (fun _self ->
+    fix @@ fun _self ->
       trim @@ lift2 (fun hd tl -> hd::tl) (d.cons d) (many1 (comma *> d.cons d))
-      >>| ptuple) in
-  let cons d = fix (fun _self -> chainr1 (d.adt d) popcons) in
-  let adt d = fix (fun _self ->
+      >>| ptuple in
+  let cons d = fix @@ fun _self -> chainr1 (d.adt d) popcons in
+  let adt d = fix @@ fun _self ->
     let plist =
-      trim (between lsb rsb (sep_by comma (d.pat d))) >>| plist in
+      trim @@ between lsb rsb (sep_by comma (d.pat d)) >>| plist in
     let prim =
       trim @@ choice [pconst; pvar; pwild; plist; parens @@ d.pat d] in
     trim
       ( lift2 pacase constr_ident (option (PTuple []) (empty1 *> d.adt d))
-      <|> prim ) ) in
+      <|> prim ) in
   {tuple; cons; pat; adt}
 
 let pattern = pack.pat pack
@@ -218,7 +226,7 @@ let pack =
       trim (lift2 ecase (kwd "case" *> empty1 *> d.expr d <* kwd "of") cases) in
     choice [elet; eif; efun; ecase])
   in
-  let tuple d = lift2 (@) (lp *> many1 (d.op d <* comma) <* rp) (d.op d <|> d.key d >>| fun rhs -> [rhs]) >>| etuple
+  let tuple d = lift2 (@) (many1 (d.op d <* comma)) (d.op d <|> d.key d >>| fun rhs -> [rhs]) >>| etuple
   in
   let op d = fix @@ fun _self -> 
     let lst = trim @@ between lsb rsb @@ sep_by comma (d.expr d) in
@@ -284,14 +292,41 @@ let code = {|let x = 2
              let os = [1]
              let t = "Hello" > "Abs"
              let f x = case x of 0 -> True
+             _ -> False
+             let quickSort [] = []
+             let quickSort x:xs = quickSort xs
              |}
 let rez = parse_or_error code;;
 
-let rez = Caml.Format.printf "%a\n" pp_prog rez
+(* let rez = Caml.Format.printf "%a\n" pp_prog rez *)
+
+
+let () = 
+  let code = "let (x,xs) = (1,2) let (x:xs) = xs" in 
+  match parse_with prog code with
+  | Ok ok -> Format.printf "%a\n" pp_prog ok
+  | Error err -> Format.printf "%s\n" err
+
 
 let%test _ =
   parse_test {|
   let x = 2
   let y = x + 10 / 5
 |} [DLet (PVar ("x"), EConst (CInt (2)));
-    DLet (PVar ("y"), EBinOp (Add, EVar ("x"), EBinOp (Div, EConst (CInt (10)), EConst (CInt (5)))))]
+    DLet (PVar ("y"), 
+          EBinOp 
+          (Add, EVar ("x"), 
+          EBinOp (Div, EConst (CInt (10)), EConst (CInt (5)))))]
+
+let%test _ = 
+  parse_test {|
+  let f x y = x * y
+  let f5 x = f 5 x
+  |} [DLet (PVar ("f"),
+      EFun (PVar ("x"), 
+      EFun (PVar ("y"), 
+      EBinOp (Mul, EVar("x"), EVar("y")))));
+      DLet (PVar ("f5"), 
+      EFun (PVar ("x"), 
+      EApp (EApp (EVar ("f"), 
+      EConst (CInt (5))), EVar ("x"))))]
