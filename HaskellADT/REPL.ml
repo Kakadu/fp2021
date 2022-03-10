@@ -19,6 +19,12 @@ let funct code =
   | Error err -> (Caml.Format.printf "%a\n" pp_interpret_err err)
 ;;
 
+let parser code = parse_with (chainr1 pattern popcons) code
+
+(* let (code) = match parser code with
+| Ok ok -> Format.printf "%a\n" pp_prog ok
+| _ -> Format.printf "Error" *)
+
 (* let rez = funct code;; *)
 
 (* parse_or_error {|let f x = case x of 0 -> True 

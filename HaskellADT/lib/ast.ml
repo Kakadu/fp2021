@@ -13,7 +13,10 @@ type bin_op =
   | EQ  (**  ==  *)
   | And (**  &&  *)
   | Or  (**  ||  *)
-[@@deriving eq, show {with_path=false}]
+[@@deriving eq,
+
+
+show {with_path=false}]
 
 and un_op = 
   | Minus (** -   *)
@@ -49,7 +52,7 @@ and guard = expr * expr  (**  | a < 5 = 10  *)
 and actor = id * tyexpr  (**  Point Int Int  *)
 and fromSet = expr * expr [@@deriving eq, show {with_path=false}]
     (**  x <- [1,2,3,4,5,6]  *)
-and binding = pat * expr [@@deriving eq, show {with_path=false}]
+and binding = pat * expr[@@deriving eq, show {with_path=false}]
     (**  fact 0 = 1
          fact n = n * fact (n - 1)*)
 
