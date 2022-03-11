@@ -17,6 +17,6 @@ type stmt =
   | SMP_MB
   | NO_OP
 
-type thread = THREAD of stmt list
+type thread = THREAD of (int * stmt list)
 
 type prog = PROG of thread list
