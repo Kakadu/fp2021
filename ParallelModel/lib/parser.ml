@@ -12,9 +12,9 @@ type expr =
 
 type stmt =
   | ASSIGN of expr * expr
-  | IF of expr * stmt
-  | IF_ELSE of expr * stmt * stmt
-  | BLOCK of stmt list
+  | IF of expr * stmt list
+  | IF_ELSE of expr * stmt list * stmt list
+  (* | BLOCK of stmt list *)
   | SMP_RMB
   | SMP_WMB
   | SMP_MB
@@ -194,7 +194,7 @@ let block stmt_parser thread_number =
   token "{" *> jump_to_new_line *> many1 stmt_parser
   <* cross_n_delims thread_number
   <* token "}" <* jump_to_new_line
-  >>= fun stmt_list -> return @@ BLOCK stmt_list
+  >>= fun stmt_list -> return @@ stmt_list
 
 let if_stmt stmt_parser thread_number =
   cross_n_delims thread_number *> token "if" *> token "(" *> expr <* token ")"
@@ -242,12 +242,7 @@ let test s =
 
 let test2 s = match prog s with PROG t_list -> List.hd t_list
 
-type exec_ctx = {
-  (* allocated : allocated; *)
-  vars : vars;
-  regs : vars;
-  last_value : int; (* cur_t : types; *)
-}
+type exec_ctx = { vars : vars; regs : vars; last_value : int }
 
 and allocated = (int * int) list
 
@@ -270,9 +265,7 @@ let make_exec_ctx () =
 let rec eval_expr ctx = function
   | INT n -> n
   | VAR_NAME var -> (
-      match Hashtbl.find_opt ctx.vars var with
-      | Some value -> value
-      | _ -> 0 (* failwith "read from not init variable" *))
+      match Hashtbl.find_opt ctx.vars var with Some value -> value | _ -> 0)
   | REGISTER r -> (
       match Hashtbl.find_opt ctx.regs r with Some n -> n | _ -> 0)
   | PLUS (l, r) -> eval_expr ctx l + eval_expr ctx r
@@ -282,13 +275,11 @@ let rec eval_expr ctx = function
       let rr = eval_expr ctx r in
       if rr = 0 then failwith "div by zero" else eval_expr ctx l / rr
 
-let blk s = match s with BLOCK stmts -> stmts | _ -> failwith "not block"
-
 let rec eval_stmt ctx = function
   | ASSIGN (l, r) -> eval_assign ctx l r
   | NO_OP -> ctx
-  | IF (e, block) -> eval_if ctx e (blk block)
-  | IF_ELSE (e, bk1, bk2) -> eval_if_else ctx e (blk bk1) (blk bk2)
+  | IF (e, block) -> eval_if ctx e block
+  | IF_ELSE (e, bk1, bk2) -> eval_if_else ctx e bk1 bk2
   | _ -> failwith "mem barrier or block"
 
 and eval_if_else ctx e block1 block2 =
@@ -315,12 +306,23 @@ and eval_assign ctx l r =
       ctx
   | _ -> failwith "assignment allowed only to variable and register"
 
-type thread_stat = { stmts : stmt list; counter : int; length : int }
+(* counter это список счетчиков для разных уровней вложенности
+   самый глубокий уровень стоит в списке последним. Список нужен для исполнения
+   стейтментов по одному за раз, без списка сложные стейтменты будут исполняться за один раз *)
+
+type thread_stat = {
+  stmts : stmt list;
+  counters : int list;
+  length : int;
+  branch_exprs : int list;
+}
 
 type prog_stat = { threads : thread_stat list; ctx : exec_ctx }
 
 let print_t_stat t_stat =
-  print_string ("counter: " ^ string_of_int t_stat.counter ^ "\n")
+  print_string "counters: ";
+  List.iter (fun x -> print_string @@ string_of_int x ^ "; ") t_stat.counters;
+  print_string "\n"
 
 let print_p_stat p_stat =
   List.iter print_t_stat p_stat.threads;
@@ -329,7 +331,7 @@ let print_p_stat p_stat =
 
 let init_thread_stat t =
   let ls = match t with THREAD (_, list) -> list in
-  { stmts = ls; counter = 0; length = List.length ls }
+  { stmts = ls; counters = [ 0 ]; length = List.length ls; branch_exprs = [] }
 
 let init_prog_stat p =
   let t_stats =
@@ -337,42 +339,99 @@ let init_prog_stat p =
   in
   { threads = t_stats; ctx = make_exec_ctx () }
 
-let thread_stat_inc t_stat = { t_stat with counter = t_stat.counter + 1 }
+let inc_last ls =
+  let len = List.length ls in
+  List.mapi (fun i x -> if i = len - 1 then x + 1 else x) ls
+
+let last ls = List.nth ls (List.length ls - 1)
+
+let enter_block t_stat v =
+  {
+    t_stat with
+    counters = t_stat.counters @ [ 0 ];
+    branch_exprs = t_stat.branch_exprs @ [ v ];
+  }
+
+let enter_block_in_thread n p_stat v =
+  {
+    p_stat with
+    threads =
+      List.mapi
+        (fun i t_stat -> if i = n then enter_block t_stat v else t_stat)
+        p_stat.threads;
+  }
+
+let get_stmt t_stat =
+  let rec helper stmts counts lvl =
+    match counts with
+    | [ n ] -> List.nth stmts n
+    | n :: tl ->
+        helper
+          (match List.nth stmts n with
+          | IF (_, stmt_list) ->
+              if List.nth t_stat.branch_exprs lvl <> 0 then stmt_list
+              else failwith "try enter if-block when condition is false"
+          | IF_ELSE (_, bk1, bk2) ->
+              if List.nth t_stat.branch_exprs lvl <> 0 then bk1 else bk2
+          | _ -> failwith "this stmt is not compound")
+          tl (lvl + 1)
+    | _ -> failwith "invalid list of counters (counts)"
+  in
+  helper t_stat.stmts t_stat.counters 0
+
+let check t_stat =
+  try match get_stmt t_stat with _ -> true with Failure _ -> false
+
+let reduce ls = ls |> List.rev |> List.tl |> List.rev
+
+let thread_stat_inc t_stat = { t_stat with counters = inc_last t_stat.counters }
+
+let correct_t_stat_inc t_stat ctx =
+  let rec helper t_stat ctx =
+    let t_stat' = thread_stat_inc t_stat in
+    if List.length t_stat'.counters = 1 || check t_stat' then t_stat'
+    else
+      helper
+        {
+          t_stat' with
+          counters = reduce t_stat'.counters;
+          branch_exprs = reduce t_stat'.branch_exprs;
+        }
+        ctx
+  in
+  helper t_stat ctx
 
 let set v' n = List.mapi (fun i v -> if i = n then v' else v)
 
-(* модифицировать п_стат после исполнения одного стейтмента в потоке н и получения в результате
-   контекста ктх' *)
 let prog_stat_inc p_stat n ctx' =
   {
-    threads = set (thread_stat_inc (List.nth p_stat.threads n)) n p_stat.threads;
+    threads =
+      set (correct_t_stat_inc (List.nth p_stat.threads n) ctx') n p_stat.threads;
     ctx = ctx';
   }
 
 let exec_single_stmt_in_thread n p_stat =
   let t_stat = List.nth p_stat.threads n in
-  match List.nth_opt t_stat.stmts t_stat.counter with
-  | None -> p_stat
-  | Some stmtt -> eval_stmt p_stat.ctx stmtt |> prog_stat_inc p_stat n
+  match get_stmt t_stat with
+  | IF (e, _) ->
+      if eval_expr p_stat.ctx e = 0 then
+        (* skip full if-stmt *)
+        prog_stat_inc p_stat n p_stat.ctx
+      else
+        (* enter if-block, save this fact in t_stat,  *)
+        enter_block_in_thread n p_stat (eval_expr p_stat.ctx e)
+  | IF_ELSE (e, _, _) -> enter_block_in_thread n p_stat (eval_expr p_stat.ctx e)
+  | NO_OP -> prog_stat_inc p_stat n p_stat.ctx
+  | ASSIGN (l, r) -> prog_stat_inc p_stat n (eval_assign p_stat.ctx l r)
+  | SMP_RMB | SMP_WMB | SMP_MB -> prog_stat_inc p_stat n p_stat.ctx
 
 let thread_is_not_finished t_stat =
-  if t_stat.counter < t_stat.length then true else false
+  if List.hd t_stat.counters < t_stat.length then true else false
 
 let prog_is_not_finished p_stat =
   List.exists
     (fun x -> x = true)
     (List.map thread_is_not_finished p_stat.threads)
-
-let exec_thread t =
-  let t_stat = init_thread_stat t in
-  let ctx = make_exec_ctx () in
-  let p_stat = { threads = [ t_stat ]; ctx } in
-  let rec helper p_stat =
-    if p_stat.threads |> List.hd |> thread_is_not_finished then
-      helper (exec_single_stmt_in_thread 0 p_stat)
-    else p_stat
-  in
-  helper p_stat
 
 let choose_not_finished_thread p_stat =
   let len = List.length p_stat.threads in
@@ -392,13 +451,8 @@ let exec_prog_in_cs p =
   in
   helper p_stat
 
-let s =
-  "x <- 1            ||| y <- 1\n\
-  \  if (y) {          ||| if (x) {\n\
-  \    EBX <- 50       |||   EAX <- 50\n\
-  \  }                 ||| }\n\
-  \  else {            ||| \n\
-  \    EBX <- 10       ||| \n\
-  \  }                 |||"
+let s = "\n  x <- 1   ||| y <- 1\n  EAX <- y ||| EBX <- x"
 
 let p = prog s
+
+let p_stat = init_prog_stat p
