@@ -242,69 +242,33 @@ let test s =
 
 let test2 s = match prog s with PROG t_list -> List.hd t_list
 
-type exec_ctx = { vars : vars; regs : vars; last_value : int }
+(* type exec_ctx = { vars : vars; regs : vars }
 
-and allocated = (int * int) list
+   and vars = (string, int) Hashtbl.t *)
 
-and vars = (string, int) Hashtbl.t
+type ram = (string, int) Hashtbl.t
 
-let print_ht =
-  Hashtbl.iter (fun v_name value ->
-      print_string (v_name ^ " = " ^ string_of_int value ^ "\t"))
+type mesi_state = Modified | Exclusive | Shared | Invalidated | Test
 
-let print_ctx ctx =
-  print_string "vars: ";
-  print_ht ctx.vars;
-  print_string "\nregs: ";
-  print_ht ctx.regs;
-  print_string "\n"
+(* В мою кэш линию влезает лишь одна int переменная
+   ключ для таблицы это имя переменной*)
+type cache_line = { state : mesi_state; value : int }
 
-let make_exec_ctx () =
-  { vars = Hashtbl.create 16; regs = Hashtbl.create 4; last_value = 0 }
+type cache = (string, cache_line) Hashtbl.t
 
-let rec eval_expr ctx = function
-  | INT n -> n
-  | VAR_NAME var -> (
-      match Hashtbl.find_opt ctx.vars var with Some value -> value | _ -> 0)
-  | REGISTER r -> (
-      match Hashtbl.find_opt ctx.regs r with Some n -> n | _ -> 0)
-  | PLUS (l, r) -> eval_expr ctx l + eval_expr ctx r
-  | SUB (l, r) -> eval_expr ctx l - eval_expr ctx r
-  | MUL (l, r) -> eval_expr ctx l * eval_expr ctx r
-  | DIV (l, r) ->
-      let rr = eval_expr ctx r in
-      if rr = 0 then failwith "div by zero" else eval_expr ctx l / rr
+let add_entry_to_cache (cache : cache) name value =
+  match Hashtbl.find_opt cache name with
+  | Some _ -> failwith "tried to add cache line that was already in cache"
+  | None -> Hashtbl.add cache name { state = Exclusive; value }
 
-let rec eval_stmt ctx = function
-  | ASSIGN (l, r) -> eval_assign ctx l r
-  | NO_OP -> ctx
-  | IF (e, block) -> eval_if ctx e block
-  | IF_ELSE (e, bk1, bk2) -> eval_if_else ctx e bk1 bk2
-  | _ -> failwith "mem barrier or block"
-
-and eval_if_else ctx e block1 block2 =
-  let cond = eval_expr ctx e in
-  if cond <> 0 then eval_block ctx block1 else eval_block ctx block2
-
-and eval_if ctx e block =
-  let cond = eval_expr ctx e in
-  if cond <> 0 then eval_block ctx block else ctx
-
-and eval_block ctx block =
-  match block with
-  | [] -> ctx
-  | stmtt :: tl -> eval_block (eval_stmt ctx stmtt) tl
-
-and eval_assign ctx l r =
-  let value = eval_expr ctx r in
-  match l with
-  | VAR_NAME v ->
-      Hashtbl.replace ctx.vars v value;
-      ctx
-  | REGISTER reg ->
-      Hashtbl.replace ctx.regs reg value;
-      ctx
-  | _ -> failwith "assignment allowed only to variable and register"
+let check_cache_hit cache name =
+  let bindings = Hashtbl.find_all cache name in
+  if List.length bindings > 1 then
+    failwith "variable sits in several cache lines"
+  else if List.length bindings = 1 then
+    match Hashtbl.find cache name with
+    | c_line -> if c_line.state = Invalidated then None else Some c_line
+  else None
 
 (* counter это список счетчиков для разных уровней вложенности
    самый глубокий уровень стоит в списке последним. Список нужен для исполнения
@@ -315,29 +279,322 @@ type thread_stat = {
   counters : int list;
   length : int;
   branch_exprs : int list;
+  cache : cache;
+  number : int;
 }
 
-type prog_stat = { threads : thread_stat list; ctx : exec_ctx }
+type prog_stat = { threads : thread_stat list; ram : ram }
+
+let rec remove_at n = function
+  | [] -> []
+  | h :: t -> if n = 0 then t else h :: remove_at (n - 1) t
+
+(* возвращает номер первого эл-та от которого f возвращает true *)
+let number_of list f =
+  let rec helper list f n =
+    if List.length list = 0 then None
+      (* failwith "list doesn't have element e such as f(e) returns true" *)
+    else
+      match f (List.hd list) with
+      | true -> Some n
+      | false -> helper (List.tl list) f (n + 1)
+  in
+  helper list f 0
+
+let set v' n = List.mapi (fun i v -> if i = n then v' else v)
+
+let init_var memory var =
+  match Hashtbl.find_opt memory var with
+  | Some _ -> failwith ("variable @" ^ var ^ " already initialized")
+  | None -> Hashtbl.add memory var 0
+
+(* updates only value of cache line, mesi-state is untouched *)
+let update_cache_line cache name value =
+  match Hashtbl.find_opt cache name with
+  | None -> failwith "tried to update cache line which is not in cache"
+  | Some c_line -> Hashtbl.replace cache name { c_line with value }
+
+type mesi_msg =
+  | Read of string
+  | ReadResponse of int option
+  | Invalidate of string
+  | InvalidateAcknowledge
+  | ReadInvalidate of string
+  | Writeback of string * int
+
+let change_mesi_state cache name new_mesi_state =
+  match Hashtbl.find_opt cache name with
+  | None ->
+      failwith "tried to change mesi_state for cache line which is not in cache"
+  | Some c_line ->
+      Hashtbl.replace cache name { c_line with state = new_mesi_state }
+
+let invalidate_caches p_stat n name =
+  let rec select_other_caches t_stats acc =
+    match t_stats with
+    | [] -> acc
+    | t_stat :: tl ->
+        if t_stat.number = n then select_other_caches tl acc
+        else select_other_caches tl (t_stat.cache :: acc)
+  in
+  let caches = select_other_caches p_stat.threads [] in
+  let invalidate_cache_line name cache =
+    match check_cache_hit cache name with
+    | None -> InvalidateAcknowledge
+    | Some _ ->
+        change_mesi_state cache name Invalidated;
+        InvalidateAcknowledge
+  in
+  List.iter
+    (fun cache ->
+      match invalidate_cache_line name cache with
+      | InvalidateAcknowledge -> ()
+      | _ ->
+          failwith
+            "invalidate_cache_line could return only InvalidateAcknowledge")
+    caches
+
+let write_back_to_ram_from_cache ram cache name =
+  (* check for idiot case *)
+  match check_cache_hit cache name with
+  | None ->
+      failwith "tried to write back to ram the variable that is not in cache"
+  | Some c_line ->
+      let store_to_ram ram (name : string) (value : int) =
+        Hashtbl.replace ram name value
+      in
+      store_to_ram ram name c_line.value
+
+let flush_cache_to_ram cache ram =
+  Hashtbl.iter
+    (fun name c_line ->
+      match c_line.state with
+      | Invalidated -> ()
+      | Modified | Exclusive | Shared ->
+          write_back_to_ram_from_cache ram cache name
+      | Test -> failwith "tried to flush cache line it Test state")
+    cache
+
+let flush_all_caches p_stat =
+  List.iter
+    (fun t_stat -> flush_cache_to_ram t_stat.cache p_stat.ram)
+    p_stat.threads
+
+let poll_caches p_stat n name =
+  let rec select_other_caches t_stats acc =
+    match t_stats with
+    | [] -> acc
+    | t_stat :: tl ->
+        if t_stat.number = n then select_other_caches tl acc
+        else select_other_caches tl (t_stat.cache :: acc)
+  in
+  let caches = select_other_caches p_stat.threads [] in
+  let poll_cache cache name =
+    match check_cache_hit cache name with
+    | None -> ReadResponse None
+    | Some c_line -> (
+        match c_line.state with
+        | Exclusive ->
+            change_mesi_state cache name Shared;
+            ReadResponse (Some c_line.value)
+        | Modified ->
+            write_back_to_ram_from_cache p_stat.ram cache name;
+            change_mesi_state cache name Shared;
+            ReadResponse (Some c_line.value)
+        | Shared -> ReadResponse (Some c_line.value)
+        | Invalidated -> failwith "check_cache_hit works incorrectly"
+        | _ -> failwith "poll_cache with Test state")
+  in
+  let rec poll_other_caches cache_list name =
+    if List.length cache_list = 0 then None
+    else
+      match poll_cache (List.hd cache_list) name with
+      | ReadResponse (Some v) -> Some v
+      | ReadResponse None -> poll_other_caches (List.tl cache_list) name
+      | _ -> failwith "poll_cache must return only ReadResponse"
+  in
+  poll_other_caches caches name
+
+let rec store_to_cache p_stat n name value =
+  let t_stat = List.nth p_stat.threads n in
+  let local_cache = t_stat.cache in
+  match check_cache_hit local_cache name with
+  | Some c_line -> (
+      match c_line.state with
+      | Modified -> update_cache_line local_cache name value
+      | Exclusive ->
+          update_cache_line local_cache name value;
+          change_mesi_state local_cache name Modified
+      | Shared ->
+          invalidate_caches p_stat n name;
+          update_cache_line local_cache name value;
+          change_mesi_state local_cache name Modified
+      | Invalidated -> failwith "cache hit of line in Invalidated state"
+      | Test -> failwith "Test")
+  | None -> read_with_intent_to_modify p_stat n name value
+
+and read_with_intent_to_modify p_stat n name value' =
+  let local_thread = List.nth p_stat.threads n in
+  let rec select_other_caches t_stats acc =
+    match t_stats with
+    | [] -> acc
+    | t_stat :: tl ->
+        if t_stat.number = n then select_other_caches tl acc
+        else select_other_caches tl (t_stat.cache :: acc)
+  in
+  let caches = select_other_caches p_stat.threads [] in
+  match poll_caches p_stat n name with
+  | None ->
+      (* value from main mem. store and set state to M *)
+      load_to_cache_from_ram p_stat n name;
+      update_cache_line local_thread.cache name value';
+      change_mesi_state local_thread.cache name Modified
+  | Some value ->
+      (*other caches invalidate their copies*)
+      let helper name cache =
+        match check_cache_hit cache name with
+        | None -> ()
+        | Some c_line -> (
+            match c_line.state with
+            | Modified ->
+                write_back_to_ram_from_cache p_stat.ram cache name;
+                change_mesi_state cache name Invalidated
+            | Exclusive | Shared -> change_mesi_state cache name Invalidated
+            | _ -> failwith "unexpected behavior")
+      in
+      List.iter (helper name) caches;
+
+      add_entry_to_cache local_thread.cache name value;
+      update_cache_line local_thread.cache name value';
+      change_mesi_state local_thread.cache name Modified
+
+and load_to_cache_from_ram p_stat n name =
+  let load_from_ram ram var =
+    match Hashtbl.find_opt ram var with
+    | Some value -> value
+    | None ->
+        (* Вернуть ноль *)
+        init_var ram var;
+        Hashtbl.find ram var
+  in
+  let value = load_from_ram p_stat.ram name in
+  add_entry_to_cache (List.nth p_stat.threads n).cache name value
+(* store_to_cache p_stat n name value *)
+
+let load_from_cache p_stat n name =
+  let local_cache = (List.nth p_stat.threads n).cache in
+  match check_cache_hit local_cache name with
+  | Some c_line -> c_line.value (* cache hit *)
+  (* cache miss *)
+  | None -> (
+      (* poll other caches for this "cache line" (in my case it's variable which is called "name") *)
+      match poll_caches p_stat n name with
+      | Some value ->
+          (* found in cache of another thread *)
+          add_entry_to_cache local_cache name value;
+          change_mesi_state local_cache name Shared;
+          value
+      | None -> (
+          (* load cache line from main-memory (RAM) *)
+          load_to_cache_from_ram p_stat n name;
+          match check_cache_hit local_cache name with
+          | None ->
+              failwith
+                "value was loaded from ram to cache but it is absent in cache"
+          | Some c_line -> c_line.value))
+
+let print_ht =
+  Hashtbl.iter (fun v_name value ->
+      print_string (v_name ^ " = " ^ string_of_int value ^ "\t"))
+
+let mesi_state_to_string = function
+  | Modified -> "M"
+  | Exclusive -> "E"
+  | Shared -> "S"
+  | Invalidated -> "I"
+  | Test -> "TEST"
+
+let print_cache =
+  Hashtbl.iter (fun name c_line ->
+      print_string
+        (name ^ " = " ^ string_of_int c_line.value ^ " in state: "
+        ^ mesi_state_to_string c_line.state
+        ^ "\n"))
+
+(* n - is a thread number where expression is evaluated *)
+let rec eval_expr n p_stat = function
+  | INT n -> n
+  | VAR_NAME var -> load_from_cache p_stat n var
+  | REGISTER r -> failwith "reads from registers not impl yet"
+  | PLUS (l, r) -> eval_expr n p_stat l + eval_expr n p_stat r
+  | SUB (l, r) -> eval_expr n p_stat l - eval_expr n p_stat r
+  | MUL (l, r) -> eval_expr n p_stat l * eval_expr n p_stat r
+  | DIV (l, r) ->
+      let r_exp = eval_expr n p_stat r in
+      if r_exp = 0 then failwith "div by zero" else eval_expr n p_stat l / r_exp
+
+let rec eval_stmt n p_stat = function
+  | ASSIGN (l, r) -> eval_assign n p_stat l r
+  | NO_OP -> p_stat
+  | IF (e, block) -> eval_if n p_stat e block
+  | IF_ELSE (e, bk1, bk2) -> eval_if_else n p_stat e bk1 bk2
+  | _ -> failwith "mem barrier or block"
+
+and eval_if_else n p_stat e block1 block2 =
+  let cond = eval_expr n p_stat e in
+  if cond <> 0 then eval_block n p_stat block1 else eval_block n p_stat block2
+
+and eval_if n p_stat e block =
+  let cond = eval_expr n p_stat e in
+  if cond <> 0 then eval_block n p_stat block else p_stat
+
+and eval_block n p_stat block =
+  match block with
+  | [] -> p_stat
+  | stmtt :: tl -> eval_block n (eval_stmt n p_stat stmtt) tl
+
+and eval_assign n p_stat l r =
+  let value = eval_expr n p_stat r in
+  match l with
+  | VAR_NAME v ->
+      store_to_cache p_stat n v value;
+      p_stat
+  | REGISTER reg ->
+      failwith "assignment to register is not implemented"
+      (* Hashtbl.replace ctx.regs reg value;
+         p_stat *)
+  | _ -> failwith "assignment allowed only to variable and register"
 
 let print_t_stat t_stat =
+  print_string ("thread " ^ string_of_int t_stat.number ^ ":\n");
   print_string "counters: ";
   List.iter (fun x -> print_string @@ string_of_int x ^ "; ") t_stat.counters;
+  print_string "\n";
+  print_cache t_stat.cache;
   print_string "\n"
 
 let print_p_stat p_stat =
   List.iter print_t_stat p_stat.threads;
-  print_ctx p_stat.ctx;
+  print_string "ram: ";
+  print_ht p_stat.ram;
   print_string "\n"
 
 let init_thread_stat t =
-  let ls = match t with THREAD (_, list) -> list in
-  { stmts = ls; counters = [ 0 ]; length = List.length ls; branch_exprs = [] }
+  let t_info = match t with THREAD (n, stmt_list) -> (n, stmt_list) in
+  {
+    stmts = snd t_info;
+    counters = [ 0 ];
+    length = List.length (snd t_info);
+    branch_exprs = [];
+    cache = Hashtbl.create 8;
+    number = fst t_info;
+  }
 
 let init_prog_stat p =
   let t_stats =
     match p with PROG threads -> List.map init_thread_stat threads
   in
-  { threads = t_stats; ctx = make_exec_ctx () }
+  { threads = t_stats; ram = Hashtbl.create 16 }
 
 let inc_last ls =
   let len = List.length ls in
@@ -386,8 +643,8 @@ let reduce ls = ls |> List.rev |> List.tl |> List.rev
 
 let thread_stat_inc t_stat = { t_stat with counters = inc_last t_stat.counters }
 
-let correct_t_stat_inc t_stat ctx =
-  let rec helper t_stat ctx =
+let correct_t_stat_inc t_stat =
+  let rec helper t_stat =
     let t_stat' = thread_stat_inc t_stat in
     if List.length t_stat'.counters = 1 || check t_stat' then t_stat'
     else
@@ -397,33 +654,30 @@ let correct_t_stat_inc t_stat ctx =
           counters = reduce t_stat'.counters;
           branch_exprs = reduce t_stat'.branch_exprs;
         }
-        ctx
   in
-  helper t_stat ctx
+  helper t_stat
 
-let set v' n = List.mapi (fun i v -> if i = n then v' else v)
-
-let prog_stat_inc p_stat n ctx' =
+let prog_stat_inc p_stat n =
   {
+    p_stat with
     threads =
-      set (correct_t_stat_inc (List.nth p_stat.threads n) ctx') n p_stat.threads;
-    ctx = ctx';
+      set (correct_t_stat_inc (List.nth p_stat.threads n)) n p_stat.threads;
   }
 
 let exec_single_stmt_in_thread n p_stat =
   let t_stat = List.nth p_stat.threads n in
   match get_stmt t_stat with
   | IF (e, _) ->
-      if eval_expr p_stat.ctx e = 0 then
+      if eval_expr n p_stat e = 0 then
         (* skip full if-stmt *)
-        prog_stat_inc p_stat n p_stat.ctx
+        prog_stat_inc p_stat n
       else
         (* enter if-block, save this fact in t_stat,  *)
-        enter_block_in_thread n p_stat (eval_expr p_stat.ctx e)
-  | IF_ELSE (e, _, _) -> enter_block_in_thread n p_stat (eval_expr p_stat.ctx e)
-  | NO_OP -> prog_stat_inc p_stat n p_stat.ctx
-  | ASSIGN (l, r) -> prog_stat_inc p_stat n (eval_assign p_stat.ctx l r)
-  | SMP_RMB | SMP_WMB | SMP_MB -> prog_stat_inc p_stat n p_stat.ctx
+        enter_block_in_thread n p_stat (eval_expr n p_stat e)
+  | IF_ELSE (e, _, _) -> enter_block_in_thread n p_stat (eval_expr n p_stat e)
+  | NO_OP -> prog_stat_inc p_stat n
+  | ASSIGN (l, r) -> prog_stat_inc (eval_assign n p_stat l r) n
+  | SMP_RMB | SMP_WMB | SMP_MB -> prog_stat_inc p_stat n
 
 let thread_is_not_finished t_stat =
   if List.hd t_stat.counters < t_stat.length then true else false
@@ -449,9 +703,11 @@ let exec_prog_in_cs p =
         (exec_single_stmt_in_thread (choose_not_finished_thread p_stat) p_stat)
     else p_stat
   in
-  helper p_stat
+  let res_p_stat = helper p_stat in
+  flush_all_caches res_p_stat;
+  res_p_stat
 
-let s = "\n  x <- 1   ||| y <- 1\n  EAX <- y ||| EBX <- x"
+let s = "x<-1 ||| y<-1\na<- y ||| b <- x"
 
 let p = prog s
 
