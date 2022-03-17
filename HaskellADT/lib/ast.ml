@@ -41,13 +41,13 @@ and expr =
   | EIf of expr * expr * expr                    (**  if x >= 5 then "Nice" else "Bad"  *)
   | ELet of binding * expr                  (**  let x = 5; y = 10 in x + y  *)
   | ELstCompr of expr * fromSet list * expr list (**  [z | x <- xs, let y = x + 1, z = x * y]  *)
-  | ECase of expr * case list                    (**  head xs = case xs of [] -> -100
-                                                                           (x:_) -> x  *)
-  | ECtor of id * expr
+  | ECase of expr * case list                    (**  case xs of [] -> -100
+                                                                 (x:_) -> x  *)
+  | ECtor of id * expr                           (**  (Point 1 1)  *)
   | EFun of pat * expr                           (**  \x -> x + 10  *)
 [@@deriving eq, show {with_path=false}]
 
-and case = pat * expr  (**  _ -> 100*)
+and case = pat * expr    (**  _ -> 100*)
 and guard = expr * expr  (**  | a < 5 = 10  *)
 and actor = id * tyexpr  (**  Point Int Int  *)
 and fromSet = expr * expr [@@deriving eq, show {with_path=false}]
