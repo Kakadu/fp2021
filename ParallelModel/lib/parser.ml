@@ -11,7 +11,9 @@ type expr =
   | DIV of expr * expr
 
 type stmt =
+  | ASSERT of expr
   | ASSIGN of expr * expr
+  | WHILE of expr * stmt list
   | IF of expr * stmt list
   | IF_ELSE of expr * stmt list * stmt list
   (* | BLOCK of stmt list *)
@@ -62,7 +64,7 @@ let preprocess input =
   |> List.map empty_str_to_no_op
   |> List.map concat_list |> String.concat "\n"
 
-let reserved = [ "smp_rmb"; "smp_wmb"; "smp_mb"; "if" ]
+let reserved = [ "smp_rmb"; "smp_wmb"; "smp_mb"; "if"; "assert"; "while" ]
 
 let is_whitespace = function ' ' | '\n' | '\r' | '\t' -> true | _ -> false
 
@@ -182,6 +184,11 @@ let mem_barrier thread_num =
   cross_n_delims thread_num *> (smp_rmb <|> smp_wmb <|> smp_mb)
   <* jump_to_new_line
 
+let assert_stmt thread_num =
+  cross_n_delims thread_num *> token "assert" *> token "(" *> expr
+  <* token ")" <* jump_to_new_line
+  >>= fun e -> return @@ ASSERT e
+
 let assignment thread_num =
   cross_n_delims thread_num *> (reg <|> var_name) >>= fun named_loc ->
   token "<-" *> expr <* jump_to_new_line >>= fun e ->
@@ -195,6 +202,11 @@ let block stmt_parser thread_number =
   <* cross_n_delims thread_number
   <* token "}" <* jump_to_new_line
   >>= fun stmt_list -> return @@ stmt_list
+
+let while_stmt stmt_parser thread_num =
+  cross_n_delims thread_num *> token "while" *> token "(" *> expr <* token ")"
+  >>= fun e ->
+  block stmt_parser thread_num >>= fun block -> return @@ WHILE (e, block)
 
 let if_stmt stmt_parser thread_number =
   cross_n_delims thread_number *> token "if" *> token "(" *> expr <* token ")"
@@ -222,7 +234,9 @@ let no_op thread_num =
 let stmt thread_number =
   fix (fun stmt ->
       if_else_stmt stmt thread_number
-      <|> if_stmt stmt thread_number <|> assignment thread_number
+      <|> if_stmt stmt thread_number
+      <|> while_stmt stmt thread_number
+      <|> assignment thread_number <|> assert_stmt thread_number
       <|> mem_barrier thread_number <|> no_op thread_number)
 
 let thread n = many (stmt n) >>= fun stmts -> return @@ THREAD (n, stmts)
@@ -255,7 +269,10 @@ module SequentialConsistency = struct
 
   let add_entry_to_cache (cache : cache) name value =
     match Hashtbl.find_opt cache name with
-    | Some _ -> failwith "tried to add cache line that was already in cache"
+    | Some c_line -> (
+        match c_line.state with
+        | Invalidated -> Hashtbl.replace cache name { state = Exclusive; value }
+        | _ -> failwith "tried to add cache line that was already in cache")
     | None -> Hashtbl.add cache name { state = Exclusive; value }
 
   let check_cache_hit cache name =
@@ -278,6 +295,7 @@ module SequentialConsistency = struct
     branch_exprs : int list;
     cache : cache;
     number : int;
+    is_in_while : bool;
   }
 
   type prog_stat = { threads : thread_stat list; ram : ram }
@@ -489,7 +507,9 @@ module SequentialConsistency = struct
         match poll_caches p_stat n name with
         | Some value ->
             (* found in cache of another thread *)
+            print_endline "before";
             add_entry_to_cache local_cache name value;
+            print_endline "after";
             change_mesi_state local_cache name Shared;
             value
         | None -> (
@@ -532,27 +552,32 @@ module SequentialConsistency = struct
         if r_exp = 0 then failwith "div by zero"
         else eval_expr n p_stat l / r_exp
 
-  let rec eval_stmt n p_stat = function
-    | ASSIGN (l, r) -> eval_assign n p_stat l r
-    | NO_OP -> p_stat
-    | IF (e, block) -> eval_if n p_stat e block
-    | IF_ELSE (e, bk1, bk2) -> eval_if_else n p_stat e bk1 bk2
-    | _ -> failwith "mem barrier or block"
+  (* let rec eval_stmt n p_stat = function
+       | ASSIGN (l, r) -> eval_assign n p_stat l r
+       | ASSERT e -> eval_assert n p_stat e
+       | NO_OP -> p_stat
+       | IF (e, block) -> eval_if n p_stat e block
+       | IF_ELSE (e, bk1, bk2) -> eval_if_else n p_stat e bk1 bk2
+       | _ -> failwith "mem barrier or block"
 
-  and eval_if_else n p_stat e block1 block2 =
-    let cond = eval_expr n p_stat e in
-    if cond <> 0 then eval_block n p_stat block1 else eval_block n p_stat block2
+     and eval_if_else n p_stat e block1 block2 =
+       let cond = eval_expr n p_stat e in
+       if cond <> 0 then eval_block n p_stat block1 else eval_block n p_stat block2
 
-  and eval_if n p_stat e block =
-    let cond = eval_expr n p_stat e in
-    if cond <> 0 then eval_block n p_stat block else p_stat
+     and eval_if n p_stat e block =
+       let cond = eval_expr n p_stat e in
+       if cond <> 0 then eval_block n p_stat block else p_stat
 
-  and eval_block n p_stat block =
-    match block with
-    | [] -> p_stat
-    | stmtt :: tl -> eval_block n (eval_stmt n p_stat stmtt) tl
+     and eval_block n p_stat block =
+       match block with
+       | [] -> p_stat
+       | stmtt :: tl -> eval_block n (eval_stmt n p_stat stmtt) tl *)
 
-  and eval_assign n p_stat l r =
+  let eval_assert n p_stat e =
+    let value = eval_expr n p_stat e in
+    if value = 0 then failwith "assertation fails (arg = 0)" else p_stat
+
+  let eval_assign n p_stat l r =
     let value = eval_expr n p_stat r in
     match l with
     | VAR_NAME v ->
@@ -587,6 +612,7 @@ module SequentialConsistency = struct
       branch_exprs = [];
       cache = Hashtbl.create 8;
       number = fst t_info;
+      is_in_while = false;
     }
 
   let init_prog_stat p =
@@ -601,23 +627,26 @@ module SequentialConsistency = struct
 
   let last ls = List.nth ls (List.length ls - 1)
 
-  let enter_block t_stat v =
+  let enter_block t_stat v is_in_while =
     {
       t_stat with
       counters = t_stat.counters @ [ 0 ];
       branch_exprs = t_stat.branch_exprs @ [ v ];
+      is_in_while;
     }
 
-  let enter_block_in_thread n p_stat v =
+  let enter_block_in_thread n p_stat v is_in_while =
     {
       p_stat with
       threads =
         List.mapi
-          (fun i t_stat -> if i = n then enter_block t_stat v else t_stat)
+          (fun i t_stat ->
+            if i = n then enter_block t_stat v is_in_while else t_stat)
           p_stat.threads;
     }
 
-  let get_stmt t_stat =
+  let get_stmt p_stat cur_t_num =
+    let t_stat = List.nth p_stat.threads cur_t_num in
     let rec helper stmts counts lvl =
       match counts with
       | [ n ] -> List.nth stmts n
@@ -629,54 +658,83 @@ module SequentialConsistency = struct
                 else failwith "try enter if-block when condition is false"
             | IF_ELSE (_, bk1, bk2) ->
                 if List.nth t_stat.branch_exprs lvl <> 0 then bk1 else bk2
+            | WHILE (e, block) ->
+                if List.nth t_stat.branch_exprs lvl <> 0 then block
+                else failwith "try enter while-loop when condition is false"
             | _ -> failwith "this stmt is not compound")
             tl (lvl + 1)
       | _ -> failwith "invalid list of counters (counts)"
     in
     helper t_stat.stmts t_stat.counters 0
 
-  let check t_stat =
-    try match get_stmt t_stat with _ -> true with Failure _ -> false
+  let check p_stat n =
+    try match get_stmt p_stat n with _ -> true with Failure _ -> false
 
   let reduce ls = ls |> List.rev |> List.tl |> List.rev
 
   let thread_stat_inc t_stat =
     { t_stat with counters = inc_last t_stat.counters }
 
-  let correct_t_stat_inc t_stat =
-    let rec helper t_stat =
+  let prog_stat_inc p_stat n =
+    let rec helper p_stat n =
+      let t_stat = List.nth p_stat.threads n in
       let t_stat' = thread_stat_inc t_stat in
-      if List.length t_stat'.counters = 1 || check t_stat' then t_stat'
+      let threads' = set t_stat' n p_stat.threads in
+      let p_stat' = { p_stat with threads = threads' } in
+      if List.length t_stat'.counters = 1 || check p_stat' n then p_stat'
       else
-        helper
+        (* leave block *)
+        let t_stat2 =
           {
             t_stat' with
             counters = reduce t_stat'.counters;
             branch_exprs = reduce t_stat'.branch_exprs;
           }
+        in
+        if t_stat2.is_in_while then
+          let t_stat2 =
+            {
+              t_stat' with
+              counters = reduce t_stat'.counters;
+              branch_exprs = reduce t_stat'.branch_exprs;
+              is_in_while = false;
+            }
+          in
+          let threads2 = set t_stat2 n p_stat'.threads in
+          let p_stat2 = { p_stat' with threads = threads2 } in
+          p_stat2
+        else
+          let threads2 = set t_stat2 n p_stat'.threads in
+          let p_stat2 = { p_stat' with threads = threads2 } in
+          helper p_stat2 n
     in
-    helper t_stat
+    helper p_stat n
 
-  let prog_stat_inc p_stat n =
-    {
-      p_stat with
-      threads =
-        set (correct_t_stat_inc (List.nth p_stat.threads n)) n p_stat.threads;
-    }
+  (* let prog_stat_inc p_stat n =
+     {
+       p_stat with
+       threads =
+         set (correct_t_stat_inc (List.nth p_stat.threads n)) n p_stat.threads;
+     } *)
 
   let exec_single_stmt_in_thread n p_stat =
-    let t_stat = List.nth p_stat.threads n in
-    match get_stmt t_stat with
+    (* let t_stat = List.nth p_stat.threads n in *)
+    match get_stmt p_stat n with
+    | WHILE (e, _) ->
+        if eval_expr n p_stat e = 0 then prog_stat_inc p_stat n
+        else enter_block_in_thread n p_stat (eval_expr n p_stat e) true
     | IF (e, _) ->
         if eval_expr n p_stat e = 0 then
           (* skip full if-stmt *)
           prog_stat_inc p_stat n
         else
           (* enter if-block, save this fact in t_stat,  *)
-          enter_block_in_thread n p_stat (eval_expr n p_stat e)
-    | IF_ELSE (e, _, _) -> enter_block_in_thread n p_stat (eval_expr n p_stat e)
+          enter_block_in_thread n p_stat (eval_expr n p_stat e) false
+    | IF_ELSE (e, _, _) ->
+        enter_block_in_thread n p_stat (eval_expr n p_stat e) false
     | NO_OP -> prog_stat_inc p_stat n
     | ASSIGN (l, r) -> prog_stat_inc (eval_assign n p_stat l r) n
+    | ASSERT e -> prog_stat_inc (eval_assert n p_stat e) n
     | SMP_RMB | SMP_WMB | SMP_MB -> prog_stat_inc p_stat n
 
   let thread_is_not_finished t_stat =
@@ -742,15 +800,20 @@ module TSO = struct
   let buffer_store (store : store_op) st_buf = Queue.add store st_buf
 
   (* посчитать число записей в переменную name ,которые находятся в store buffer-e *)
-  let calc_entries name st_buf =
+  let calc_entries_in_store_buf name st_buf =
     Queue.fold
       (fun accu store_op -> if store_op.name = name then accu + 1 else accu)
       0 st_buf
 
+  let calc_entries_in_inv_q name inv_q =
+    Queue.fold
+      (fun accu inv -> if inv.target = name then accu + 1 else accu)
+      0 inv_q
+
   (* получить последнее значение записанное в переменную name и
      находящееся в буфере записи *)
   let store_forwarding (name : string) (st_buf : store_buf) =
-    let n = calc_entries name st_buf in
+    let n = calc_entries_in_store_buf name st_buf in
     if n = 0 then None
     else
       let last_buffered_store_to_name_value =
@@ -815,7 +878,10 @@ module TSO = struct
 
   let add_entry_to_cache (cache : cache) name value =
     match Hashtbl.find_opt cache name with
-    | Some _ -> failwith "tried to add cache line that was already in cache"
+    | Some c_line -> (
+        match c_line.state with
+        | Invalidated -> Hashtbl.replace cache name { state = Exclusive; value }
+        | _ -> failwith "tried to add cache line that was already in cache")
     | None -> Hashtbl.add cache name { state = Exclusive; value }
 
   let add_or_modify_cache_line cache name value =
@@ -832,6 +898,8 @@ module TSO = struct
       | c_line -> if c_line.state = Invalidated then None else Some c_line
     else None
 
+  type pending_load = { is_pending : bool; v_name : string }
+
   type thread_stat = {
     stmts : stmt list;
     counters : int list;
@@ -843,10 +911,11 @@ module TSO = struct
     st_buf : store_buf;
     inv_q : inv_queue;
     number : int;
-    pending_load : bool;
+    pending_load : pending_load;
     last_eval_res : int;
     read_rq_tbl : (string, bool * int) Hashtbl.t;
     inv_rq_tbl : (string, int) Hashtbl.t;
+    is_waiting_on_wmb : bool;
   }
 
   type prog_stat = {
@@ -864,13 +933,13 @@ module TSO = struct
     in
     helper p_stat.threads
 
-  let await_pending_load_in_thread n p_stat =
+  let await_pending_load_in_thread n p_stat v_name =
     let helper t_stat =
-      match t_stat.pending_load with
+      match t_stat.pending_load.is_pending with
       | true -> t_stat
       (* failwith "previous pending_load is not ended" *)
       (* надо ли last_eval_res = None? *)
-      | false -> { t_stat with pending_load = true }
+      | false -> { t_stat with pending_load = { is_pending = true; v_name } }
     in
     let t_stat' = helper (get_thread p_stat n) in
     let t_stats' = set t_stat' n p_stat.threads in
@@ -878,8 +947,9 @@ module TSO = struct
 
   let finish_pending_load_in_thread n p_stat =
     let helper t_stat =
-      match t_stat.pending_load with
-      | true -> { t_stat with pending_load = false }
+      match t_stat.pending_load.is_pending with
+      | true ->
+          { t_stat with pending_load = { is_pending = false; v_name = "" } }
       | false -> t_stat
     in
     let t_stat' = helper (get_thread p_stat n) in
@@ -904,6 +974,27 @@ module TSO = struct
     match check_cache_hit cache name with
     | None -> ()
     | Some _ -> change_mesi_state cache name Invalidated
+
+  let rec process_inv_q t_stat v_name =
+    match calc_entries_in_inv_q v_name t_stat.inv_q with
+    | 0 -> ()
+    | _ ->
+        let invalidation = Queue.take t_stat.inv_q in
+        invalidate_cache_line invalidation.target t_stat.cache;
+        process_inv_q t_stat v_name
+
+  let process_one_element_of_inv_q t_stat =
+    match Queue.take_opt t_stat.inv_q with
+    | None -> ()
+    | Some invalidation ->
+        invalidate_cache_line invalidation.target t_stat.cache
+
+  let rec process_whole_inv_q t_stat =
+    match Queue.take_opt t_stat.inv_q with
+    | None -> ()
+    | Some invalidation ->
+        invalidate_cache_line invalidation.target t_stat.cache;
+        process_whole_inv_q t_stat
 
   (* let invalidate_caches p_stat n name =
      let rec select_other_caches t_stats acc =
@@ -992,7 +1083,8 @@ module TSO = struct
             (* отправляем акноуледжмент *)
             Queue.add
               (InvalidateAcknowledge (v_name, cur_thread_num))
-              requestor_thread.cache_ack_queue
+              requestor_thread.cache_ack_queue;
+            p_stat
         | _ ->
             failwith
               "first element in cache_request_queue isn't an Invalidate request"
@@ -1043,34 +1135,79 @@ module TSO = struct
     | Some request -> (
         match request with
         | ReadRq (v_name, source_t_num) -> (
+            process_inv_q local_thread v_name;
+
             let requestor_thread = get_thread p_stat source_t_num in
             match check_cache_hit local_thread.cache v_name with
             | None ->
                 Queue.add
                   (ReadResponse (v_name, None, None))
-                  requestor_thread.cache_ack_queue
+                  requestor_thread.cache_ack_queue;
+                p_stat
             | Some c_line -> (
                 match c_line.state with
                 | Exclusive ->
                     Queue.add
                       (ReadResponse (v_name, Some c_line.value, Some Exclusive))
                       requestor_thread.cache_ack_queue;
-                    change_mesi_state local_thread.cache v_name Shared
+                    change_mesi_state local_thread.cache v_name Shared;
+                    p_stat
                 | Modified ->
                     write_back_to_ram_from_cache p_stat.ram local_thread.cache
                       v_name;
                     change_mesi_state local_thread.cache v_name Shared;
                     Queue.add
                       (ReadResponse (v_name, Some c_line.value, Some Modified))
-                      requestor_thread.cache_ack_queue
+                      requestor_thread.cache_ack_queue;
+                    p_stat
                 | Shared ->
                     Queue.add
                       (ReadResponse (v_name, Some c_line.value, Some Shared))
-                      requestor_thread.cache_ack_queue
+                      requestor_thread.cache_ack_queue;
+                    p_stat
                 | Invalidated ->
                     failwith
                       "cache hit for line in Invalidated state is an error"))
         | _ -> failwith "fst element in cache_request_queue isn't ReadRq")
+
+  (* let process_read_request p_stat cur_t_num =
+      let local_thread = get_thread p_stat cur_t_num in
+      match Queue.take_opt local_thread.cache_request_queue with
+      | None -> failwith "no (read) requests to process"
+      | Some request -> (
+          match request with
+          | ReadRq (v_name, source_t_num) ->
+              let _ =
+                let requestor_thread = get_thread p_stat source_t_num in
+                match check_cache_hit local_thread.cache v_name with
+                | None ->
+                    Queue.add
+                      (ReadResponse (v_name, None, None))
+                      requestor_thread.cache_ack_queue
+                | Some c_line -> (
+                    match c_line.state with
+                    | Exclusive ->
+                        Queue.add
+                          (ReadResponse (v_name, Some c_line.value, Some Exclusive))
+                          requestor_thread.cache_ack_queue;
+                        change_mesi_state local_thread.cache v_name Shared
+                    | Modified ->
+                        write_back_to_ram_from_cache p_stat.ram local_thread.cache
+                          v_name;
+                        change_mesi_state local_thread.cache v_name Shared;
+                        Queue.add
+                          (ReadResponse (v_name, Some c_line.value, Some Modified))
+                          requestor_thread.cache_ack_queue
+                    | Shared ->
+                        Queue.add
+                          (ReadResponse (v_name, Some c_line.value, Some Shared))
+                          requestor_thread.cache_ack_queue
+                    | Invalidated ->
+                        failwith
+                          "cache hit for line in Invalidated state is an error")
+              in
+              p_stat
+          | _ -> failwith "fst element in cache_request_queue isn't ReadRq") *)
 
   let issue_read_rq p_stat n v_name =
     let local_thread = get_thread p_stat n in
@@ -1083,6 +1220,8 @@ module TSO = struct
 
   let issue_inv_rq p_stat n v_name =
     let local_thread = get_thread p_stat n in
+
+    (* process_inv_q local_thread v_name; <-------------------------------------------------------------*)
     match Hashtbl.find_opt local_thread.inv_rq_tbl v_name with
     | None ->
         Hashtbl.add local_thread.inv_rq_tbl v_name 0;
@@ -1093,6 +1232,9 @@ module TSO = struct
   let rec store_to_cache p_stat n name value =
     let local_thread = get_thread p_stat n in
     let local_cache = local_thread.cache in
+
+    process_inv_q local_thread name;
+
     match check_cache_hit local_cache name with
     | Some c_line -> (
         match c_line.state with
@@ -1177,17 +1319,17 @@ module TSO = struct
                Плюс надо факт такого ожидания отметить в p_stat или t_stat
                Когда данные придут, то передающий их кэш или основная память должны
                изменить значение флага pending_load на false *)
-        | None -> await_pending_load_in_thread n p_stat)
+        | None -> await_pending_load_in_thread n p_stat var)
     | REGISTER r -> failwith "reads from registers not impl yet"
     | PLUS (l, r) -> (
         let p_stat1 = eval_expr n p_stat l in
         let t_stat1 = get_thread p_stat1 n in
-        match t_stat1.pending_load with
+        match t_stat1.pending_load.is_pending with
         | true -> p_stat1
         | false -> (
             let p_stat2 = eval_expr n p_stat r in
             let t_stat2 = get_thread p_stat2 n in
-            match t_stat2.pending_load with
+            match t_stat2.pending_load.is_pending with
             | false ->
                 eval_int
                   (t_stat1.last_eval_res + t_stat2.last_eval_res)
@@ -1196,12 +1338,12 @@ module TSO = struct
     | SUB (l, r) -> (
         let p_stat1 = eval_expr n p_stat l in
         let t_stat1 = get_thread p_stat1 n in
-        match t_stat1.pending_load with
+        match t_stat1.pending_load.is_pending with
         | true -> p_stat1
         | false -> (
             let p_stat2 = eval_expr n p_stat r in
             let t_stat2 = get_thread p_stat2 n in
-            match t_stat2.pending_load with
+            match t_stat2.pending_load.is_pending with
             | false ->
                 eval_int
                   (t_stat1.last_eval_res - t_stat2.last_eval_res)
@@ -1210,12 +1352,12 @@ module TSO = struct
     | MUL (l, r) -> (
         let p_stat1 = eval_expr n p_stat l in
         let t_stat1 = get_thread p_stat1 n in
-        match t_stat1.pending_load with
+        match t_stat1.pending_load.is_pending with
         | true -> p_stat1
         | false -> (
             let p_stat2 = eval_expr n p_stat r in
             let t_stat2 = get_thread p_stat2 n in
-            match t_stat2.pending_load with
+            match t_stat2.pending_load.is_pending with
             | false ->
                 eval_int
                   (t_stat1.last_eval_res * t_stat2.last_eval_res)
@@ -1224,12 +1366,12 @@ module TSO = struct
     | DIV (l, r) -> (
         let p_stat1 = eval_expr n p_stat l in
         let t_stat1 = get_thread p_stat1 n in
-        match t_stat1.pending_load with
+        match t_stat1.pending_load.is_pending with
         | true -> p_stat1
         | false -> (
             let p_stat2 = eval_expr n p_stat r in
             let t_stat2 = get_thread p_stat2 n in
-            match t_stat2.pending_load with
+            match t_stat2.pending_load.is_pending with
             | false ->
                 if t_stat2.last_eval_res = 0 then failwith "div by zero"
                 else
@@ -1241,7 +1383,7 @@ module TSO = struct
   let eval_assign n p_stat l r =
     let p_stat' = eval_expr n p_stat r in
     let t_stat' = get_thread p_stat' n in
-    if t_stat'.pending_load then p_stat'
+    if t_stat'.pending_load.is_pending then p_stat'
     else
       match l with
       | VAR_NAME v ->
@@ -1307,10 +1449,11 @@ module TSO = struct
       cache_request_queue = Queue.create ();
       cache_ack_queue = Queue.create ();
       number = fst t_info;
-      pending_load = false;
+      pending_load = { is_pending = false; v_name = "" };
       last_eval_res = 0;
       read_rq_tbl = Hashtbl.create 32;
       inv_rq_tbl = Hashtbl.create 32;
+      is_waiting_on_wmb = false;
     }
 
   let init_prog_stat p =
@@ -1357,11 +1500,37 @@ module TSO = struct
                 else failwith "try enter if-block when condition is false"
             | IF_ELSE (_, bk1, bk2) ->
                 if List.nth t_stat.branch_exprs lvl <> 0 then bk1 else bk2
+            | WHILE (_, bk) ->
+                if List.nth t_stat.branch_exprs lvl <> 0 then bk
+                else failwith "try enter while-loop when condition is false"
             | _ -> failwith "this stmt is not compound")
             tl (lvl + 1)
       | _ -> failwith "invalid list of counters (counts)"
     in
     helper t_stat.stmts t_stat.counters 0
+
+  let peek_while t_stat counters =
+    let rec helper stmts counts lvl =
+      match counts with
+      | [ n ] -> (
+          let stmt = List.nth stmts n in
+          match stmt with WHILE (_, _) -> true | _ -> false)
+      | n :: tl ->
+          helper
+            (match List.nth stmts n with
+            | IF (_, stmt_list) ->
+                if List.nth t_stat.branch_exprs lvl <> 0 then stmt_list
+                else failwith "try enter if-block when condition is false"
+            | IF_ELSE (_, bk1, bk2) ->
+                if List.nth t_stat.branch_exprs lvl <> 0 then bk1 else bk2
+            | WHILE (_, bk) ->
+                if List.nth t_stat.branch_exprs lvl <> 0 then bk
+                else failwith "try enter while-block when condition is false"
+            | _ -> failwith "this stmt is not compound (peek_while")
+            tl (lvl + 1)
+      | _ -> failwith "invalid list of counters (counts)"
+    in
+    helper t_stat.stmts counters 0
 
   let check t_stat =
     try match get_stmt t_stat with _ -> true with Failure _ -> false
@@ -1376,12 +1545,24 @@ module TSO = struct
       let t_stat' = thread_stat_inc t_stat in
       if List.length t_stat'.counters = 1 || check t_stat' then t_stat'
       else
-        helper
+        let ret_t_stat =
           {
             t_stat' with
             counters = reduce t_stat'.counters;
             branch_exprs = reduce t_stat'.branch_exprs;
           }
+        in
+        if peek_while ret_t_stat ret_t_stat.counters then
+          (* print_endline "peek_while = true"; *)
+          ret_t_stat
+        else
+          (* print_endline "peek_while = false"; *)
+          helper
+            {
+              t_stat' with
+              counters = reduce t_stat'.counters;
+              branch_exprs = reduce t_stat'.branch_exprs;
+            }
     in
     helper t_stat
 
@@ -1406,28 +1587,38 @@ module TSO = struct
         if is_obtained = false && cnt = 0 then (
           (* это первый поступивший ответ на запрос чтения *)
           match value with
-          | None -> Hashtbl.replace read_rq_tbl v_name (false, 1)
+          | None ->
+              Hashtbl.replace read_rq_tbl v_name (false, 1);
+              p_stat
           | Some v ->
               (* add to our cache *)
               add_entry_to_cache local_thread.cache v_name v;
 
-              (* finish_pending_load_in_thread n p_stat; <-----------------------------------------------------*)
-
               (* так как значение получили от других кешей, то наша кэш линия
                  должна быть в состоянии Shared *)
               change_mesi_state local_thread.cache v_name Shared;
-              Hashtbl.replace read_rq_tbl v_name (true, 1))
+              Hashtbl.replace read_rq_tbl v_name (true, 1);
+              if v_name = local_thread.pending_load.v_name then
+                finish_pending_load_in_thread n p_stat
+              else p_stat)
         else
           let cnt' = cnt + 1 in
           match is_obtained with
-          | true -> Hashtbl.replace read_rq_tbl v_name (true, cnt')
+          | true ->
+              Hashtbl.replace read_rq_tbl v_name (true, cnt');
+              p_stat
           | false -> (
               match value with
-              | None -> Hashtbl.replace read_rq_tbl v_name (false, cnt')
+              | None ->
+                  Hashtbl.replace read_rq_tbl v_name (false, cnt');
+                  p_stat
               | Some v ->
                   (* add to our cache *)
                   add_entry_to_cache local_thread.cache v_name v;
-                  Hashtbl.replace read_rq_tbl v_name (true, cnt')))
+                  Hashtbl.replace read_rq_tbl v_name (true, cnt');
+                  if v_name = local_thread.pending_load.v_name then
+                    finish_pending_load_in_thread n p_stat
+                  else p_stat))
 
   let process_inv_ack_in_thread n p_stat v_name =
     let local_thread = get_thread p_stat n in
@@ -1442,7 +1633,7 @@ module TSO = struct
   let process_rq_in_thread n p_stat =
     let local_thread = get_thread p_stat n in
     match Queue.peek_opt local_thread.cache_request_queue with
-    | None -> ()
+    | None -> p_stat
     | Some rq -> (
         match rq with
         | ReadRq (_, _) -> process_read_request p_stat n
@@ -1453,56 +1644,86 @@ module TSO = struct
     let local_thread = get_thread p_stat n in
     let num_of_caches = List.length p_stat.threads in
     match Queue.take_opt local_thread.cache_ack_queue with
-    | None -> ()
+    | None -> p_stat
     | Some ack -> (
         match ack with
         | ReadResponse (v_name, value, responder_cache_state) ->
-            process_read_resp_in_thread n p_stat v_name value;
+            let p_stat' = process_read_resp_in_thread n p_stat v_name value in
             let read_rq = Hashtbl.find local_thread.read_rq_tbl v_name in
             let is_obtained = fst read_rq in
             let cnt' = snd read_rq in
 
             if cnt' = num_of_caches - 1 then (
               Hashtbl.remove local_thread.read_rq_tbl v_name;
-              if not is_obtained then load_to_cache_from_ram p_stat n v_name
-              else ())
-            else ()
-            (* let _ = Queue.take local_thread.cache_ack_queue in
-               () *)
+              if not is_obtained then (
+                load_to_cache_from_ram p_stat n v_name;
+                if v_name = local_thread.pending_load.v_name then
+                  finish_pending_load_in_thread n p_stat'
+                else p_stat')
+              else p_stat')
+            else p_stat'
         | InvalidateAcknowledge (v_name, responder_t_num) ->
             process_inv_ack_in_thread n p_stat v_name;
             let num_of_resps = Hashtbl.find local_thread.inv_rq_tbl v_name in
-            if num_of_resps = num_of_caches - 1 then (
-              Hashtbl.remove local_thread.inv_rq_tbl v_name;
-              (* move store from st_buf to cache; change cache line state *)
-              match Queue.peek_opt local_thread.st_buf with
-              | None ->
-                  failwith
-                    "we received all inv_acks but there is no store in \
-                     store_buffer"
-              | Some store ->
-                  if store.name = v_name then (
-                    (* add_entry_to_cache local_thread.cache v_name store.value; *)
-                    add_or_modify_cache_line local_thread.cache v_name
-                      store.value;
-                    let _ = Queue.pop local_thread.st_buf in
-                    ())
-                  else
+            let _ =
+              if num_of_resps = num_of_caches - 1 then (
+                Hashtbl.remove local_thread.inv_rq_tbl v_name;
+                (* move store from st_buf to cache; change cache line state *)
+                match Queue.peek_opt local_thread.st_buf with
+                | None ->
                     failwith
-                      ("we received all inv_acks but first entry in st_buf is \
-                        a store to a location different from " ^ v_name))
-            else ()
+                      "we received all inv_acks but there is no store in \
+                       store_buffer"
+                | Some store ->
+                    if store.name = v_name then (
+                      (* add_entry_to_cache local_thread.cache v_name store.value; *)
+                      add_or_modify_cache_line local_thread.cache v_name
+                        store.value;
+                      let _ = Queue.pop local_thread.st_buf in
+                      ())
+                    else
+                      failwith
+                        ("we received all inv_acks but first entry in st_buf \
+                          is a store to a location different from " ^ v_name))
+              else ()
+            in
+            p_stat
         | _ ->
             failwith "process_ack_in_thread: processing of this ack is not impl"
         )
 
+  let process_smp_wmb n p_stat =
+    let t_stat = get_thread p_stat n in
+    match t_stat.is_waiting_on_wmb with
+    | false ->
+        let t_stat' = { t_stat with is_waiting_on_wmb = true } in
+        let threads = set t_stat' n p_stat.threads in
+        { p_stat with threads }
+    | true -> (
+        match Queue.is_empty t_stat.st_buf with
+        | false -> p_stat
+        | true ->
+            let t_stat' = { t_stat with is_waiting_on_wmb = false } in
+            let threads = set t_stat' n p_stat.threads in
+            let p_stat' = { p_stat with threads } in
+            prog_stat_inc p_stat' n)
+
   let exec_single_stmt_in_thread n p_stat =
     let t_stat = get_thread p_stat n in
     match get_stmt t_stat with
+    | WHILE (e, _) -> (
+        (* print_endline "in_while ++"; *)
+        let p_stat' = eval_expr n p_stat e in
+        let t_stat' = get_thread p_stat' n in
+        match t_stat'.pending_load.is_pending with
+        | false ->
+            if t_stat'.last_eval_res = 0 then prog_stat_inc p_stat' n
+            else enter_block_in_thread n p_stat' t_stat'.last_eval_res
+        | true -> p_stat')
     | IF (e, _) -> (
         let p_stat' = eval_expr n p_stat e in
         let t_stat' = get_thread p_stat' n in
-        match t_stat'.pending_load with
+        match t_stat'.pending_load.is_pending with
         | false ->
             if t_stat'.last_eval_res = 0 then prog_stat_inc p_stat' n
             else enter_block_in_thread n p_stat' t_stat'.last_eval_res
@@ -1510,33 +1731,64 @@ module TSO = struct
     | IF_ELSE (e, _, _) -> (
         let p_stat' = eval_expr n p_stat e in
         let t_stat' = get_thread p_stat' n in
-        match t_stat'.pending_load with
+        match t_stat'.pending_load.is_pending with
         | false -> enter_block_in_thread n p_stat' t_stat'.last_eval_res
         | true -> p_stat'
         (* enter_block_in_thread n p_stat (eval_expr n p_stat e) *))
-    | NO_OP -> prog_stat_inc p_stat n
+    | NO_OP ->
+        (* print_endline "no_op"; *)
+        prog_stat_inc p_stat n
     | ASSIGN (l, r) -> (
+        (* print_endline "assign"; *)
         let p_stat' = eval_assign n p_stat l r in
         let t_stat' = get_thread p_stat' n in
-        match t_stat'.pending_load with
+        match t_stat'.pending_load.is_pending with
         | true -> p_stat'
         | false -> prog_stat_inc p_stat' n
         (* prog_stat_inc (eval_assign n p_stat l r) n *))
-    | SMP_RMB | SMP_WMB | SMP_MB ->
-        (* prog_stat_inc p_stat n *) failwith "mem bars not impl yet"
+    | ASSERT e -> (
+        let p_stat' = eval_expr n p_stat e in
+        let t_stat' = get_thread p_stat' n in
+        match t_stat'.pending_load.is_pending with
+        | false ->
+            if t_stat'.last_eval_res = 0 then (
+              print_endline "*************************";
+              print_endline "state of program before failed";
+              print_p_stat p_stat';
+              failwith "assertation fails")
+            else prog_stat_inc p_stat' n
+        | true -> p_stat')
+    | SMP_RMB ->
+        process_whole_inv_q t_stat;
+        prog_stat_inc p_stat n
+    | SMP_WMB -> process_smp_wmb n p_stat
+    | SMP_MB -> (
+        let t_stat = get_thread p_stat n in
+        match t_stat.is_waiting_on_wmb with
+        | false ->
+            let t_stat' = { t_stat with is_waiting_on_wmb = true } in
+            let threads = set t_stat' n p_stat.threads in
+            { p_stat with threads }
+        | true -> (
+            match Queue.is_empty t_stat.st_buf with
+            | false -> p_stat
+            | true ->
+                let t_stat' = { t_stat with is_waiting_on_wmb = false } in
+                process_whole_inv_q t_stat';
+                let threads = set t_stat' n p_stat.threads in
+                let p_stat' = { p_stat with threads } in
+                prog_stat_inc p_stat' n))
 
-  let exec_stmt_or_process_cache n p_stat =
-    match Random.int 3 with
-    | 0 -> exec_single_stmt_in_thread n p_stat
-    | 1 ->
-        process_rq_in_thread n p_stat;
-        p_stat
-    | 2 ->
-        process_ack_in_thread n p_stat;
-        p_stat
+  (* prog_stat_inc p_stat n *)
+  (* failwith "mem bars not impl yet" *)
 
   let thread_is_not_finished t_stat =
-    if List.hd t_stat.counters < t_stat.length then true else false
+    if
+      List.hd t_stat.counters < t_stat.length
+      || (not @@ Queue.is_empty t_stat.cache_ack_queue)
+      || (not @@ Queue.is_empty t_stat.cache_request_queue)
+    then true
+    else false
 
   let prog_is_not_finished p_stat =
     List.exists
@@ -1551,15 +1803,68 @@ module TSO = struct
     in
     helper p_stat len (Random.int len)
 
+  let exec_stmt_rq_ack n p_stat =
+    let t_stat = get_thread p_stat n in
+    if List.hd t_stat.counters < t_stat.length then
+      let p_stat1 = exec_single_stmt_in_thread n p_stat in
+      let p_stat2 = process_rq_in_thread n p_stat1 in
+      process_ack_in_thread n p_stat2
+    else
+      let p_stat1 = process_rq_in_thread n p_stat in
+      process_ack_in_thread n p_stat1
+
+  let exec_stmt_or_process_cache n p_stat =
+    let t_stat = get_thread p_stat n in
+    match Random.int 3 with
+    | 0 ->
+        if List.hd t_stat.counters < t_stat.length then
+          exec_single_stmt_in_thread n p_stat
+        else if not @@ Queue.is_empty t_stat.cache_ack_queue then
+          process_ack_in_thread n p_stat
+        else process_rq_in_thread n p_stat
+    | 1 -> process_ack_in_thread n p_stat
+    | 2 -> process_rq_in_thread n p_stat
+    | _ -> failwith "Random.int works incorrectly :)"
+
   let exec_prog_in_tso p =
     let p_stat = init_prog_stat p in
+    let t_num = List.length p_stat.threads in
     let rec helper p_stat =
-      if prog_is_not_finished p_stat then
-        helper
-          ((* exec_single_stmt_in_thread *)
-           exec_stmt_or_process_cache
-             (choose_not_finished_thread p_stat)
-             p_stat)
+      print_p_stat p_stat;
+      Unix.sleepf 0.01;
+      if prog_is_not_finished p_stat then (
+        let n = Random.int t_num (* choose_not_finished_thread p_stat *) in
+        (* иногда немного чистим очередь инвалидаций, симулируя ситуацию, когда у кэша появилось свободное время
+           для обработки *)
+        if Random.int 5 = 0 then
+          process_one_element_of_inv_q (get_thread p_stat n)
+        else ();
+
+        helper (exec_stmt_rq_ack n p_stat))
+      else p_stat
+    in
+    let res_p_stat = helper p_stat in
+    (* flush_all_store_buffers_and_inv_queues *)
+    flush_all_caches res_p_stat;
+    res_p_stat
+
+  let exec_prog_stat_in_tso p_stat =
+    let t_num = List.length p_stat.threads in
+    let rec helper p_stat =
+      (* print_p_stat p_stat; *)
+      (* Unix.sleepf 0.01; *)
+      if prog_is_not_finished p_stat then (
+        let n = Random.int t_num (* choose_not_finished_thread p_stat *) in
+        (* иногда немного чистим очередь инвалидаций, симулируя ситуацию, когда у кэша появилось свободное время
+           для обработки *)
+        if Random.int 1000 = 0 then
+          (* print_endline
+             ("process_one_element_of_inv_q in thread " ^ string_of_int n); *)
+          process_one_element_of_inv_q (get_thread p_stat n)
+        else ();
+
+        (* helper (exec_stmt_rq_ack n p_stat)) *)
+        helper (exec_stmt_or_process_cache n p_stat))
       else p_stat
     in
     let res_p_stat = helper p_stat in
@@ -1568,10 +1873,73 @@ module TSO = struct
     res_p_stat
 end
 
-let s = "x<-1 ||| y<-1\na<- y ||| b <- x"
+let s1 =
+  "a<-1        ||| while (b-1) {\n\
+  \    smp_wmb    |||\n\
+  \        b<-1   ||| }\n\
+  \               ||| smp_rmb \n\
+  \               ||| assert(a)"
 
-let p = prog s
+let s2 = "\n  x<-1 ||| y<-1\n       smp_mb ||| smp_mb\n        a<-y   ||| b<-x"
 
 open TSO
 
-let p_stat = TSO.init_prog_stat p
+let p1 = prog s1
+
+let p2 = prog s2
+
+open TSO
+
+(* let p2 () =
+   add_entry_to_cache (get_thread p_stat 0).cache "a" 2;
+   add_entry_to_cache (get_thread p_stat 0).cache "b" 3 *)
+
+let prepare_for_test p_stat =
+  add_entry_to_cache (get_thread p_stat 0).cache "a" 0;
+  add_entry_to_cache (get_thread p_stat 1).cache "a" 0;
+  add_entry_to_cache (get_thread p_stat 0).cache "b" 0;
+  change_mesi_state (get_thread p_stat 0).cache "a" Shared;
+  change_mesi_state (get_thread p_stat 1).cache "a" Shared
+
+(* для теста на модель TSO, т.е на StoreLoad barrier *)
+let prepare_for_test2 p_stat =
+  add_entry_to_cache (get_thread p_stat 0).cache "x" 0;
+  add_entry_to_cache (get_thread p_stat 1).cache "x" 0;
+  add_entry_to_cache (get_thread p_stat 0).cache "y" 0;
+  add_entry_to_cache (get_thread p_stat 1).cache "y" 0;
+  change_mesi_state (get_thread p_stat 0).cache "x" Shared;
+  change_mesi_state (get_thread p_stat 1).cache "x" Shared;
+  change_mesi_state (get_thread p_stat 0).cache "y" Shared;
+  change_mesi_state (get_thread p_stat 1).cache "y" Shared
+
+let test_store_load_barrier () =
+  let get_p_stat_for_test2 () =
+    let p_stat = init_prog_stat p2 in
+    prepare_for_test2 p_stat;
+    p_stat
+  in
+  let i = 0 in
+  let cnt = ref i in
+  while true do
+    print_string @@ "iteration " ^ string_of_int !cnt ^ ": ";
+    let res = exec_prog_stat_in_tso (get_p_stat_for_test2 ()) in
+    assert (Hashtbl.find res.ram "a" = 1 || Hashtbl.find res.ram "b" = 1);
+    cnt := !cnt + 1;
+    print_endline @@ "success"
+  done
+
+let test_wmb_and_rmb () =
+  let get_p_stat_for_test () =
+    let p_stat = init_prog_stat p1 in
+    prepare_for_test p_stat;
+    p_stat
+  in
+  let i = 0 in
+  let cnt = ref i in
+
+  while true do
+    print_string @@ "iteration " ^ string_of_int !cnt ^ ": ";
+    let _ = exec_prog_stat_in_tso (get_p_stat_for_test ()) in
+    cnt := !cnt + 1;
+    print_endline @@ "success"
+  done
