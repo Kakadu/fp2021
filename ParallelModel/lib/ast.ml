@@ -6,17 +6,21 @@ type expr =
   | SUB of expr * expr
   | MUL of expr * expr
   | DIV of expr * expr
+[@@deriving show { with_path = false }]
 
 type stmt =
+  | ASSERT of expr
   | ASSIGN of expr * expr
-  | IF of expr * stmt
-  | IF_ELSE of expr * stmt * stmt
-  | BLOCK of stmt list
+  | WHILE of expr * stmt list
+  | IF of expr * stmt list
+  | IF_ELSE of expr * stmt list * stmt list
   | SMP_RMB
   | SMP_WMB
   | SMP_MB
   | NO_OP
+[@@deriving show { with_path = false }]
 
 type thread = THREAD of (int * stmt list)
+[@@deriving show { with_path = false }]
 
-type prog = PROG of thread list
+type prog = PROG of thread list [@@deriving show { with_path = false }]

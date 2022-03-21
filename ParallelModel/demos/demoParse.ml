@@ -1,8 +1,15 @@
-open Parallelmodel_lib
+open Parallelmodel_lib.Ast
+open Parallelmodel_lib.Parser
 
-(* let () =
-   let s = Stdio.In_channel.input_all Caml.stdin in
-   match Parallelmodel_lib.Parser.parse s with
-   | Result.Ok ast ->
-       Format.printf "%a\n%!" (Printast.pp Format.pp_print_char) ast
-   | Error _ -> Format.printf "Some error" *)
+let p =
+  prog
+    {|
+EAX <- 6                ||| x <- 1     ||| y <- 1
+res <- 1                |||            |||
+while (EAX) {           ||| EAX <- y   ||| EBX <- x
+    res <- res * EAX    |||            |||
+    EAX <- EAX - 1      |||            |||
+}                       |||            |||
+|}
+
+let () = print_string (show_prog p)

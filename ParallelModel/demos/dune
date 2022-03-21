@@ -1,20 +1,26 @@
-(executable
- (name demoAO)
- (modules demoAO)
- (public_name demoAO)
- (libraries parallelmodel_lib))
+; (executable
+;  (name demoAO)
+;  (modules demoAO)
+;  (public_name demoAO)
+;  (libraries parallelmodel_lib))
+
+; (executable
+;  (name demoNO)
+;  (modules demoNO)
+;  (public_name demoNO)
+;  (libraries parallelmodel_lib))
 
 (executable
- (name demoNO)
- (modules demoNO)
- (public_name demoNO)
+ (name demoSC)
+ (modules demoSC)
+ (public_name demoSC)
  (libraries parallelmodel_lib))
 
 (executable
  (name demoParse)
  (modules demoParse)
  (public_name demoParse)
- (libraries parallelmodel_lib stdio))
+ (libraries parallelmodel_lib))
 
 (cram
- (deps ./demoNO.exe ./demoAO.exe ./demoParse.exe))
+ (deps ./demoSC.exe  ./demoParse.exe))
