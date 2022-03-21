@@ -2,7 +2,7 @@ open Parallelmodel_lib.Ast
 open Parallelmodel_lib.Parser
 open Parallelmodel_lib.Interpret.SequentialConsistency
 
-let p = prog {|
+let p = parse_prog {|
  x <- 1     ||| y <- 1
  EAX <- y   ||| EBX <- x
 |}

@@ -2,7 +2,7 @@ open Parallelmodel_lib.Ast
 open Parallelmodel_lib.Parser
 
 let p =
-  prog
+  parse_prog
     {|
 EAX <- 6                ||| x <- 1     ||| y <- 1
 res <- 1                |||            |||
