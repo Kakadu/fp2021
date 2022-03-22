@@ -16,9 +16,9 @@
 
 (package
  (name Parallelmodel) ; FIXME and regenerate .opam file using 'dune build @install'
- (synopsis "FIXME An interpreter for language")
+ (synopsis "An interpreter for language of modeling program execution in different memory models")
  (description
-  "FIXME. A longer description, for example, which are the most interesing features being supported, etc.")
+  "Supported program execution in Sequntial Consistency model. Supported program execution in TSO model")
  (version 0.1)
  (depends
   dune

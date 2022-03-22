@@ -1,6 +1,285 @@
-open Ast
+type expr =
+  | INT of int
+  | VAR_NAME of string
+  | REGISTER of string
+  | PLUS of expr * expr
+  | SUB of expr * expr
+  | MUL of expr * expr
+  | DIV of expr * expr
+[@@deriving show { with_path = false }]
+
+type stmt =
+  | ASSERT of expr
+  | ASSIGN of expr * expr
+  | WHILE of expr * stmt list
+  | IF of expr * stmt list
+  | IF_ELSE of expr * stmt list * stmt list
+  | SMP_RMB
+  | SMP_WMB
+  | SMP_MB
+  | NO_OP
+[@@deriving show { with_path = false }]
+
+type thread = THREAD of (int * stmt list)
+[@@deriving show { with_path = false }]
+
+type prog = PROG of thread list [@@deriving show { with_path = false }]
+
+open Angstrom
+(* open Ast *)
+
+let splitter s = Str.split (Str.regexp "|||") (" " ^ s ^ " ")
+
+let split_on_parts s =
+  let lines = String.split_on_char '\n' (String.trim s) in
+  List.map splitter lines
+
+let get_threads_number s = split_on_parts s |> List.hd |> List.length
+
+let trim_list list = List.map String.trim list
+
+let empty_str_to_no_op list =
+  List.map (fun s -> match s with "" -> "no_op" | _ -> s) list
+
+let concat_list = String.concat " ||| "
+
+let concat_lines = String.concat "\n"
+
+let preprocess input =
+  (split_on_parts input |> List.map trim_list
+  |> List.map empty_str_to_no_op
+  |> List.map concat_list |> String.concat "\n")
+  ^ "\n"
+
+let reserved =
+  [ "smp_rmb"; "smp_wmb"; "smp_mb"; "if"; "assert"; "while"; "else"; "no_op" ]
+
+let is_whitespace = function ' ' | '\n' | '\r' | '\t' -> true | _ -> false
+
+(* let whitespace = take_while is_whitespace *)
+
+let space =
+  let is_space = function ' ' | '\t' -> true | _ -> false in
+  take_while is_space
+
+let is_end_of_line = function '\n' | '\r' -> true | _ -> false
+
+let is_not_end_of_line c = not @@ is_end_of_line @@ c
+
+(* let token s = whitespace *> string s *)
+let token s = space *> string s
+
+let is_digit = function '0' .. '9' -> true | _ -> false
+
+let parse p s = parse_string ~consume:All p (preprocess s)
+
+let parse_unproc p s = parse_string ~consume:All p s
+
+let skip_rest_of_line = take_while (fun c -> c <> '\n') *> string "\n"
+
+(* let jump_to_new_line = take_till is_end_of_line *> take_while is_end_of_line *)
+
+let cross_thread_delim =
+  take_till (fun c -> match c with '|' | '\n' | '\r' -> true | _ -> false)
+  *> token "|||"
+
+let cross_n_delims n = count n cross_thread_delim
+
+(* let go_to_next_line_for_thread n =
+   jump_to_new_line *> count n cross_thread_delim *)
+
+let number =
+  let digits = space *> take_while1 is_digit in
+  digits >>= fun s -> return @@ INT (int_of_string s)
+
+let addition =
+  number >>= fun e1 ->
+  token "+" *> number >>= fun e2 -> return @@ PLUS (e1, e2)
+
+let add = token "+" *> return (fun e1 e2 -> PLUS (e1, e2))
+
+let sub = token "-" *> return (fun e1 e2 -> SUB (e1, e2))
+
+let mul = token "*" *> return (fun e1 e2 -> MUL (e1, e2))
+
+let div = token "/" *> return (fun e1 e2 -> DIV (e1, e2))
+
+let is_big_letter = function 'A' .. 'Z' -> true | _ -> false
+
+let registers = [ "EAX"; "EBX" ]
+
+let is_register name = List.mem name registers
+
+let reg =
+  space *> take_while1 is_big_letter >>= fun s ->
+  match is_register s with
+  | true -> return @@ REGISTER s
+  | false -> fail "No register with such name"
+
+let is_allowed_var_name name = not @@ List.mem name (reserved @ registers)
+
+let var_name =
+  let is_allowed_fst_char = function
+    | 'a' .. 'z' | 'A' .. 'Z' | '_' -> true
+    | _ -> false
+  in
+  let is_allowed_var_name_char = function
+    | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> true
+    | _ -> false
+  in
+  space *> peek_char >>= function
+  | Some c when is_allowed_fst_char c ->
+      take_while is_allowed_var_name_char >>= fun var_name ->
+      if is_allowed_var_name var_name then return @@ VAR_NAME var_name
+      else fail "Variable's name is key word or register name"
+  | _ -> fail "invalid variable name"
+
+let parens p = token "(" *> p <* token ")"
+
+let chainl1 x op =
+  let rec loop a = op >>= (fun f -> x >>= fun b -> loop (f a b)) <|> return a in
+  x >>= loop
+
+let factop = mul <|> div <?> "'*' or '/' expected" <* space
+
+let termop = add <|> sub <?> "'+' or '-' expected" <* space
+
+let expr =
+  fix (fun expr ->
+      let value = choice [ number; reg; var_name ] in
+      let parentheses =
+        let helper =
+          space *> peek_char_fail >>= function '(' -> parens expr | _ -> value
+        in
+        choice [ helper; value ]
+      in
+      let term1 = chainl1 parentheses factop in
+      let arexpr = chainl1 term1 termop in
+      let newexpr = fix (fun newexpr -> arexpr <|> parens newexpr) in
+      newexpr)
+
+let end_of_instr = choice [ token "\n"; token "|||" *> skip_rest_of_line ]
+
+let mem_barrier thread_num =
+  let smp_rmb = token "smp_rmb" *> return SMP_RMB in
+  let smp_wmb = token "smp_wmb" *> return SMP_WMB in
+  let smp_mb = token "smp_mb" *> return SMP_MB in
+  cross_n_delims thread_num *> (smp_rmb <|> smp_wmb <|> smp_mb) <* end_of_instr
+
+let assert_stmt thread_num =
+  cross_n_delims thread_num *> token "assert" *> token "(" *> expr
+  <* token ")" <* end_of_instr
+  >>= fun e -> return @@ ASSERT e
+
+let assignment thread_num =
+  cross_n_delims thread_num *> (reg <|> var_name) >>= fun named_loc ->
+  token "<-" *> expr <* end_of_instr >>= fun e -> return @@ ASSIGN (named_loc, e)
+
+(*
+   the only way to use if-else statement!
+      if () {
+      }
+      else {
+      }
+      You must use java style for curly brackets.
+      For empty block is allowed to be written like:
+      while (1) {}
+*)
+let block stmt_parser thread_number =
+  let empty_block =
+    token "{"
+    *> choice
+         [
+           token "}";
+           skip_rest_of_line *> cross_n_delims thread_number *> token "}";
+         ]
+    *> end_of_instr
+    *> return [ NO_OP ]
+  in
+  let correct_block =
+    token "{" *> skip_rest_of_line *> many1 stmt_parser
+    <* cross_n_delims thread_number
+    <* token "}" <* end_of_instr
+    >>= fun stmt_list -> return @@ stmt_list
+  in
+  choice [ correct_block; empty_block ]
+
+let while_stmt stmt_parser thread_num =
+  cross_n_delims thread_num *> token "while" *> token "(" *> expr <* token ")"
+  >>= fun e ->
+  block stmt_parser thread_num >>= fun block -> return @@ WHILE (e, block)
+
+let if_stmt stmt_parser thread_number =
+  cross_n_delims thread_number *> token "if" *> token "(" *> expr <* token ")"
+  >>= fun e ->
+  block stmt_parser thread_number >>= fun block -> return @@ IF (e, block)
+
+let if_else_stmt stmt_parser thread_number =
+  cross_n_delims thread_number *> token "if" *> token "(" *> expr <* token ")"
+  >>= fun e ->
+  block stmt_parser thread_number >>= fun bk1 ->
+  cross_n_delims thread_number
+  *> token "else"
+  *> block stmt_parser thread_number
+  >>= fun bk2 -> return @@ IF_ELSE (e, bk1, bk2)
+
+let no_op thread_num =
+  cross_n_delims thread_num *> token "no_op" *> end_of_instr >>= fun _ ->
+  return NO_OP
+
+let stmt thread_number =
+  fix (fun stmt ->
+      if_else_stmt stmt thread_number
+      <|> if_stmt stmt thread_number
+      <|> while_stmt stmt thread_number
+      <|> assignment thread_number <|> assert_stmt thread_number
+      <|> mem_barrier thread_number <|> no_op thread_number)
+
+let thread n = many (stmt n) >>= fun stmts -> return @@ THREAD (n, stmts)
+
+let parse_prog s =
+  let n = get_threads_number s in
+  let nums = List.init n (fun x -> x) in
+  let parse_thread k = parse (thread k) s in
+  let results = List.map parse_thread nums in
+  let oks = List.map Result.get_ok results in
+  PROG oks
+
+(* module type MONAD = sig
+     type 'a t
+
+     val return : 'a -> 'a t
+
+     val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
+
+     val ( >> ) : 'a t -> 'b t -> 'b t
+   end
+
+   module type MONADERROR = sig
+     include MONAD
+
+     val error : string -> 'a t
+   end
+
+   module Result = struct
+     type 'a t = ('a, string) Result.t
+
+     let ( >>= ) = Result.bind
+
+     let ( >> ) x f = x >>= fun _ -> f
+
+     let return = Result.ok
+
+     let error = Result.error
+   end *)
 
 module SequentialConsistency = struct
+  (* open M *)
+
+  let ( >>= ) x f = match x with None -> None | Some v -> f v
+
+  let return x = Some x
+
   type ram = (string, int) Hashtbl.t
 
   type regs = (string, int) Hashtbl.t
@@ -26,64 +305,107 @@ module SequentialConsistency = struct
     let rec helper t_stats =
       match t_stats with
       | [] ->
-          failwith ("program doesn't have thread with num " ^ string_of_int n)
-      | t_stat :: tl -> if t_stat.number = n then t_stat else helper tl
+          None
+          (* failwith ("program doesn't have thread with num " ^ string_of_int n) *)
+      | t_stat :: tl -> if t_stat.number = n then return t_stat else helper tl
     in
     helper p_stat.threads
 
   let init_var memory var =
     match Hashtbl.find_opt memory var with
-    | Some _ -> failwith ("variable @" ^ var ^ " already initialized")
-    | None -> Hashtbl.add memory var 0
+    | Some _ ->
+        None (* failwith ("variable @" ^ var ^ " already initialized") *)
+    | None -> return (Hashtbl.add memory var 0)
 
   let load_from_ram p_stat var =
     match Hashtbl.find_opt p_stat.ram var with
-    | Some value -> value
+    | Some value -> return value
     | None ->
         (* Вернуть ноль *)
-        init_var p_stat.ram var;
-        Hashtbl.find p_stat.ram var
+        init_var p_stat.ram var >>= fun _ -> Hashtbl.find_opt p_stat.ram var
+
+  (* let load_from_ram p_stat var =
+     match Hashtbl.find_opt p_stat.ram var with
+     | Some value -> value
+     | None ->
+         (* Вернуть ноль *)
+         init_var p_stat.ram var;
+         Hashtbl.find p_stat.ram var *)
 
   let store_to_var ram v_name value = Hashtbl.replace ram v_name value
 
   let store_to_reg regs r_name value = Hashtbl.replace regs r_name value
 
   let load_from_regs p_stat n r_name =
-    let regs = (get_thread p_stat n).registers in
-    match Hashtbl.find_opt regs r_name with
+    get_thread p_stat n >>= fun t_stat ->
+    match Hashtbl.find_opt t_stat.registers r_name with
     | None ->
-        Hashtbl.add regs r_name 0;
-        0
-    | Some v -> v
+        Hashtbl.add t_stat.registers r_name 0;
+        return 0
+    | Some v -> return v
+
+  (* let load_from_regs p_stat n r_name =
+     match get_thread p_stat n with
+     | None -> None
+     | Some t_stat -> (
+         let regs = t_stat.registers in
+         match Hashtbl.find_opt regs r_name with
+         | None ->
+             Hashtbl.add regs r_name 0;
+             Some 0
+         | Some v -> Some v) *)
 
   (* n - is a thread number where expression is evaluated *)
   let rec eval_expr n p_stat = function
-    | INT c -> c
+    | INT c -> return c
     | VAR_NAME var -> load_from_ram p_stat var
     | REGISTER r_name -> load_from_regs p_stat n r_name
-    | PLUS (l, r) -> eval_expr n p_stat l + eval_expr n p_stat r
-    | SUB (l, r) -> eval_expr n p_stat l - eval_expr n p_stat r
-    | MUL (l, r) -> eval_expr n p_stat l * eval_expr n p_stat r
+    | PLUS (l, r) ->
+        eval_expr n p_stat l >>= fun e1 ->
+        eval_expr n p_stat r >>= fun e2 -> return (e1 + e2)
+    | SUB (l, r) ->
+        eval_expr n p_stat l >>= fun e1 ->
+        eval_expr n p_stat r >>= fun e2 -> return (e1 - e2)
+    | MUL (l, r) ->
+        eval_expr n p_stat l >>= fun e1 ->
+        eval_expr n p_stat r >>= fun e2 -> return (e1 * e2)
     | DIV (l, r) ->
-        let r_exp = eval_expr n p_stat r in
-        if r_exp = 0 then failwith "div by zero"
-        else eval_expr n p_stat l / r_exp
+        eval_expr n p_stat r >>= fun e2 ->
+        if e2 = 0 then None
+        else eval_expr n p_stat l >>= fun e1 -> return (e1 / e2)
+  (* let r_exp = eval_expr n p_stat r in
+     if r_exp = 0 then  failwith "div by zero"
+     else eval_expr n p_stat l / r_exp *)
 
   let eval_assert n p_stat e =
-    let value = eval_expr n p_stat e in
-    if value = 0 then failwith "assertation fails (arg = 0)" else p_stat
+    eval_expr n p_stat e >>= fun value ->
+    (* let value = eval_expr n p_stat e in *)
+    if value = 0 then None (* failwith "assertation fails (arg = 0)"  *)
+    else return p_stat
 
   let eval_assign n p_stat l r =
-    let value = eval_expr n p_stat r in
+    eval_expr n p_stat r >>= fun value ->
     match l with
-    | VAR_NAME v_name ->
-        store_to_var p_stat.ram v_name value;
-        p_stat
-    | REGISTER r_name ->
-        let regs = (get_thread p_stat n).registers in
-        store_to_reg regs r_name value;
-        p_stat
-    | _ -> failwith "assignment allowed only to variable and register"
+    | VAR_NAME var ->
+        store_to_var p_stat.ram var value;
+        return p_stat
+    | REGISTER reg ->
+        get_thread p_stat n >>= fun t_stat ->
+        store_to_reg t_stat.registers reg value;
+        return p_stat
+    | _ -> None
+
+  (* let eval_assign n p_stat l r =
+     let value = eval_expr n p_stat r in
+     match l with
+     | VAR_NAME v_name ->
+         store_to_var p_stat.ram v_name value;
+         p_stat
+     | REGISTER r_name ->
+         let regs = (get_thread p_stat n).registers in
+         store_to_reg regs r_name value;
+         p_stat
+     | _ -> failwith "assignment allowed only to variable and register" *)
 
   let print_t_stat t_stat =
     print_string ("thread " ^ string_of_int t_stat.number ^ ":\n");
@@ -192,11 +514,11 @@ module SequentialConsistency = struct
 
   let prog_stat_inc p_stat n =
     let rec helper p_stat n =
-      let t_stat = get_thread p_stat n in
+      get_thread p_stat n >>= fun t_stat ->
       let t_stat' = thread_stat_inc t_stat in
       let threads' = set t_stat' n p_stat.threads in
       let p_stat' = { p_stat with threads = threads' } in
-      if List.length t_stat'.counters = 1 || check p_stat' n then p_stat'
+      if List.length t_stat'.counters = 1 || check p_stat' n then return p_stat'
       else
         (* leave block *)
         let t_stat2 =
@@ -208,23 +530,52 @@ module SequentialConsistency = struct
         in
         let threads2 = set t_stat2 n p_stat'.threads in
         let p_stat2 = { p_stat' with threads = threads2 } in
-        if peek_while t_stat2 t_stat2.counters then p_stat2
+        if peek_while t_stat2 t_stat2.counters then return p_stat2
         else helper p_stat2 n
     in
     helper p_stat n
 
+  (* let prog_stat_inc p_stat n =
+     let rec helper p_stat n =
+       let t_stat = get_thread p_stat n in
+       let t_stat' = thread_stat_inc t_stat in
+       let threads' = set t_stat' n p_stat.threads in
+       let p_stat' = { p_stat with threads = threads' } in
+       if List.length t_stat'.counters = 1 || check p_stat' n then p_stat'
+       else
+         (* leave block *)
+         let t_stat2 =
+           {
+             t_stat' with
+             counters = reduce t_stat'.counters;
+             branch_exprs = reduce t_stat'.branch_exprs;
+           }
+         in
+         let threads2 = set t_stat2 n p_stat'.threads in
+         let p_stat2 = { p_stat' with threads = threads2 } in
+         if peek_while t_stat2 t_stat2.counters then p_stat2
+         else helper p_stat2 n
+     in
+     helper p_stat n *)
+
   let exec_single_stmt_in_thread n p_stat =
     match get_stmt p_stat n with
     | WHILE (e, _) ->
-        if eval_expr n p_stat e = 0 then prog_stat_inc p_stat n
-        else enter_block_in_thread n p_stat (eval_expr n p_stat e)
+        eval_expr n p_stat e >>= fun e ->
+        if e = 0 then prog_stat_inc p_stat n
+        else return (enter_block_in_thread n p_stat e)
     | IF (e, _) ->
-        if eval_expr n p_stat e = 0 then prog_stat_inc p_stat n
-        else enter_block_in_thread n p_stat (eval_expr n p_stat e)
-    | IF_ELSE (e, _, _) -> enter_block_in_thread n p_stat (eval_expr n p_stat e)
+        eval_expr n p_stat e >>= fun e ->
+        if e = 0 then prog_stat_inc p_stat n
+        else return (enter_block_in_thread n p_stat e)
+    | IF_ELSE (e, _, _) ->
+        eval_expr n p_stat e >>= fun e ->
+        return @@ enter_block_in_thread n p_stat e
     | NO_OP -> prog_stat_inc p_stat n
-    | ASSIGN (l, r) -> prog_stat_inc (eval_assign n p_stat l r) n
-    | ASSERT e -> prog_stat_inc (eval_assert n p_stat e) n
+    | ASSIGN (l, r) ->
+        eval_assign n p_stat l r >>= fun p_stat -> prog_stat_inc p_stat n
+    | ASSERT e ->
+        eval_assert n p_stat e >>= fun p_stat -> prog_stat_inc p_stat n
     | SMP_RMB | SMP_WMB | SMP_MB -> prog_stat_inc p_stat n
 
   let thread_is_not_finished t_stat =
@@ -247,16 +598,25 @@ module SequentialConsistency = struct
     let p_stat = init_prog_stat p in
     let rec helper p_stat =
       if prog_is_not_finished p_stat then
-        helper
-          (exec_single_stmt_in_thread
-             (choose_not_finished_thread p_stat)
-             p_stat)
-      else p_stat
+        exec_single_stmt_in_thread (choose_not_finished_thread p_stat) p_stat
+        >>= fun p_stat -> helper p_stat
+      else return p_stat
     in
     helper p_stat
+
+  (* let exec_prog_in_cs p =
+     let p_stat = init_prog_stat p in
+     let rec helper p_stat =
+       if prog_is_not_finished p_stat then
+         helper
+           (exec_single_stmt_in_thread
+              (choose_not_finished_thread p_stat)
+              p_stat)
+       else p_stat
+     in
+     helper p_stat *)
 end
 
-(*
 module TSO = struct
   let set v' n = List.mapi (fun i v -> if i = n then v' else v)
 
@@ -1029,6 +1389,7 @@ module TSO = struct
      cache_ack_queue and cache_request_queue
      Для этого нужны отдельные ф-ии *)
   let process_rq_in_thread n p_stat =
+    print_endline @@ "process_rq_in_thread " ^ string_of_int n;
     let local_thread = get_thread p_stat n in
     match Queue.peek_opt local_thread.cache_request_queue with
     | None -> p_stat
@@ -1039,6 +1400,7 @@ module TSO = struct
         | _ -> failwith "processing of this rq is not impl")
 
   let process_ack_in_thread n p_stat =
+    print_endline @@ "process_ack_in_thread " ^ string_of_int n;
     let local_thread = get_thread p_stat n in
     let num_of_caches = List.length p_stat.threads in
     match Queue.take_opt local_thread.cache_ack_queue with
@@ -1107,10 +1469,10 @@ module TSO = struct
             prog_stat_inc p_stat' n)
 
   let exec_single_stmt_in_thread n p_stat =
+    print_endline @@ "exec_stmt in thread " ^ string_of_int n;
     let t_stat = get_thread p_stat n in
     match get_stmt t_stat with
     | WHILE (e, _) -> (
-        (* print_endline "in_while ++"; *)
         let p_stat' = eval_expr n p_stat e in
         let t_stat' = get_thread p_stat' n in
         match t_stat'.pending_load.is_pending with
@@ -1201,15 +1563,15 @@ module TSO = struct
     in
     helper p_stat len (Random.int len)
 
-  let exec_stmt_rq_ack n p_stat =
-    let t_stat = get_thread p_stat n in
-    if List.hd t_stat.counters < t_stat.length then
-      let p_stat1 = exec_single_stmt_in_thread n p_stat in
-      let p_stat2 = process_rq_in_thread n p_stat1 in
-      process_ack_in_thread n p_stat2
-    else
-      let p_stat1 = process_rq_in_thread n p_stat in
-      process_ack_in_thread n p_stat1
+  (* let exec_stmt_rq_ack n p_stat =
+     let t_stat = get_thread p_stat n in
+     if List.hd t_stat.counters < t_stat.length then
+       let p_stat1 = exec_single_stmt_in_thread n p_stat in
+       let p_stat2 = process_rq_in_thread n p_stat1 in
+       process_ack_in_thread n p_stat2
+     else
+       let p_stat1 = process_rq_in_thread n p_stat in
+       process_ack_in_thread n p_stat1 *)
 
   let exec_stmt_or_process_cache n p_stat =
     let t_stat = get_thread p_stat n in
@@ -1219,145 +1581,222 @@ module TSO = struct
           exec_single_stmt_in_thread n p_stat
         else if not @@ Queue.is_empty t_stat.cache_ack_queue then
           process_ack_in_thread n p_stat
-        else process_rq_in_thread n p_stat
-    | 1 -> process_ack_in_thread n p_stat
-    | 2 -> process_rq_in_thread n p_stat
+        else if not @@ Queue.is_empty t_stat.cache_request_queue then
+          process_rq_in_thread n p_stat
+        else (
+          print_endline "null 0";
+          p_stat)
+    | 1 ->
+        if not @@ Queue.is_empty t_stat.cache_ack_queue then
+          process_ack_in_thread n p_stat
+        else (
+          print_endline "null 1";
+          p_stat)
+    | 2 ->
+        if not @@ Queue.is_empty t_stat.cache_request_queue then
+          process_rq_in_thread n p_stat
+        else (
+          print_endline "null 2";
+          p_stat)
     | _ -> failwith "Random.int works incorrectly :)"
 
-  let exec_prog_in_tso p =
-    let p_stat = init_prog_stat p in
-    let t_num = List.length p_stat.threads in
-    let rec helper p_stat =
-      print_p_stat p_stat;
-      (* Unix.sleepf 0.01; *)
-      if prog_is_not_finished p_stat then (
-        let n = Random.int t_num (* choose_not_finished_thread p_stat *) in
-        (* иногда немного чистим очередь инвалидаций, симулируя ситуацию, когда у кэша появилось свободное время
-           для обработки *)
-        if Random.int 5 = 0 then
-          process_one_element_of_inv_q (get_thread p_stat n)
-        else ();
+  let rec insert_wmb_in_compound_stmt compound_stmt =
+    match compound_stmt with
+    | IF (e, stmt_list) -> IF (e, insert_wmb_before_assignments stmt_list)
+    | IF_ELSE (e, stmts1, stmts2) ->
+        IF_ELSE
+          ( e,
+            insert_wmb_before_assignments stmts1,
+            insert_wmb_before_assignments stmts2 )
+    | WHILE (e, stmt_list) -> WHILE (e, insert_wmb_before_assignments stmt_list)
+    | _ -> failwith "not compound stmt"
 
-        helper (exec_stmt_rq_ack n p_stat))
-      else p_stat
+  and insert_wmb_before_assignments stmt_list =
+    let rec helper stmts acc =
+      match stmts with
+      | [] -> acc
+      | stmt :: tl when List.length acc > 0 -> (
+          match stmt with
+          | ASSIGN (_, _) -> helper tl (acc @ [ SMP_WMB; stmt ])
+          | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
+              helper tl (acc @ [ insert_wmb_in_compound_stmt stmt ])
+          | _ -> helper tl (acc @ [ stmt ]))
+      | stmt :: tl -> (
+          match stmt with
+          | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
+              helper tl (acc @ [ insert_wmb_in_compound_stmt stmt ])
+          | _ -> helper tl (acc @ [ stmt ]))
     in
-    let res_p_stat = helper p_stat in
-    (* flush_all_store_buffers_and_inv_queues *)
-    flush_all_caches res_p_stat;
-    res_p_stat
+    helper stmt_list []
 
-  let exec_prog_stat_in_tso p_stat =
-    let t_num = List.length p_stat.threads in
+  let insert_wmb_to_thread_for_tso thread =
+    match thread with
+    | THREAD (n, stmt_list) ->
+        THREAD (n, insert_wmb_before_assignments stmt_list)
+
+  let insert_wmb_to_prog_for_tso p =
+    match p with
+    | PROG thread_list ->
+        let threads = List.map insert_wmb_to_thread_for_tso thread_list in
+        PROG threads
+
+  let rec expr_has_loads_from_vars = function
+    | INT _ -> false
+    | VAR_NAME _ -> true
+    | REGISTER _ -> false
+    | PLUS (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
+    | SUB (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
+    | MUL (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
+    | DIV (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
+
+  let rec insert_rmb_in_compound_stmt compound_stmt =
+    match compound_stmt with
+    | IF (e, stmt_list) -> IF (e, insert_rmb stmt_list)
+    | IF_ELSE (e, stmts1, stmts2) ->
+        IF_ELSE (e, insert_rmb stmts1, insert_rmb stmts2)
+    | WHILE (e, stmt_list) -> WHILE (e, insert_rmb stmt_list)
+    | _ -> failwith "not compound stmt"
+
+  and insert_rmb stmt_list =
+    let rec helper stmts acc =
+      match stmts with
+      | [] -> acc
+      | stmt :: tl when List.length acc > 0 -> (
+          match stmt with
+          | ASSERT _ -> helper tl (acc @ [ SMP_RMB; stmt ])
+          | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
+              helper tl (acc @ [ SMP_RMB; insert_rmb_in_compound_stmt stmt ])
+          | ASSIGN (_, r) -> (
+              match expr_has_loads_from_vars r with
+              | true -> helper tl (acc @ [ SMP_RMB; stmt ])
+              | false -> helper tl (acc @ [ stmt ]))
+          | _ -> helper tl (acc @ [ stmt ]))
+      | stmt :: tl -> (
+          match stmt with
+          | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
+              helper tl (acc @ [ insert_rmb_in_compound_stmt stmt ])
+          | _ -> helper tl (acc @ [ stmt ]))
+    in
+    helper stmt_list []
+
+  let insert_rmb_to_thread_for_tso thread =
+    match thread with THREAD (n, stmt_list) -> THREAD (n, insert_rmb stmt_list)
+
+  let insert_rmb_to_prog_for_tso p =
+    match p with
+    | PROG thread_list ->
+        let threads = List.map insert_rmb_to_thread_for_tso thread_list in
+        PROG threads
+
+  let insert_barriers_for_tso p =
+    p |> insert_rmb_to_prog_for_tso |> insert_wmb_to_prog_for_tso
+
+  let exec_prog_in_tso p =
+    let p = insert_barriers_for_tso p in
+    let p_stat = init_prog_stat p in
     let rec helper p_stat =
-      (* print_p_stat p_stat; *)
-      (* Unix.sleepf 0.01; *)
       if prog_is_not_finished p_stat then (
-        let n = Random.int t_num (* choose_not_finished_thread p_stat *) in
-        (* иногда немного чистим очередь инвалидаций, симулируя ситуацию, когда у кэша появилось свободное время
-           для обработки *)
+        let n = choose_not_finished_thread p_stat in
         if Random.int 1000 = 0 then
-          (* print_endline
-             ("process_one_element_of_inv_q in thread " ^ string_of_int n); *)
           process_one_element_of_inv_q (get_thread p_stat n)
         else ();
 
-        (* helper (exec_stmt_rq_ack n p_stat)) *)
         helper (exec_stmt_or_process_cache n p_stat))
       else p_stat
     in
     let res_p_stat = helper p_stat in
-    (* flush_all_store_buffers_and_inv_queues *)
+    flush_all_caches res_p_stat;
+    res_p_stat
+
+  (* нужно вручную использовать функцию insert_barriers_for_tso при создании p_stat,
+     который будет подан на вход этой функции. Иначе встроенных барьеров характерных для TSO
+     НЕ БУДЕТ!
+     Эта ф-ия применяется, когда перед исполнением нужно задать кэшам определенное состояние, как сделано
+     в тестах.
+     Наверное можно сделать аргументами программу prog и ф-ию, которая задаст кэшу нужное состояние
+  *)
+  let exec_prog_stat p_stat =
+    let rec helper p_stat =
+      if prog_is_not_finished p_stat then (
+        let n = choose_not_finished_thread p_stat in
+        if Random.int 1000 = 0 then
+          process_one_element_of_inv_q (get_thread p_stat n)
+        else ();
+
+        helper (exec_stmt_or_process_cache n p_stat))
+      else p_stat
+    in
+    let res_p_stat = helper p_stat in
     flush_all_caches res_p_stat;
     res_p_stat
 end
-*)
-(* let s = "a <- 1 ||| b <- 1 ||| z <- 2" *)
 
-(* open SequentialConsistency
+let s1 = {|
+a<-1    ||| while (b-1) {}
+b<-1    ||| assert(a)
+|}
 
-   let test_sc () =
-     let i = 0 in
-     let cnt = ref i in
-     while true do
-       print_string @@ "iteration " ^ string_of_int !cnt ^ ": ";
-       let p_stat = exec_prog_in_cs (prog s) in
-       let r1 = Hashtbl.find (get_thread p_stat 0).registers "EAX" in
-       let r2 = Hashtbl.find (get_thread p_stat 1).registers "EBX" in
-       if r1 = 0 && r2 = 0 then assert false else ();
-       cnt := !cnt + 1;
-       print_endline @@ "success"
-     done *)
+let s2 = {|
+x<-1   ||| y<-1
+a<-y   ||| b<-x
+|}
 
-(* let s1 =
-     "a<-1        ||| while (b-1) {\n\
-     \    smp_wmb    |||\n\
-     \        b<-1   ||| }\n\
-     \               ||| smp_rmb \n\
-     \               ||| assert(a)"
+open TSO
 
-   let s2 =
-     "\n\
-     \  x<-1 ||| y<-1\n\
-     \         smp_wmb ||| smp_wmb\n\
-     \              smp_rmb ||| smp_rmb\n\
-     \  a<-y   ||| b<-x"
+let p1 = parse_prog s1
+(* |> insert_barriers_for_tso *)
 
-   let p1 = prog s1
+let p2 = parse_prog s2
+(* |> insert_barriers_for_tso *)
 
-   let p2 = prog s2
+let prepare_for_test p_stat =
+  add_entry_to_cache (get_thread p_stat 0).cache "a" 0;
+  add_entry_to_cache (get_thread p_stat 1).cache "a" 0;
+  add_entry_to_cache (get_thread p_stat 0).cache "b" 0;
+  change_mesi_state (get_thread p_stat 0).cache "a" Shared;
+  change_mesi_state (get_thread p_stat 1).cache "a" Shared
 
-   open TSO
+(* для теста на модель TSO, т.е на StoreLoad barrier *)
+let prepare_for_test2 p_stat =
+  add_entry_to_cache (get_thread p_stat 0).cache "x" 0;
+  add_entry_to_cache (get_thread p_stat 1).cache "x" 0;
+  add_entry_to_cache (get_thread p_stat 0).cache "y" 0;
+  add_entry_to_cache (get_thread p_stat 1).cache "y" 0;
+  change_mesi_state (get_thread p_stat 0).cache "x" Shared;
+  change_mesi_state (get_thread p_stat 1).cache "x" Shared;
+  change_mesi_state (get_thread p_stat 0).cache "y" Shared;
+  change_mesi_state (get_thread p_stat 1).cache "y" Shared
 
-   (* let p2 () =
-      add_entry_to_cache (get_thread p_stat 0).cache "a" 2;
-      add_entry_to_cache (get_thread p_stat 0).cache "b" 3 *)
+let test_store_load_barrier () =
+  let get_p_stat_for_test2 () =
+    let p = insert_barriers_for_tso p2 in
+    let p_stat = init_prog_stat p in
+    prepare_for_test2 p_stat;
+    p_stat
+  in
+  let i = 0 in
+  let cnt = ref i in
+  while true do
+    print_string @@ "iteration " ^ string_of_int !cnt ^ ": ";
+    let res = exec_prog_stat (get_p_stat_for_test2 ()) in
+    assert (Hashtbl.find res.ram "a" = 1 || Hashtbl.find res.ram "b" = 1);
+    cnt := !cnt + 1;
+    print_endline @@ "success"
+  done
 
-   let prepare_for_test p_stat =
-     add_entry_to_cache (get_thread p_stat 0).cache "a" 0;
-     add_entry_to_cache (get_thread p_stat 1).cache "a" 0;
-     add_entry_to_cache (get_thread p_stat 0).cache "b" 0;
-     change_mesi_state (get_thread p_stat 0).cache "a" Shared;
-     change_mesi_state (get_thread p_stat 1).cache "a" Shared
+let test_wmb_and_rmb () =
+  let get_p_stat_for_test () =
+    let p = insert_barriers_for_tso p1 in
+    let p_stat = init_prog_stat p in
+    prepare_for_test p_stat;
+    p_stat
+  in
+  let i = 0 in
+  let cnt = ref i in
 
-   (* для теста на модель TSO, т.е на StoreLoad barrier *)
-   let prepare_for_test2 p_stat =
-     add_entry_to_cache (get_thread p_stat 0).cache "x" 0;
-     add_entry_to_cache (get_thread p_stat 1).cache "x" 0;
-     add_entry_to_cache (get_thread p_stat 0).cache "y" 0;
-     add_entry_to_cache (get_thread p_stat 1).cache "y" 0;
-     change_mesi_state (get_thread p_stat 0).cache "x" Shared;
-     change_mesi_state (get_thread p_stat 1).cache "x" Shared;
-     change_mesi_state (get_thread p_stat 0).cache "y" Shared;
-     change_mesi_state (get_thread p_stat 1).cache "y" Shared
-
-   let test_store_load_barrier () =
-     let get_p_stat_for_test2 () =
-       let p_stat = init_prog_stat p2 in
-       prepare_for_test2 p_stat;
-       p_stat
-     in
-     let i = 0 in
-     let cnt = ref i in
-     while true do
-       print_string @@ "iteration " ^ string_of_int !cnt ^ ": ";
-       let res = exec_prog_stat_in_tso (get_p_stat_for_test2 ()) in
-       assert (Hashtbl.find res.ram "a" = 1 || Hashtbl.find res.ram "b" = 1);
-       cnt := !cnt + 1;
-       print_endline @@ "success"
-     done
-
-   let test_wmb_and_rmb () =
-     let get_p_stat_for_test () =
-       let p_stat = init_prog_stat p1 in
-       prepare_for_test p_stat;
-       p_stat
-     in
-     let i = 0 in
-     let cnt = ref i in
-
-     while true do
-       print_string @@ "iteration " ^ string_of_int !cnt ^ ": ";
-       let _ = exec_prog_stat_in_tso (get_p_stat_for_test ()) in
-       cnt := !cnt + 1;
-       print_endline @@ "success"
-     done *)
+  while true do
+    print_string @@ "iteration " ^ string_of_int !cnt ^ ": ";
+    let _ = exec_prog_stat (get_p_stat_for_test ()) in
+    cnt := !cnt + 1;
+    print_endline @@ "success"
+  done
