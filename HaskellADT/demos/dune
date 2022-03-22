@@ -5,4 +5,4 @@
  (libraries HaskellADT.Lib stdio))
 
 (cram
- (deps ./demoOcamlADT.exe))
+ (deps ./demoHaskellADT.exe))
