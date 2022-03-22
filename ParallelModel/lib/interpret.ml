@@ -275,10 +275,11 @@ let parse_prog s =
 
 module SequentialConsistency = struct
   (* open M *)
+  let ( >>= ) = Result.bind
 
-  let ( >>= ) x f = match x with None -> None | Some v -> f v
+  let return = Result.ok
 
-  let return x = Some x
+  let error = Result.error
 
   type ram = (string, int) Hashtbl.t
 
@@ -304,33 +305,26 @@ module SequentialConsistency = struct
   let get_thread p_stat n =
     let rec helper t_stats =
       match t_stats with
-      | [] ->
-          None
-          (* failwith ("program doesn't have thread with num " ^ string_of_int n) *)
+      | [] -> error ("program doesn't have thread with num " ^ string_of_int n)
       | t_stat :: tl -> if t_stat.number = n then return t_stat else helper tl
     in
     helper p_stat.threads
 
   let init_var memory var =
     match Hashtbl.find_opt memory var with
-    | Some _ ->
-        None (* failwith ("variable @" ^ var ^ " already initialized") *)
+    | Some _ -> error ("variable @" ^ var ^ " already initialized")
     | None -> return (Hashtbl.add memory var 0)
 
   let load_from_ram p_stat var =
     match Hashtbl.find_opt p_stat.ram var with
     | Some value -> return value
-    | None ->
+    | None -> (
         (* Вернуть ноль *)
-        init_var p_stat.ram var >>= fun _ -> Hashtbl.find_opt p_stat.ram var
-
-  (* let load_from_ram p_stat var =
-     match Hashtbl.find_opt p_stat.ram var with
-     | Some value -> value
-     | None ->
-         (* Вернуть ноль *)
-         init_var p_stat.ram var;
-         Hashtbl.find p_stat.ram var *)
+        init_var p_stat.ram var >>= fun _ ->
+        match Hashtbl.find_opt p_stat.ram var with
+        | None ->
+            error ("variable " ^ var ^ " was initialized but not found in ram")
+        | Some value -> return value)
 
   let store_to_var ram v_name value = Hashtbl.replace ram v_name value
 
@@ -343,17 +337,6 @@ module SequentialConsistency = struct
         Hashtbl.add t_stat.registers r_name 0;
         return 0
     | Some v -> return v
-
-  (* let load_from_regs p_stat n r_name =
-     match get_thread p_stat n with
-     | None -> None
-     | Some t_stat -> (
-         let regs = t_stat.registers in
-         match Hashtbl.find_opt regs r_name with
-         | None ->
-             Hashtbl.add regs r_name 0;
-             Some 0
-         | Some v -> Some v) *)
 
   (* n - is a thread number where expression is evaluated *)
   let rec eval_expr n p_stat = function
@@ -371,16 +354,12 @@ module SequentialConsistency = struct
         eval_expr n p_stat r >>= fun e2 -> return (e1 * e2)
     | DIV (l, r) ->
         eval_expr n p_stat r >>= fun e2 ->
-        if e2 = 0 then None
+        if e2 = 0 then error "division by zero"
         else eval_expr n p_stat l >>= fun e1 -> return (e1 / e2)
-  (* let r_exp = eval_expr n p_stat r in
-     if r_exp = 0 then  failwith "div by zero"
-     else eval_expr n p_stat l / r_exp *)
 
   let eval_assert n p_stat e =
     eval_expr n p_stat e >>= fun value ->
-    (* let value = eval_expr n p_stat e in *)
-    if value = 0 then None (* failwith "assertation fails (arg = 0)"  *)
+    if value = 0 then error ("assertation failed: " ^ show_expr e)
     else return p_stat
 
   let eval_assign n p_stat l r =
@@ -393,19 +372,7 @@ module SequentialConsistency = struct
         get_thread p_stat n >>= fun t_stat ->
         store_to_reg t_stat.registers reg value;
         return p_stat
-    | _ -> None
-
-  (* let eval_assign n p_stat l r =
-     let value = eval_expr n p_stat r in
-     match l with
-     | VAR_NAME v_name ->
-         store_to_var p_stat.ram v_name value;
-         p_stat
-     | REGISTER r_name ->
-         let regs = (get_thread p_stat n).registers in
-         store_to_reg regs r_name value;
-         p_stat
-     | _ -> failwith "assignment allowed only to variable and register" *)
+    | _ -> error "assignment allowed only to variable and register"
 
   let print_t_stat t_stat =
     print_string ("thread " ^ string_of_int t_stat.number ^ ":\n");
@@ -427,7 +394,6 @@ module SequentialConsistency = struct
       length = List.length (snd t_info);
       branch_exprs = [];
       number = fst t_info;
-      (* is_in_while = false; *)
       registers = Hashtbl.create 4;
     }
 
@@ -447,7 +413,7 @@ module SequentialConsistency = struct
     {
       t_stat with
       counters = t_stat.counters @ [ 0 ];
-      branch_exprs = t_stat.branch_exprs @ [ v ] (* is_in_while; *);
+      branch_exprs = t_stat.branch_exprs @ [ v ];
     }
 
   let enter_block_in_thread n p_stat v =
@@ -460,49 +426,55 @@ module SequentialConsistency = struct
     }
 
   let get_stmt p_stat cur_t_num =
-    let t_stat = List.nth p_stat.threads cur_t_num in
+    get_thread p_stat cur_t_num >>= fun t_stat ->
     let rec helper stmts counts lvl =
+      stmts >>= fun stmts ->
       match counts with
-      | [ n ] -> List.nth stmts n
+      | [ n ] -> return (List.nth stmts n)
       | n :: tl ->
           helper
             (match List.nth stmts n with
             | IF (_, stmt_list) ->
-                if List.nth t_stat.branch_exprs lvl <> 0 then stmt_list
-                else failwith "try enter if-block when condition is false"
+                if List.nth t_stat.branch_exprs lvl <> 0 then return stmt_list
+                else error "try enter if-block when condition is false"
             | IF_ELSE (_, bk1, bk2) ->
-                if List.nth t_stat.branch_exprs lvl <> 0 then bk1 else bk2
+                if List.nth t_stat.branch_exprs lvl <> 0 then return bk1
+                else return bk2
             | WHILE (_, block) ->
-                if List.nth t_stat.branch_exprs lvl <> 0 then block
-                else failwith "try enter while-loop when condition is false"
-            | _ -> failwith "this stmt is not compound")
+                if List.nth t_stat.branch_exprs lvl <> 0 then return block
+                else error "try enter while-loop when condition is false"
+            | _ ->
+                error
+                  ("this stmt is not compound: " ^ show_stmt (List.nth stmts n)))
             tl (lvl + 1)
-      | _ -> failwith "invalid list of counters (counts)"
+      | _ -> error "invalid list of counters"
     in
-    helper t_stat.stmts t_stat.counters 0
+    helper (return t_stat.stmts) t_stat.counters 0
 
   let peek_while t_stat counters =
     let rec helper stmts counts lvl =
+      stmts >>= fun stmts ->
       match counts with
       | [ n ] -> (
           let stmt = List.nth stmts n in
-          match stmt with WHILE (_, _) -> true | _ -> false)
+          match stmt with WHILE (_, _) -> return true | _ -> return false)
       | n :: tl ->
           helper
             (match List.nth stmts n with
             | IF (_, stmt_list) ->
-                if List.nth t_stat.branch_exprs lvl <> 0 then stmt_list
-                else failwith "try enter if-block when condition is false"
+                if List.nth t_stat.branch_exprs lvl <> 0 then return stmt_list
+                else error "try enter if-block when condition is false"
             | IF_ELSE (_, bk1, bk2) ->
-                if List.nth t_stat.branch_exprs lvl <> 0 then bk1 else bk2
+                if List.nth t_stat.branch_exprs lvl <> 0 then return bk1
+                else return bk2
             | WHILE (_, bk) ->
-                if List.nth t_stat.branch_exprs lvl <> 0 then bk
-                else failwith "try enter while-block when condition is false"
-            | _ -> failwith "this stmt is not compound (peek_while")
+                if List.nth t_stat.branch_exprs lvl <> 0 then return bk
+                else error "try enter while-block when condition is false"
+            | _ -> error "this stmt is not compound (peek_while")
             tl (lvl + 1)
-      | _ -> failwith "invalid list of counters (counts)"
+      | _ -> error "invalid list of counters (counts)"
     in
-    helper t_stat.stmts counters 0
+    helper (return t_stat.stmts) counters 0
 
   let check p_stat n =
     try match get_stmt p_stat n with _ -> true with Failure _ -> false
@@ -530,36 +502,13 @@ module SequentialConsistency = struct
         in
         let threads2 = set t_stat2 n p_stat'.threads in
         let p_stat2 = { p_stat' with threads = threads2 } in
-        if peek_while t_stat2 t_stat2.counters then return p_stat2
-        else helper p_stat2 n
+        peek_while t_stat2 t_stat2.counters >>= fun is_peeked ->
+        if is_peeked then return p_stat2 else helper p_stat2 n
     in
     helper p_stat n
 
-  (* let prog_stat_inc p_stat n =
-     let rec helper p_stat n =
-       let t_stat = get_thread p_stat n in
-       let t_stat' = thread_stat_inc t_stat in
-       let threads' = set t_stat' n p_stat.threads in
-       let p_stat' = { p_stat with threads = threads' } in
-       if List.length t_stat'.counters = 1 || check p_stat' n then p_stat'
-       else
-         (* leave block *)
-         let t_stat2 =
-           {
-             t_stat' with
-             counters = reduce t_stat'.counters;
-             branch_exprs = reduce t_stat'.branch_exprs;
-           }
-         in
-         let threads2 = set t_stat2 n p_stat'.threads in
-         let p_stat2 = { p_stat' with threads = threads2 } in
-         if peek_while t_stat2 t_stat2.counters then p_stat2
-         else helper p_stat2 n
-     in
-     helper p_stat n *)
-
   let exec_single_stmt_in_thread n p_stat =
-    match get_stmt p_stat n with
+    get_stmt p_stat n >>= function
     | WHILE (e, _) ->
         eval_expr n p_stat e >>= fun e ->
         if e = 0 then prog_stat_inc p_stat n
@@ -594,7 +543,7 @@ module SequentialConsistency = struct
     in
     helper p_stat len (Random.int len)
 
-  let exec_prog_in_cs p =
+  let exec_prog_in_seq_cons p =
     let p_stat = init_prog_stat p in
     let rec helper p_stat =
       if prog_is_not_finished p_stat then
@@ -603,18 +552,6 @@ module SequentialConsistency = struct
       else return p_stat
     in
     helper p_stat
-
-  (* let exec_prog_in_cs p =
-     let p_stat = init_prog_stat p in
-     let rec helper p_stat =
-       if prog_is_not_finished p_stat then
-         helper
-           (exec_single_stmt_in_thread
-              (choose_not_finished_thread p_stat)
-              p_stat)
-       else p_stat
-     in
-     helper p_stat *)
 end
 
 module TSO = struct
