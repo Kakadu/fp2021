@@ -1,0 +1,8 @@
+(executable
+ (name demoHaskellADT)
+ (modules demoHaskellADT)
+ (public_name demoHaskellADT)
+ (libraries HaskellADT.Lib stdio))
+
+(cram
+ (deps ./demoOcamlADT.exe))

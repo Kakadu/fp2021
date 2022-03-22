@@ -39,8 +39,11 @@ let is_keyword = function
   | _ -> false
 ;;
 
-let empty = take_while (fun c -> is_ws c || is_eol c)
-let empty1 = take_while1 (fun c -> is_ws c || is_eol c)
+let empty = take_while (fun c -> is_ws c)
+let empty' = take_while (fun c -> is_ws c || is_eol c)
+let eol = take_while (fun c -> is_eol c)
+let empty1 = take_while1 (fun c -> is_ws c)
+let empty1' = take_while1 (fun c -> is_ws c || is_eol c)
 let token s = empty *> string s
 let trim p = empty *> p
 let kwd s = empty *> token s
@@ -80,7 +83,7 @@ let efun args rhs =
 
 let ccase p e = p, e
 let acase id p = id, p
-let pacase id p = PACase (id, p)
+let pp_adt id p = PAdt (id, p)
 let actor id ty = id, ty
 let bbind p e = p, e
 let pwild _ = PWild
@@ -111,11 +114,6 @@ let eq_uneq = choice_op [ "==", EQ; "<>", NE ]
 let conj = choice_op [ "&&", And ]
 let disj = choice_op [ "||", Or ]
 let cons = token ":" *> return econs
-
-(* let app_unop p =
-  choice
-    [ token "-" *> p >>| eunop Minus; kwd "not" *> p >>| eunop Not; token "+" *> p; p ]
-;; *)
 
 let is_idchar = function
   | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '\'' -> true
@@ -194,7 +192,7 @@ let pack =
     @@ fun _self ->
     trim
     @@ lift2
-         pacase
+         pp_adt
          constr_ident
          (option
             (PTuple [])
@@ -222,11 +220,6 @@ type edispatch =
   ; op: edispatch -> expr t
   }
 
-let app_unop p =
-  choice
-    [ token "-" *> p >>| eunop Minus; kwd "not" *> p >>| eunop Not; token "+" *> p; p ]
-;;
-
 let pack =
   let expr d = fix @@ fun _self -> trim @@ choice [ d.key d; d.tuple d; d.op d ] in
   let key d =
@@ -236,9 +229,9 @@ let pack =
       trim
         (lift3
            eif
-           (kwd "if" *> d.expr d)
-           (kwd "then" *> d.expr d)
-           (kwd "else" *> d.expr d))
+           (between empty' empty' (kwd "if") *> d.expr d)
+           (between empty' empty' (kwd "then") *> d.expr d)
+           (between empty' empty' (kwd "else") *> d.expr d))
     in
     let elet =
       let binding =
@@ -246,20 +239,38 @@ let pack =
           (lift2
              bbind
              (token "let" *> pattern)
-             (lift2 efun (empty1 *> many pattern <* token "=") (d.expr d <* kwd "in")))
+             (lift2
+                efun
+                (empty1 *> many pattern <* token "=")
+                (d.expr d <* empty' <* kwd "in" <* empty')))
       in
       trim (lift2 elet binding (d.expr d))
     in
     let efun = trim (lift2 efun (kwd "\\" *> many pattern <* arrow) (d.expr d)) in
     let ecase =
-      let case = trim @@ lift2 ccase (empty *> pattern <* arrow) (d.expr d) in
-      let cases = trim @@ lift2 (fun fst other -> fst :: other) case (many case) in
-      trim (lift2 ecase (kwd "case" *> empty1 *> d.expr d <* kwd "of") cases)
+      let indent = take_while is_ws >>= fun s -> return @@ String.length s in
+      let fst_case = lift2 ccase (pattern <* arrow) (d.expr d) <* eol in
+      let case n =
+        indent
+        >>= fun i ->
+        if i = n
+        then lift2 ccase (empty *> pattern <* arrow) (d.expr d) <* eol
+        else fail "Indent\n"
+      in
+      let cases =
+        indent >>= fun i -> lift2 (fun fst other -> fst :: other) fst_case (many (case i))
+      in
+      trim
+        (lift2 ecase (kwd "case" *> empty1 *> d.expr d <* kwd "of" <* empty <* eol) cases)
     in
     choice [ elet; eif; efun; ecase ]
   in
   let tuple d =
-    lift2 ( @ ) (many1 (d.op d <* comma)) (d.op d <|> d.key d >>| fun rhs -> [ rhs ])
+    parens
+    @@ lift2
+         ( @ )
+         (many1 (d.expr d <* comma))
+         (d.expr d <|> d.key d >>| fun rhs -> [ rhs ])
     >>| etuple
   in
   let op d =
@@ -298,7 +309,7 @@ let pack =
     in
     trim
     @@ List.fold_right
-         [ add_sub; mult_div; cmp; eq_uneq; conj; disj ]
+         [ add_sub; mult_div; cons; cmp; eq_uneq; conj; disj ]
          ~f:(fun x y -> procl x y @@ d.key d)
          ~init:app_op
   in
@@ -334,8 +345,10 @@ let decl =
   let dlet =
     lift2
       dlet
-      (kwd "let" *> empty1 *> pattern)
-      (lift2 efun (empty1 *> many pattern <* token "=") expr)
+      (empty' *> pattern)
+      (lift2 efun (empty1 *> many pattern <* token "=") (empty' *> expr))
+    <* take_while is_eol
+    <* empty'
   in
   let dadt =
     let actor_fst = lift2 actor constr_ident (option (TTuple []) (empty1 *> tyexpr)) in
@@ -344,8 +357,10 @@ let decl =
     in
     lift2
       dadt
-      (kwd "data" *> empty1 *> constr_ident <* token "=")
+      (empty' *> kwd "data" *> empty1 *> constr_ident <* token "=")
       (lift2 (fun fst other -> fst :: other) actor_fst (many actor_other))
+    <* take_while is_eol
+    <* empty'
   in
   trim @@ dlet <|> dadt
 ;;
@@ -374,38 +389,11 @@ let parse_test code expected =
     false
 ;;
 
-let code =
-  {|let x = 2 
-             let y = x + 10 / 5
-             let f x y = x + y
-             let f1 y = f 1 y
-             let _ = 10 * 12 + 7 / 2
-             let xs = [1,2,3,4]
-             let os = [1]
-             let t = "Hello" > "Abs"
-             let f x = case x of 0 -> True
-             _ -> False
-             let quickSort [] = []
-             let quickSort x:xs = quickSort xs
-             |}
-;;
-
-let rez = parse_or_error code
-
-(* let rez = Caml.Format.printf "%a\n" pp_prog rez *)
-
-(* let () = 
-  let code = "
-  let c = Circle 3" in 
-  match parse_with prog code with
-  | Ok ok -> Format.printf "%a\n" pp_prog ok
-  | Error err -> Format.printf "%s\n" err *)
-
 let%test _ =
   parse_test
     {|
-    let x = 2
-    let _ = x + ((10 + x * x)/700 + 10 / 5) - (x - 1)/x
+    x = 2
+    _ = x + ((10 + x * x)/700 + 10 / 5) - (x - 1)/x
   |}
     [ DLet (PVar "x", EConst (CInt 2))
     ; DLet
@@ -429,7 +417,7 @@ let%test _ =
 let%test _ =
   parse_test
     {|
-    let double_lst xs = map (\x -> 2 * x) xs 
+    double_lst xs = map (\x -> 2 * x) xs
   |}
     [ DLet
         ( PVar "double_lst"
@@ -445,8 +433,8 @@ let%test _ =
 let%test _ =
   parse_test
     {|
-    let f x y = x * y
-    let f5 x = f 5 x
+    f x y = x * y
+    f5 x = f 5 x
   |}
     [ DLet (PVar "f", EFun (PVar "x", EFun (PVar "y", EBinOp (Mul, EVar "x", EVar "y"))))
     ; DLet (PVar "f5", EFun (PVar "x", EApp (EApp (EVar "f", EConst (CInt 5)), EVar "x")))
@@ -456,9 +444,9 @@ let%test _ =
 let%test _ =
   parse_test
     {|
-    let rect_surface x1 y1 x2 y2 = 
+    rect_surface x1 y1 x2 y2 = 
       let abs x = if x > 0 then x else 0 - x in
-      (abs (x1 - x2)) * (abs (y1 - y2)) 
+      (abs (x1 - x2)) * (abs (y1 - y2))
   |}
     [ DLet
         ( PVar "rect_surface"
@@ -489,8 +477,38 @@ let%test _ =
 let%test _ =
   parse_test
     {|
-      let ( ( e , s ) )      =      ( 1 ,  2 )
-      let ( x , y , z , ( a , b ) ) = ( 1 , 2 , 3 , ( 4 , 5 ) )
+  fast_fact x = 
+  let helper acc n = if n == 1        
+      then acc 
+      else helper (acc * n) (n - 1)  
+  in helper 1 x
+  |}
+    [ DLet
+        ( PVar "fast_fact"
+        , EFun
+            ( PVar "x"
+            , ELet
+                ( ( PVar "helper"
+                  , EFun
+                      ( PVar "acc"
+                      , EFun
+                          ( PVar "n"
+                          , EIf
+                              ( EBinOp (EQ, EVar "n", EConst (CInt 1))
+                              , EVar "acc"
+                              , EApp
+                                  ( EApp
+                                      (EVar "helper", EBinOp (Mul, EVar "acc", EVar "n"))
+                                  , EBinOp (Sub, EVar "n", EConst (CInt 1)) ) ) ) ) )
+                , EApp (EApp (EVar "helper", EConst (CInt 1)), EVar "x") ) ) )
+    ]
+;;
+
+let%test _ =
+  parse_test
+    {|
+      (e, s) = (1, 2)
+      (x, y, z, (a, b)) = (1, 2, 3, (4, 5))
     |}
     [ DLet (PTuple [ PVar "e"; PVar "s" ], ETuple [ EConst (CInt 1); EConst (CInt 2) ])
     ; DLet
@@ -509,8 +527,8 @@ let%test _ =
     {|
       data Point = Point Int Int
       data Shape = Rectangle Point Point | Circle Point Int
-      let s1 = Rectangle (Point 0 0) (Point 1 1)
-      let s2 = Circle (Point 1 1) 1
+      s1 = Rectangle (Point 0 0) (Point 1 1)
+      s2 = Circle (Point 1 1) 1
     |}
     [ DAdt ("Point", [ "Point", TTuple [ TInt; TInt ] ])
     ; DAdt
@@ -540,22 +558,22 @@ let%test _ =
 let%test _ =
   parse_test
     {|
-      let surface (Circle _ r) = p * r * r
-      let surface (Rectangle (Point x1 y1) (Point x2 y2)) = abs (x1 - x2) * abs (y1 - y2)
+      surface (Circle _ r) = p * r * r
+      surface (Rectangle (Point x1 y1) (Point x2 y2)) = abs (x1 - x2) * abs (y1 - y2)
     |}
     [ DLet
         ( PVar "surface"
         , EFun
-            ( PACase ("Circle", PTuple [ PWild; PVar "r" ])
+            ( PAdt ("Circle", PTuple [ PWild; PVar "r" ])
             , EBinOp (Mul, EVar "p", EBinOp (Mul, EVar "r", EVar "r")) ) )
     ; DLet
         ( PVar "surface"
         , EFun
-            ( PACase
+            ( PAdt
                 ( "Rectangle"
                 , PTuple
-                    [ PACase ("Point", PTuple [ PVar "x1"; PVar "y1" ])
-                    ; PACase ("Point", PTuple [ PVar "x2"; PVar "y2" ])
+                    [ PAdt ("Point", PTuple [ PVar "x1"; PVar "y1" ])
+                    ; PAdt ("Point", PTuple [ PVar "x2"; PVar "y2" ])
                     ] )
             , EBinOp
                 ( Mul
