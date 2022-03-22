@@ -65,7 +65,6 @@ let cint n = CInt n
 let cstring s = CString s
 let econst c = EConst c
 let ebinop o e1 e2 = EBinOp (o, e1, e2)
-let eunop o e = EUnOp (o, e)
 let evar id = EVar id
 let etuple e = ETuple e
 let econs e1 e2 = ECons (e1, e2)
