@@ -37,26 +37,18 @@ and expr =
   | EApp of expr * expr (**  f x y  = (f x) y*)
   | EIf of expr * expr * expr (**  if x >= 5 then "Nice" else "Bad"  *)
   | ELet of binding * expr (**  let x = 5; y = 10 in x + y  *)
-  | ELstCompr of expr * fromSet list * expr list
-      (**  [z | x <- xs, let y = x + 1, z = x * y]  *)
   | ECase of expr * case list
       (**  case xs of [] -> -100
-                                                                 (x:_) -> x  *)
-  | ECtor of id * expr (**  Point 1 1)*)
+                      (x:_) -> x  *)
+  | ECtor of id * expr (**  (Point 1 1) *)
   | EFun of pat * expr (**  \x -> x + 10  *)
 [@@deriving eq, show { with_path = false }]
 
 and case = pat * expr
 (*  _ -> 100*)
 
-and guard = expr * expr
-(*  | a < 5 = 10  *)
-
 and actor = id * tyexpr
 (*  Point Int Int  *)
-
-and fromSet = expr * expr [@@deriving eq, show { with_path = false }]
-(*  x <- [1,2,3,4,5,6]  *)
 
 (**  fact 0 = 1
          fact n = n * fact (n - 1)*)
@@ -69,7 +61,7 @@ and pat =
   | PCons of pat * pat (** hd : tl  *)
   | PNull (**  []  *)
   | PTuple of pat list (**  (_, 1, "A")  *)
-  | PACase of id * pat (**  Point 3 0  *)
+  | PAdt of id * pat (**  Point 3 0  *)
 [@@deriving eq, show { with_path = false }]
 
 and tyexpr =

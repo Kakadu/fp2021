@@ -56,10 +56,10 @@ let pp_interpret_err fmt = function
   | Unbound str -> fprintf fmt "Unbound value %s" str
   | Division_by_zero -> fprintf fmt "Division by zero"
   | Incorrect_eval value -> fprintf fmt "Value %a is of incorrect type" pp_value value
-  | _ -> fprintf fmt "I have no idea"
+  | Non_exaust -> fprintf fmt "Non-exhaustive patterns in case"
 ;;
 
-let pp_decl_binding fmt (name, value) = fprintf fmt "val %s = %a" name pp_value value
+let pp_decl_binding fmt (name, value) = fprintf fmt "%s = %a" name pp_value value
 let pp_interpret_ok = pp_print_list ~pp_sep:pp_force_newline pp_decl_binding
 
 module Interpret (M : MONADERROR) : sig
@@ -76,7 +76,7 @@ end = struct
     | Not_found -> fail (Unbound name)
   ;;
 
-  let exten_env env binds =
+  let extend_env env binds =
     List.fold_left (fun env (id, v) -> BindsMap.add id (ref (Some v)) env) env binds
   ;;
 
@@ -85,7 +85,7 @@ end = struct
     | PVar name -> [ name ]
     | PTuple elems -> List.concat_map (fun x -> pattern_bindings x) elems
     | PCons (l, r) -> pattern_bindings l @ pattern_bindings r
-    | PACase (_, _) -> []
+    | PAdt (_, _) -> []
   ;;
 
   let rec pattern_decl_bindings pattern value =
@@ -112,7 +112,7 @@ end = struct
         pattern_decl_bindings (PTuple elems_tl) (VTuple vs_tl)
         >>= fun bind_tl -> return (bind_hd @ bind_tl)
       | _ -> fail Non_exaust)
-    | PACase (pid, p), VAdt (vid, v) when pid = vid -> pattern_decl_bindings p v
+    | PAdt (pid, p), VAdt (vid, v) when pid = vid -> pattern_decl_bindings p v
     | _ -> fail Non_exaust
   ;;
 
@@ -128,7 +128,7 @@ end = struct
     | PNull, VList [] -> true
     | PTuple p, VTuple v ->
       List.length p = List.length v && List.for_all2 (fun p v -> check_pattern p v) p v
-    | PACase (pid, p), VAdt (vid, v) -> pid = vid && check_pattern p v
+    | PAdt (pid, p), VAdt (vid, v) -> pid = vid && check_pattern p v
     | _ -> false
   ;;
 
@@ -183,7 +183,7 @@ end = struct
       (match fn_value with
       | VFun (pattern, expr, env) ->
         let* binds = pattern_decl_bindings pattern arg_value in
-        eval expr (exten_env env binds)
+        eval expr (extend_env env binds)
       | _ -> fail (Incorrect_eval fn_value))
     | ELet (binding, expr) ->
       let* env = add_binding binding env in
@@ -194,7 +194,7 @@ end = struct
       | None -> fail Non_exaust
       | Some (pattern, expr) ->
         let* binds = pattern_decl_bindings pattern value in
-        eval expr (exten_env env binds))
+        eval expr (extend_env env binds))
     | ECtor (id, expr) ->
       let* value = eval expr env in
       return @@ vadt id value
@@ -251,38 +251,102 @@ let run_interpret code = InterpretResult.run (parse_or_error code)
 let pp_run_interpret fmt code =
   match run_interpret code with
   | Ok ok -> fprintf fmt "%a\n" pp_interpret_ok ok
-  | Error err -> fprintf fmt "Error:\n%a\n" pp_interpret_err err
+  | Error err -> fprintf fmt "%a\n" pp_interpret_err err
 ;;
 
-let code =
-  {|
-let x = 2 + 5
-let f x y = x + y
-let p = f 5 10
-let fac n = if n == 1 then n else n * fac (n - 1) 
-let y = fac 5
-let b = (True && (5 > 4))
-let xs = [1,2,3,4]
-let x = "Hello" <> "Hello"
-|}
-;;
-
-let (code : string) =
-  {|
-data Shape = Circle Int
-let c = Circle 3
-let surface (Circle r) = 3 * r * r
-let p = surface c
-let r = Rectangle (Point 0 0) (Point 2 2)
-let surface (Rectangle (Point x1 y1) (Point x2 y2)) = (x2-x1) * (y2-y1)
-let p = surface r
-|}
-;;
-
-let funct code =
+let test_interpreter code expected =
   match run_interpret code with
-  | Ok ok -> Caml.Format.printf "%a\n" pp_interpret_ok ok
-  | Error err -> Caml.Format.printf "%a\n" pp_interpret_err err
+  | Ok ok ->
+    let flag =
+      List.exists
+        (fun needed -> List.for_all (fun x -> equal_decl_binding needed x) ok)
+        expected
+    in
+    (match flag with
+    | true -> true
+    | false ->
+      printf "Error\nExpected:%a\nFound:%a\n" pp_interpret_ok expected pp_interpret_ok ok;
+      false)
+  | Error err ->
+    printf "%a\n" pp_interpret_err err;
+    false
 ;;
 
-let rez = funct code
+let test code expected =
+  match run_interpret code with
+  | Ok ok ->
+    let rec is_equal xs ys =
+      match xs, ys with
+      | [], [] -> true
+      | xh :: xt, yh :: yt -> equal_decl_binding xh yh && is_equal xt yt
+      | _ -> false
+    in
+    (match is_equal ok expected with
+    | true -> true
+    | false ->
+      printf "Error\nExpected:%a\nFound:%a\n" pp_interpret_ok expected pp_interpret_ok ok;
+      false)
+  | Error err ->
+    printf "%a\n" pp_interpret_err err;
+    false
+;;
+
+let test_err code expected =
+  match run_interpret code with
+  | Ok _ -> false
+  | Error err when equal_interpret_err err expected -> true
+  | Error err ->
+    printf "Unexpected error: %a" pp_interpret_err err;
+    false
+;;
+
+let%test _ = test {|
+y = 20
+x = 10
+|} [ "y", VInt 20; "x", VInt 10 ]
+
+let%test _ = test {|
+x = 2022 / 2 - 505 * 2|} [ "x", VInt 1 ]
+
+let%test _ = test {|
+x = let square x = x * x in (square 5) - 1|} [ "x", VInt 24 ]
+
+let%test _ =
+  test
+    {|
+data Point = Point Int Int
+data Shape = Circle Point Int
+circle = Circle (Point 0 0) 4
+s = let surface (Circle _ r) = 3 * r * r in surface circle|}
+    [ ( "circle"
+      , VAdt ("Circle", VTuple [ VAdt ("Point", VTuple [ VInt 0; VInt 0 ]); VInt 4 ]) )
+    ; "s", VInt 48
+    ]
+;;
+
+let%test _ =
+  test
+    {|
+flag = let is_zero x y = case (x, y) of
+                              (0, 0) -> True
+                              _ -> False
+in is_zero 1 1|}
+    [ "flag", VBool false ]
+;;
+
+let%test _ = test_err {|
+x = (677 - 433) * 19929 / (2022 / 2 - 1011)|} Division_by_zero
+
+let%test _ = test_err {|
+x = some + 27|} (Unbound "some")
+
+let%test _ =
+  test_err
+    {|
+x = let f x = case x of 
+                0 -> "0"
+                1 -> "1"
+in f 2
+|}
+    Non_exaust
+;;
