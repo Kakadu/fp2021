@@ -15,11 +15,6 @@ type bin_op =
   | Or (**  ||  *)
 [@@deriving eq, show { with_path = false }]
 
-and un_op =
-  | Minus (** -   *)
-  | Not (** not *)
-[@@deriving eq, show { with_path = false }]
-
 and const =
   | CBool of bool (** True    *)
   | CInt of int (** 201     *)
@@ -29,7 +24,7 @@ and const =
 and expr =
   | EConst of const (**  1  *)
   | EBinOp of bin_op * expr * expr (**  201 - 1  *)
-  | EUnOp of un_op * expr (**  not True  *)
+  (* | EUnOp of un_op * expr *  not True  *)
   | EVar of id (**  a  *)
   | ETuple of expr list (**  ("Tom", "Hardy", 44)  *)
   | ECons of expr * expr (**  h : tl  *)

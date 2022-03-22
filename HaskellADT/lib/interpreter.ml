@@ -132,8 +132,7 @@ end = struct
     | _ -> false
   ;;
 
-  let rec eval expr env =
-    match expr with
+  let rec eval env = function
     | EVar name -> look_for_bind env name
     | EConst c ->
       (match c with
@@ -142,8 +141,8 @@ end = struct
       | CBool c -> return (VBool c))
     | ENull -> return (VList [])
     | EBinOp (op, e1, e2) ->
-      let* value1 = eval e1 env in
-      let* value2 = eval e2 env in
+      let* value1 = eval env e1 in
+      let* value2 = eval env e2 in
       (match value1, value2, op with
       | VInt x, VInt y, Add -> return (VInt (x + y))
       | VInt x, VInt y, Sub -> return (VInt (x - y))
@@ -163,47 +162,46 @@ end = struct
       | VString x, VString y, EQ -> return (VBool (x = y))
       | VString x, VString y, NE -> return (VBool (x <> y))
       | _ -> fail (Incorrect_eval (VTuple [ value1; value2 ])))
-    | ETuple t -> all (List.map (fun e -> eval e env) t) >>| vtuple
+    | ETuple t -> all (List.map (fun e -> eval env e) t) >>| vtuple
     | EIf (e1, e2, e3) ->
-      let* rez = eval e1 env in
+      let* rez = eval env e1 in
       (match rez with
-      | VBool true -> eval e2 env
-      | VBool false -> eval e3 env
+      | VBool true -> eval env e2
+      | VBool false -> eval env e3
       | err -> fail (Incorrect_eval err))
     | EFun (pattern, expr) -> return (VFun (pattern, expr, env))
     | ECons (hd, tl) ->
-      let* vhd = eval hd env in
-      let* vtl = eval tl env in
+      let* vhd = eval env hd in
+      let* vtl = eval env tl in
       (match vtl with
       | VList l -> return (VList (vhd :: l))
       | _ -> fail (Incorrect_eval vtl))
     | EApp (fn_expr, arg_expr) ->
-      let* fn_value = eval fn_expr env in
-      let* arg_value = eval arg_expr env in
+      let* fn_value = eval env fn_expr in
+      let* arg_value = eval env arg_expr in
       (match fn_value with
       | VFun (pattern, expr, env) ->
         let* binds = pattern_decl_bindings pattern arg_value in
-        eval expr (extend_env env binds)
+        eval (extend_env env binds) expr
       | _ -> fail (Incorrect_eval fn_value))
     | ELet (binding, expr) ->
       let* env = add_binding binding env in
-      eval expr env
+      eval env expr
     | ECase (expr, cases) ->
-      let* value = eval expr env in
+      let* value = eval env expr in
       (match List.find_opt (fun (pattern, _) -> check_pattern pattern value) cases with
       | None -> fail Non_exaust
       | Some (pattern, expr) ->
         let* binds = pattern_decl_bindings pattern value in
-        eval expr (extend_env env binds))
+        eval (extend_env env binds) expr)
     | ECtor (id, expr) ->
-      let* value = eval expr env in
+      let* value = eval env expr in
       return @@ vadt id value
-    | _ -> eval (EConst (CInt 1)) env
 
   and add_binding (pattern, expr) env =
     let binds = pattern_bindings pattern in
     let env = List.fold_left (fun env id -> BindsMap.add id (ref None) env) env binds in
-    let* value = eval expr env in
+    let* value = eval env expr in
     let* binds = pattern_decl_bindings pattern value in
     List.iter (fun (id, value) -> BindsMap.find id env := Some value) binds;
     return env
