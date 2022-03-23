@@ -3,8 +3,12 @@ opam-version: "2.0"
 version: "0.1"
 synopsis:
   "An interpreter for language of modeling program execution in different memory models"
-description:
-  "Supported program execution in Sequntial Consistency model. Supported program execution in TSO model"
+description: """
+Supported program execution in Sequntial Consistency model. Perform all posible executions of program
+  which length is lesser than specified with max_depth variable in exec_next_instr function. Also 
+  provides info about each execution. If execution is successful then you will see final state of a RAM and 
+  registers for every thread and program trace. If execution is not successful you will see textual description
+  of error."""
 maintainer: ["Nikita Fast"]
 authors: ["Nikita Fast"]
 license: "LGPL-3.0-only"

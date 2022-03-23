@@ -11,9 +11,21 @@
 ;  (libraries parallelmodel_lib))
 
 (executable
- (name demoSC)
- (modules demoSC)
- (public_name demoSC)
+ (name demoSC1)
+ (modules demoSC1)
+ (public_name demoSC1)
+ (libraries parallelmodel_lib))
+
+ (executable
+ (name demoSC2)
+ (modules demoSC2)
+ (public_name demoSC2)
+ (libraries parallelmodel_lib))
+
+ (executable
+ (name demoSC3)
+ (modules demoSC3)
+ (public_name demoSC3)
  (libraries parallelmodel_lib))
 
 (executable
@@ -23,4 +35,4 @@
  (libraries parallelmodel_lib))
 
 (cram
- (deps ./demoSC.exe  ./demoParse.exe))
+ (deps ./demoSC1.exe ./demoSC2.exe ./demoSC3.exe ./demoParse.exe))
