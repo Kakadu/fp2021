@@ -24,7 +24,6 @@ and const =
 and expr =
   | EConst of const (**  1  *)
   | EBinOp of bin_op * expr * expr (**  201 - 1  *)
-  (* | EUnOp of un_op * expr *  not True  *)
   | EVar of id (**  a  *)
   | ETuple of expr list (**  ("Tom", "Hardy", 44)  *)
   | ECons of expr * expr (**  h : tl  *)
