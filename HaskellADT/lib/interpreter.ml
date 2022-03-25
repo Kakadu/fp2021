@@ -22,6 +22,7 @@ type value =
 [@@deriving eq]
 
 and env = value option ref BindsMap.t
+and env_expr = expr option ref BindsMap.t
 
 let vint i = VInt i
 let vstring s = VString s
@@ -39,7 +40,13 @@ let rec pp_value fmt = function
   | VList l ->
     fprintf fmt "[%a]" (pp_print_list ~pp_sep:(fun _ _ -> fprintf fmt ", ") pp_value) l
   | VFun _ -> fprintf fmt "<fun>"
-  | VAdt (id, value) -> fprintf fmt "%s %a" id pp_value value
+  | VAdt (id, value) ->
+    let pp_tuple fmt = function
+      | VTuple t ->
+        fprintf fmt "%a" (pp_print_list ~pp_sep:(fun _ _ -> fprintf fmt " ") pp_value) t
+      | _ -> fprintf fmt "Not Tuple"
+    in
+    fprintf fmt "(%s %a)" id pp_tuple value
 ;;
 
 type interpret_err =
@@ -71,6 +78,15 @@ end = struct
     try
       match !(BindsMap.find name map) with
       | Some v -> return v
+      | None -> fail (Unbound name)
+    with
+    | Not_found -> fail (Unbound name)
+  ;;
+
+  let getByName (env : env_expr) name =
+    try
+      match !(BindsMap.find name env) with
+      | Some e -> return e
       | None -> fail (Unbound name)
     with
     | Not_found -> fail (Unbound name)
@@ -143,8 +159,7 @@ end = struct
     | _ -> false
   ;;
 
-  let rec eval env expr =
-    match expr with
+  let rec eval env = function
     | EVar name -> look_for_bind env name
     | EConst c ->
       (match c with
