@@ -1,5 +1,248 @@
+type expr =
+  | INT of int
+  | VAR_NAME of string
+  | REGISTER of string
+  | PLUS of expr * expr
+  | SUB of expr * expr
+  | MUL of expr * expr
+  | DIV of expr * expr
+[@@deriving show { with_path = false }]
+
+type stmt =
+  | ASSERT of expr
+  | ASSIGN of expr * expr
+  | WHILE of expr * stmt list
+  | IF of expr * stmt list
+  | IF_ELSE of expr * stmt list * stmt list
+  | SMP_RMB
+  | SMP_WMB
+  | SMP_MB
+  | NO_OP
+[@@deriving show { with_path = false }]
+
+type thread = THREAD of (int * stmt list)
+[@@deriving show { with_path = false }]
+
+type prog = PROG of thread list [@@deriving show { with_path = false }]
+
 open Angstrom
-open Ast
+
+let splitter s = Str.split (Str.regexp "|||") (" " ^ s ^ " ")
+
+let split_on_parts s =
+  let lines = String.split_on_char '\n' (String.trim s) in
+  List.map splitter lines
+
+let get_threads_number s = split_on_parts s |> List.hd |> List.length
+
+let trim_list list = List.map String.trim list
+
+let empty_str_to_no_op list =
+  List.map (fun s -> match s with "" -> "no_op" | _ -> s) list
+
+let concat_list = String.concat " ||| "
+
+let concat_lines = String.concat "\n"
+
+let preprocess input =
+  (split_on_parts input |> List.map trim_list
+  |> List.map empty_str_to_no_op
+  |> List.map concat_list |> String.concat "\n")
+  ^ "\n"
+
+let reserved =
+  [ "smp_rmb"; "smp_wmb"; "smp_mb"; "if"; "assert"; "while"; "else"; "no_op" ]
+
+let is_whitespace = function ' ' | '\n' | '\r' | '\t' -> true | _ -> false
+
+(* let whitespace = take_while is_whitespace *)
+
+let space =
+  let is_space = function ' ' | '\t' -> true | _ -> false in
+  take_while is_space
+
+let is_end_of_line = function '\n' | '\r' -> true | _ -> false
+
+let is_not_end_of_line c = not @@ is_end_of_line @@ c
+
+(* let token s = whitespace *> string s *)
+let token s = space *> string s
+
+let is_digit = function '0' .. '9' -> true | _ -> false
+
+let parse p s = parse_string ~consume:All p (preprocess s)
+
+let parse_unproc p s = parse_string ~consume:All p s
+
+let skip_rest_of_line = take_while (fun c -> c <> '\n') *> string "\n"
+
+(* let jump_to_new_line = take_till is_end_of_line *> take_while is_end_of_line *)
+
+let cross_thread_delim =
+  take_till (fun c -> match c with '|' | '\n' | '\r' -> true | _ -> false)
+  *> token "|||"
+
+let cross_n_delims n = count n cross_thread_delim
+
+(* let go_to_next_line_for_thread n =
+   jump_to_new_line *> count n cross_thread_delim *)
+
+let number =
+  let digits = space *> take_while1 is_digit in
+  digits >>= fun s -> return @@ INT (int_of_string s)
+
+let addition =
+  number >>= fun e1 ->
+  token "+" *> number >>= fun e2 -> return @@ PLUS (e1, e2)
+
+let add = token "+" *> return (fun e1 e2 -> PLUS (e1, e2))
+
+let sub = token "-" *> return (fun e1 e2 -> SUB (e1, e2))
+
+let mul = token "*" *> return (fun e1 e2 -> MUL (e1, e2))
+
+let div = token "/" *> return (fun e1 e2 -> DIV (e1, e2))
+
+let is_big_letter = function 'A' .. 'Z' -> true | _ -> false
+
+let registers = [ "EAX"; "EBX" ]
+
+let is_register name = List.mem name registers
+
+let reg =
+  space *> take_while1 is_big_letter >>= fun s ->
+  match is_register s with
+  | true -> return @@ REGISTER s
+  | false -> fail "No register with such name"
+
+let is_allowed_var_name name = not @@ List.mem name (reserved @ registers)
+
+let var_name =
+  let is_allowed_fst_char = function
+    | 'a' .. 'z' | 'A' .. 'Z' | '_' -> true
+    | _ -> false
+  in
+  let is_allowed_var_name_char = function
+    | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> true
+    | _ -> false
+  in
+  space *> peek_char >>= function
+  | Some c when is_allowed_fst_char c ->
+      take_while is_allowed_var_name_char >>= fun var_name ->
+      if is_allowed_var_name var_name then return @@ VAR_NAME var_name
+      else fail "Variable's name is key word or register name"
+  | _ -> fail "invalid variable name"
+
+let parens p = token "(" *> p <* token ")"
+
+let chainl1 x op =
+  let rec loop a = op >>= (fun f -> x >>= fun b -> loop (f a b)) <|> return a in
+  x >>= loop
+
+let factop = mul <|> div <?> "'*' or '/' expected" <* space
+
+let termop = add <|> sub <?> "'+' or '-' expected" <* space
+
+let expr =
+  fix (fun expr ->
+      let value = choice [ number; reg; var_name ] in
+      let parentheses =
+        let helper =
+          space *> peek_char_fail >>= function '(' -> parens expr | _ -> value
+        in
+        choice [ helper; value ]
+      in
+      let term1 = chainl1 parentheses factop in
+      let arexpr = chainl1 term1 termop in
+      let newexpr = fix (fun newexpr -> arexpr <|> parens newexpr) in
+      newexpr)
+
+let end_of_instr = choice [ token "\n"; token "|||" *> skip_rest_of_line ]
+
+let mem_barrier thread_num =
+  let smp_rmb = token "smp_rmb" *> return SMP_RMB in
+  let smp_wmb = token "smp_wmb" *> return SMP_WMB in
+  let smp_mb = token "smp_mb" *> return SMP_MB in
+  cross_n_delims thread_num *> (smp_rmb <|> smp_wmb <|> smp_mb) <* end_of_instr
+
+let assert_stmt thread_num =
+  cross_n_delims thread_num *> token "assert" *> token "(" *> expr
+  <* token ")" <* end_of_instr
+  >>= fun e -> return @@ ASSERT e
+
+let assignment thread_num =
+  cross_n_delims thread_num *> (reg <|> var_name) >>= fun named_loc ->
+  token "<-" *> expr <* end_of_instr >>= fun e -> return @@ ASSIGN (named_loc, e)
+
+(*
+   the only way to use if-else statement!
+      if () {
+      }
+      else {
+      }
+      You must use java style for curly brackets.
+      For empty block is allowed to be written like:
+      while (1) {}
+*)
+let block stmt_parser thread_number =
+  let empty_block =
+    token "{"
+    *> choice
+         [
+           token "}";
+           skip_rest_of_line *> cross_n_delims thread_number *> token "}";
+         ]
+    *> end_of_instr
+    *> return [ NO_OP ]
+  in
+  let correct_block =
+    token "{" *> skip_rest_of_line *> many1 stmt_parser
+    <* cross_n_delims thread_number
+    <* token "}" <* end_of_instr
+    >>= fun stmt_list -> return @@ stmt_list
+  in
+  choice [ correct_block; empty_block ]
+
+let while_stmt stmt_parser thread_num =
+  cross_n_delims thread_num *> token "while" *> token "(" *> expr <* token ")"
+  >>= fun e ->
+  block stmt_parser thread_num >>= fun block -> return @@ WHILE (e, block)
+
+let if_stmt stmt_parser thread_number =
+  cross_n_delims thread_number *> token "if" *> token "(" *> expr <* token ")"
+  >>= fun e ->
+  block stmt_parser thread_number >>= fun block -> return @@ IF (e, block)
+
+let if_else_stmt stmt_parser thread_number =
+  cross_n_delims thread_number *> token "if" *> token "(" *> expr <* token ")"
+  >>= fun e ->
+  block stmt_parser thread_number >>= fun bk1 ->
+  cross_n_delims thread_number
+  *> token "else"
+  *> block stmt_parser thread_number
+  >>= fun bk2 -> return @@ IF_ELSE (e, bk1, bk2)
+
+let no_op thread_num =
+  cross_n_delims thread_num *> token "no_op" *> end_of_instr >>= fun _ ->
+  return NO_OP
+
+let stmt thread_number =
+  fix (fun stmt ->
+      if_else_stmt stmt thread_number
+      <|> if_stmt stmt thread_number
+      <|> while_stmt stmt thread_number
+      <|> assignment thread_number <|> assert_stmt thread_number
+      <|> mem_barrier thread_number <|> no_op thread_number)
+
+let thread n = many (stmt n) >>= fun stmts -> return @@ THREAD (n, stmts)
+
+let parse_prog s =
+  let n = get_threads_number s in
+  let nums = List.init n (fun x -> x) in
+  let parse_thread k = parse (thread k) s in
+  let results = List.map parse_thread nums in
+  let oks = List.map Result.get_ok results in
+  PROG oks
 
 module SequentialConsistency = struct
   (* return для монады list *)
@@ -422,1187 +665,1430 @@ module SequentialConsistency = struct
     helper [ return p_stat ]
 end
 
-(* module TSO = struct
-     let set v' n = List.mapi (fun i v -> if i = n then v' else v)
-
-     type store_op = { name : string; value : int }
-
-     let print_store_op op =
-       let s = op.name ^ " <- " ^ string_of_int op.value in
-       print_endline s
-
-     type invalidation = { target : string }
-
-     let print_inv inv =
-       let s = "invalidate " ^ inv.target in
-       print_endline s
-
-     type store_buf = store_op Queue.t
-
-     let print_store_buf buf =
-       print_endline "store_buf:";
-       Queue.iter print_store_op buf
-
-     type inv_queue = invalidation Queue.t
-
-     let print_inv_q q =
-       print_endline "inv_q:";
-       Queue.iter print_inv q
-
-     let buffer_invalidation inv inv_queue = Queue.add inv inv_queue
-
-     let buffer_store (store : store_op) st_buf = Queue.add store st_buf
-
-     (* посчитать число записей в переменную name ,которые находятся в store buffer-e *)
-     let calc_entries_in_store_buf name st_buf =
-       Queue.fold
-         (fun accu store_op -> if store_op.name = name then accu + 1 else accu)
-         0 st_buf
-
-     let calc_entries_in_inv_q name inv_q =
-       Queue.fold
-         (fun accu inv -> if inv.target = name then accu + 1 else accu)
-         0 inv_q
-
-     (* получить последнее значение записанное в переменную name и
-        находящееся в буфере записи *)
-     let store_forwarding (name : string) (st_buf : store_buf) =
-       let n = calc_entries_in_store_buf name st_buf in
-       if n = 0 then None
-       else
-         let last_buffered_store_to_name_value =
-           Queue.fold
-             (fun accu store_op ->
-               if store_op.name = name then store_op.value else accu)
-             0 st_buf
-         in
-         Some last_buffered_store_to_name_value
-
-     type ram = (string, int) Hashtbl.t
-
-     type ram_controller = { load_requests : (string * int) Queue.t }
-
-     type mesi_state = Modified | Exclusive | Shared | Invalidated
-
-     let mesi_state_to_string = function
-       | Modified -> "M"
-       | Exclusive -> "E"
-       | Shared -> "S"
-       | Invalidated -> "I"
-
-     type mesi_msg =
-       (* какую переменную и от какого потока. номep нужен, чтобы знать кому потом посылать ответ *)
-       | ReadRq of (string * int)
-       (* имя запрашиваемой переменной, её значение, если присутствует в опрашиваемом кэше и в каком состоянии
-          она была в кэше(если была), который отправляет ответ*)
-       | ReadResponse of (string * int option * mesi_state option)
-       | Invalidate of (string * int)
-       (* инвалидэйт акноуледжмент какой кэш линии (переменной) и от процессора с каким номером *)
-       | InvalidateAcknowledge of (string * int)
-       | ReadInvalidate of string
-       | Writeback of string * int
-
-     let print_mesi_msg = function
-       | ReadRq (v_name, n) ->
-           print_endline ("ReadRq: " ^ v_name ^ " by thread " ^ string_of_int n)
-       | ReadResponse (v_name, value, state) -> (
-           match value with
-           | None -> print_endline ("ReadResp: " ^ v_name ^ " is not in cache")
-           | Some v -> (
-               match state with
-               | None -> failwith "impossible"
-               | Some st ->
-                   print_endline
-                     ("ReadResp: " ^ v_name ^ " = " ^ string_of_int v
-                    ^ " was in state " ^ mesi_state_to_string st)))
-       | Invalidate (v_name, n) ->
-           print_endline ("Invalidate " ^ v_name ^ " by thread " ^ string_of_int n)
-       | InvalidateAcknowledge (v_name, n) ->
-           print_endline
-             ("InvalidateAck " ^ v_name ^ " by thread " ^ string_of_int n)
-       | _ -> failwith "ReadInvalidate and Writeback don't printed"
-
-     let print_cache_rq_q = Queue.iter print_mesi_msg
-
-     (* В мою кэш линию влезает лишь одна int переменная
-        ключ для таблицы это имя переменной*)
-     type cache_line = { state : mesi_state; value : int }
-
-     type cache = (string, cache_line) Hashtbl.t
-
-     let add_entry_to_cache (cache : cache) name value =
-       match Hashtbl.find_opt cache name with
-       | Some c_line -> (
-           match c_line.state with
-           | Invalidated -> Hashtbl.replace cache name { state = Exclusive; value }
-           | _ -> failwith "tried to add cache line that was already in cache")
-       | None -> Hashtbl.add cache name { state = Exclusive; value }
-
-     let add_or_modify_cache_line cache name value =
-       match Hashtbl.find_opt cache name with
-       | Some _ -> Hashtbl.replace cache name { state = Modified; value }
-       | None -> Hashtbl.add cache name { state = Exclusive; value }
-
-     let check_cache_hit cache name =
-       let bindings = Hashtbl.find_all cache name in
-       if List.length bindings > 1 then
-         failwith "variable sits in several cache lines"
-       else if List.length bindings = 1 then
-         match Hashtbl.find cache name with
-         | c_line -> if c_line.state = Invalidated then None else Some c_line
-       else None
-
-     type pending_load = { is_pending : bool; v_name : string }
-
-     type thread_stat = {
-       stmts : stmt list;
-       counters : int list;
-       length : int;
-       branch_exprs : int list;
-       cache : cache;
-       cache_request_queue : mesi_msg Queue.t;
-       cache_ack_queue : mesi_msg Queue.t;
-       st_buf : store_buf;
-       inv_q : inv_queue;
-       number : int;
-       pending_load : pending_load;
-       last_eval_res : int;
-       read_rq_tbl : (string, bool * int) Hashtbl.t;
-       inv_rq_tbl : (string, int) Hashtbl.t;
-       is_waiting_on_wmb : bool;
-     }
-
-     type prog_stat = {
-       threads : thread_stat list;
-       ram : ram;
-       ram_controller : ram_controller;
-     }
-
-     let get_thread p_stat n =
-       let rec helper t_stats =
-         match t_stats with
-         | [] ->
-             failwith ("program doesn't have thread with num " ^ string_of_int n)
-         | t_stat :: tl -> if t_stat.number = n then t_stat else helper tl
-       in
-       helper p_stat.threads
-
-     let await_pending_load_in_thread n p_stat v_name =
-       let helper t_stat =
-         match t_stat.pending_load.is_pending with
-         | true -> t_stat
-         (* failwith "previous pending_load is not ended" *)
-         (* надо ли last_eval_res = None? *)
-         | false -> { t_stat with pending_load = { is_pending = true; v_name } }
-       in
-       let t_stat' = helper (get_thread p_stat n) in
-       let t_stats' = set t_stat' n p_stat.threads in
-       { p_stat with threads = t_stats' }
-
-     let finish_pending_load_in_thread n p_stat =
-       let helper t_stat =
-         match t_stat.pending_load.is_pending with
-         | true ->
-             { t_stat with pending_load = { is_pending = false; v_name = "" } }
-         | false -> t_stat
-       in
-       let t_stat' = helper (get_thread p_stat n) in
-       let t_stats' = set t_stat' n p_stat.threads in
-       { p_stat with threads = t_stats' }
-
-     (* updates only value of cache line, mesi-state is untouched *)
-     let update_cache_line cache name value =
-       match Hashtbl.find_opt cache name with
-       | None -> failwith "tried to update cache line which is not in cache"
-       | Some c_line -> Hashtbl.replace cache name { c_line with value }
-
-     let change_mesi_state cache name new_mesi_state =
-       match Hashtbl.find_opt cache name with
-       | None ->
-           failwith
-             "tried to change mesi_state for cache line which is not in cache"
-       | Some c_line ->
-           Hashtbl.replace cache name { c_line with state = new_mesi_state }
-
-     let invalidate_cache_line name cache =
-       match check_cache_hit cache name with
-       | None -> ()
-       | Some _ -> change_mesi_state cache name Invalidated
-
-     let rec process_inv_q t_stat v_name =
-       match calc_entries_in_inv_q v_name t_stat.inv_q with
-       | 0 -> ()
-       | _ ->
-           let invalidation = Queue.take t_stat.inv_q in
-           invalidate_cache_line invalidation.target t_stat.cache;
-           process_inv_q t_stat v_name
-
-     let process_one_element_of_inv_q t_stat =
-       match Queue.take_opt t_stat.inv_q with
-       | None -> ()
-       | Some invalidation ->
-           invalidate_cache_line invalidation.target t_stat.cache
-
-     let rec process_whole_inv_q t_stat =
-       match Queue.take_opt t_stat.inv_q with
-       | None -> ()
-       | Some invalidation ->
-           invalidate_cache_line invalidation.target t_stat.cache;
-           process_whole_inv_q t_stat
-
-     let write_back_to_ram_from_cache ram cache name =
-       match check_cache_hit cache name with
-       | None ->
-           failwith "tried to write back to ram the variable that is not in cache"
-       | Some c_line ->
-           let store_to_ram ram (name : string) (value : int) =
-             Hashtbl.replace ram name value
-           in
-           store_to_ram ram name c_line.value
-
-     let flush_cache_to_ram cache ram =
-       Hashtbl.iter
-         (fun name c_line ->
-           match c_line.state with
-           | Invalidated -> ()
-           | Modified | Exclusive | Shared ->
-               write_back_to_ram_from_cache ram cache name)
-         cache
-
-     let flush_all_caches p_stat =
-       List.iter
-         (fun t_stat -> flush_cache_to_ram t_stat.cache p_stat.ram)
-         p_stat.threads
-
-     let rec select_other_caches p_stat n =
-       let rec helper t_stats acc =
-         match t_stats with
-         | [] -> acc
-         | t_stat :: tl ->
-             if t_stat.number = n then helper tl acc
-             else helper tl (t_stat.cache :: acc)
-       in
-       helper p_stat.threads []
-
-     (* послать запрос из потока n на инвалидацию кэш линии (переменной) другим кэшам *)
-     let send_invalidate_request p_stat n name =
-       List.iter
-         (fun t_stat ->
-           (* посылаем всем кэшам, можно подумать об отправке только тем, которые содержат name *)
-           if t_stat.number <> n then
-             Queue.add (Invalidate (name, n)) t_stat.cache_request_queue
-           else ())
-         p_stat.threads
-
-     (* это метод вызывается, когда у потока в начале очереди cache_request_queue
-        находится Invalidate (v_name, n). Наша задача это при наличии в кэше переменной name
-        инвалидировать её, а потом положить в очередь cache_ack_queue потока n наш acknowledgment *)
-     (* применяя этот метод мы удаляем из очереди первый запрос! *)
-     let speculativly_process_invalidate_request p_stat cur_thread_num =
-       let local_thread = get_thread p_stat cur_thread_num in
-       match Queue.take_opt local_thread.cache_request_queue with
-       | None -> failwith "nothing to put in inv_queue"
-       | Some request -> (
-           match request with
-           | Invalidate (v_name, source_t_num) ->
-               let requestor_thread = get_thread p_stat source_t_num in
-               (* добавляем инвалидацию в свою invalidation_queue *)
-               Queue.add { target = v_name } local_thread.inv_q;
-               (* отправляем акноуледжмент *)
-               Queue.add
-                 (InvalidateAcknowledge (v_name, cur_thread_num))
-                 requestor_thread.cache_ack_queue;
-               p_stat
-           | _ ->
-               failwith
-                 "first element in cache_request_queue isn't an Invalidate request"
-           )
-
-     let load_from_ram_request p_stat n name =
-       Queue.add (name, n) p_stat.ram_controller.load_requests
-
-     let send_read_request p_stat n name =
-       List.iter
-         (fun t_stat ->
-           if t_stat.number <> n then
-             Queue.add (ReadRq (name, n)) t_stat.cache_request_queue
-           else ())
-         p_stat.threads
-
-     (* применяя этот метод мы удаляем из очереди первый запрос! *)
-     let process_read_request p_stat cur_t_num =
-       let local_thread = get_thread p_stat cur_t_num in
-       match Queue.take_opt local_thread.cache_request_queue with
-       | None -> failwith "no (read) requests to process"
-       | Some request -> (
-           match request with
-           | ReadRq (v_name, source_t_num) -> (
-               process_inv_q local_thread v_name;
-
-               let requestor_thread = get_thread p_stat source_t_num in
-               match check_cache_hit local_thread.cache v_name with
-               | None ->
-                   Queue.add
-                     (ReadResponse (v_name, None, None))
-                     requestor_thread.cache_ack_queue;
-                   p_stat
-               | Some c_line -> (
-                   match c_line.state with
-                   | Exclusive ->
-                       Queue.add
-                         (ReadResponse (v_name, Some c_line.value, Some Exclusive))
-                         requestor_thread.cache_ack_queue;
-                       change_mesi_state local_thread.cache v_name Shared;
-                       p_stat
-                   | Modified ->
-                       write_back_to_ram_from_cache p_stat.ram local_thread.cache
-                         v_name;
-                       change_mesi_state local_thread.cache v_name Shared;
-                       Queue.add
-                         (ReadResponse (v_name, Some c_line.value, Some Modified))
-                         requestor_thread.cache_ack_queue;
-                       p_stat
-                   | Shared ->
-                       Queue.add
-                         (ReadResponse (v_name, Some c_line.value, Some Shared))
-                         requestor_thread.cache_ack_queue;
-                       p_stat
-                   | Invalidated ->
-                       failwith
-                         "cache hit for line in Invalidated state is an error"))
-           | _ -> failwith "fst element in cache_request_queue isn't ReadRq")
-
-     let issue_read_rq p_stat n v_name =
-       let local_thread = get_thread p_stat n in
-       match Hashtbl.find_opt local_thread.read_rq_tbl v_name with
-       | None ->
-           Hashtbl.add local_thread.read_rq_tbl v_name (false, 0);
-           send_read_request p_stat n v_name
-           (* значит запрос на чтении этой переменной уже послан, надо ожидать ответа других кэшей *)
-       | Some _ -> ()
-
-     let issue_inv_rq p_stat n v_name =
-       let local_thread = get_thread p_stat n in
-
-       (* process_inv_q local_thread v_name; <-------------------------------------------------------------*)
-       match Hashtbl.find_opt local_thread.inv_rq_tbl v_name with
-       | None ->
-           Hashtbl.add local_thread.inv_rq_tbl v_name 0;
-           send_invalidate_request p_stat n v_name
-           (* запрос на инвалидацию этой переменной уже послан, надо ожидать ответа всех других кэшей *)
-       | Some _ -> ()
-
-     let rec store_to_cache p_stat n name value =
-       let local_thread = get_thread p_stat n in
-       let local_cache = local_thread.cache in
-
-       process_inv_q local_thread name;
-
-       match check_cache_hit local_cache name with
-       | Some c_line -> (
-           match c_line.state with
-           | Modified -> update_cache_line local_cache name value
-           | Exclusive ->
-               update_cache_line local_cache name value;
-               change_mesi_state local_cache name Modified
-           | Shared ->
-               (* помещаем запись в буфер_записей,
-                  посылаем запрос на инвалидацию дригим кэшам *)
-               buffer_store { name; value } local_thread.st_buf;
-
-               issue_inv_rq p_stat n name
-               (* send_invalidate_request p_stat n name *)
-           | Invalidated ->
-               failwith "store_to_cache: cache hit of line in Invalidated state")
-       | None ->
-           (* можно ли помещать в буфер_записей запись в кэш-линию в состоянии Invalidated?  *)
-           (* предположим, что это можно делать *)
-           buffer_store { name; value } local_thread.st_buf;
-           issue_read_rq p_stat n name;
-           issue_inv_rq p_stat n name
-
-     and load_to_cache_from_ram p_stat n name =
-       let load_from_ram ram var =
-         match Hashtbl.find_opt ram var with
-         | Some value -> value
-         | None ->
-             (* Вернуть ноль *)
-             let init_var memory var =
-               match Hashtbl.find_opt memory var with
-               | Some _ -> failwith ("variable @" ^ var ^ " already initialized")
-               | None -> Hashtbl.add memory var 0
-             in
-             init_var ram var;
-             Hashtbl.find ram var
-       in
-       let value = load_from_ram p_stat.ram name in
-       add_entry_to_cache (get_thread p_stat n).cache name value
-
-     let load_from_cache_opt p_stat n name =
-       let local_thread = get_thread p_stat n in
-       let local_cache = local_thread.cache in
-       match store_forwarding name local_thread.st_buf with
-       | Some v -> Some v (* store forwarding *)
-       | None -> (
-           match check_cache_hit local_cache name with
-           | Some c_line -> Some c_line.value
-           | None ->
-               (* send ReadRq to other caches and leave method
-                  (to await other caches or ram supply us with "cache line" (variable)) *)
-               (* send_read_request p_stat n name; *)
-               issue_read_rq p_stat n name;
-               None)
-
-     let print_ht ht =
-       Hashtbl.iter
-         (fun v_name value ->
-           print_string (v_name ^ " = " ^ string_of_int value ^ "\t"))
-         ht;
-       print_endline ""
-
-     let print_cache =
-       Hashtbl.iter (fun name c_line ->
-           print_string
-             (name ^ " = " ^ string_of_int c_line.value ^ " in state: "
-             ^ mesi_state_to_string c_line.state
-             ^ "\n"))
-
-     let eval_int c t_num p_stat =
-       let t_stat = get_thread p_stat t_num in
-       let t_stat' = { t_stat with last_eval_res = c } in
-       { p_stat with threads = set t_stat' t_num p_stat.threads }
-
-     (* n - is a thread number where expression is evaluated *)
-     let rec eval_expr n p_stat = function
-       | INT value -> eval_int value n p_stat
-       | VAR_NAME var -> (
-           match load_from_cache_opt p_stat n var with
-           | Some value -> eval_int value n p_stat
-           (* надо ожидать поступления значения из других кешей или основной памяти.
-                  Плюс надо факт такого ожидания отметить в p_stat или t_stat
-                  Когда данные придут, то передающий их кэш или основная память должны
-                  изменить значение флага pending_load на false *)
-           | None -> await_pending_load_in_thread n p_stat var)
-       | REGISTER r -> failwith "reads from registers not impl yet"
-       | PLUS (l, r) -> (
-           let p_stat1 = eval_expr n p_stat l in
-           let t_stat1 = get_thread p_stat1 n in
-           match t_stat1.pending_load.is_pending with
-           | true -> p_stat1
-           | false -> (
-               let p_stat2 = eval_expr n p_stat r in
-               let t_stat2 = get_thread p_stat2 n in
-               match t_stat2.pending_load.is_pending with
-               | false ->
-                   eval_int
-                     (t_stat1.last_eval_res + t_stat2.last_eval_res)
-                     n p_stat2
-               | true -> p_stat2))
-       | SUB (l, r) -> (
-           let p_stat1 = eval_expr n p_stat l in
-           let t_stat1 = get_thread p_stat1 n in
-           match t_stat1.pending_load.is_pending with
-           | true -> p_stat1
-           | false -> (
-               let p_stat2 = eval_expr n p_stat r in
-               let t_stat2 = get_thread p_stat2 n in
-               match t_stat2.pending_load.is_pending with
-               | false ->
-                   eval_int
-                     (t_stat1.last_eval_res - t_stat2.last_eval_res)
-                     n p_stat2
-               | true -> p_stat2))
-       | MUL (l, r) -> (
-           let p_stat1 = eval_expr n p_stat l in
-           let t_stat1 = get_thread p_stat1 n in
-           match t_stat1.pending_load.is_pending with
-           | true -> p_stat1
-           | false -> (
-               let p_stat2 = eval_expr n p_stat r in
-               let t_stat2 = get_thread p_stat2 n in
-               match t_stat2.pending_load.is_pending with
-               | false ->
-                   eval_int
-                     (t_stat1.last_eval_res * t_stat2.last_eval_res)
-                     n p_stat2
-               | true -> p_stat2))
-       | DIV (l, r) -> (
-           let p_stat1 = eval_expr n p_stat l in
-           let t_stat1 = get_thread p_stat1 n in
-           match t_stat1.pending_load.is_pending with
-           | true -> p_stat1
-           | false -> (
-               let p_stat2 = eval_expr n p_stat r in
-               let t_stat2 = get_thread p_stat2 n in
-               match t_stat2.pending_load.is_pending with
-               | false ->
-                   if t_stat2.last_eval_res = 0 then failwith "div by zero"
-                   else
-                     eval_int
-                       (t_stat1.last_eval_res / t_stat2.last_eval_res)
-                       n p_stat2
-               | true -> p_stat2))
-
-     let eval_assign n p_stat l r =
-       let p_stat' = eval_expr n p_stat r in
-       let t_stat' = get_thread p_stat' n in
-       if t_stat'.pending_load.is_pending then p_stat'
-       else
-         match l with
-         | VAR_NAME v ->
-             store_to_cache p_stat' n v t_stat'.last_eval_res;
-             p_stat'
-         | REGISTER reg ->
-             failwith "assignment to register is not implemented"
-             (* Hashtbl.replace ctx.regs reg value;
-                p_stat *)
-         | _ -> failwith "assignment allowed only to variable and register"
-
-     let print_read_rq_tbl =
-       Hashtbl.iter (fun v_name pair ->
-           print_endline
-             (v_name ^ " "
-             ^ string_of_bool (fst pair)
-             ^ " "
-             ^ string_of_int (snd pair)))
-
-     let print_t_stat t_stat =
-       print_string ("thread " ^ string_of_int t_stat.number ^ ":\n");
-
-       print_string "counters: ";
-       List.iter (fun x -> print_string @@ string_of_int x ^ "; ") t_stat.counters;
-       print_string "\n";
-
-       print_cache t_stat.cache;
-
-       (* print_string "\n"; *)
-       print_endline "read_rq_tbl: ";
-       print_read_rq_tbl t_stat.read_rq_tbl;
-       print_endline "inv_rq_tbl: ";
-       print_ht t_stat.inv_rq_tbl;
-
-       print_store_buf t_stat.st_buf;
-       print_inv_q t_stat.inv_q;
-
-       print_endline "cache_request_queue: ";
-       print_cache_rq_q t_stat.cache_request_queue;
-
-       print_endline "cache_ack_queue: ";
-       print_cache_rq_q t_stat.cache_ack_queue;
-
-       print_endline "----------------"
-
-     let print_p_stat p_stat =
-       List.iter print_t_stat p_stat.threads;
-       print_string "\n";
-       print_string "ram: ";
-       print_ht p_stat.ram;
-       print_string "\n"
-
-     let init_thread_stat t =
-       let t_info = match t with THREAD (n, stmt_list) -> (n, stmt_list) in
-       {
-         stmts = snd t_info;
-         counters = [ 0 ];
-         length = List.length (snd t_info);
-         branch_exprs = [];
-         cache = Hashtbl.create 8;
-         st_buf = Queue.create ();
-         inv_q = Queue.create ();
-         cache_request_queue = Queue.create ();
-         cache_ack_queue = Queue.create ();
-         number = fst t_info;
-         pending_load = { is_pending = false; v_name = "" };
-         last_eval_res = 0;
-         read_rq_tbl = Hashtbl.create 32;
-         inv_rq_tbl = Hashtbl.create 32;
-         is_waiting_on_wmb = false;
-       }
-
-     let init_prog_stat p =
-       let t_stats =
-         match p with PROG threads -> List.map init_thread_stat threads
-       in
-       {
-         threads = t_stats;
-         ram = Hashtbl.create 16;
-         ram_controller = { load_requests = Queue.create () };
-       }
-
-     let inc_last ls =
-       let len = List.length ls in
-       List.mapi (fun i x -> if i = len - 1 then x + 1 else x) ls
-
-     let last ls = List.nth ls (List.length ls - 1)
-
-     let enter_block t_stat v =
-       {
-         t_stat with
-         counters = t_stat.counters @ [ 0 ];
-         branch_exprs = t_stat.branch_exprs @ [ v ];
-       }
-
-     let enter_block_in_thread n p_stat v =
-       {
-         p_stat with
-         threads =
-           List.mapi
-             (fun i t_stat -> if i = n then enter_block t_stat v else t_stat)
-             p_stat.threads;
-       }
-
-     let get_stmt t_stat =
-       let rec helper stmts counts lvl =
-         match counts with
-         | [ n ] -> List.nth stmts n
-         | n :: tl ->
-             helper
-               (match List.nth stmts n with
-               | IF (_, stmt_list) ->
-                   if List.nth t_stat.branch_exprs lvl <> 0 then stmt_list
-                   else failwith "try enter if-block when condition is false"
-               | IF_ELSE (_, bk1, bk2) ->
-                   if List.nth t_stat.branch_exprs lvl <> 0 then bk1 else bk2
-               | WHILE (_, bk) ->
-                   if List.nth t_stat.branch_exprs lvl <> 0 then bk
-                   else failwith "try enter while-loop when condition is false"
-               | _ -> failwith "this stmt is not compound")
-               tl (lvl + 1)
-         | [] -> failwith "invalid list of counters (counts)"
-       in
-       helper t_stat.stmts t_stat.counters 0
-
-     let peek_while t_stat counters =
-       let rec helper stmts counts lvl =
-         match counts with
-         | [ n ] -> (
-             let stmt = List.nth stmts n in
-             match stmt with WHILE (_, _) -> true | _ -> false)
-         | n :: tl ->
-             helper
-               (match List.nth stmts n with
-               | IF (_, stmt_list) ->
-                   if List.nth t_stat.branch_exprs lvl <> 0 then stmt_list
-                   else failwith "try enter if-block when condition is false"
-               | IF_ELSE (_, bk1, bk2) ->
-                   if List.nth t_stat.branch_exprs lvl <> 0 then bk1 else bk2
-               | WHILE (_, bk) ->
-                   if List.nth t_stat.branch_exprs lvl <> 0 then bk
-                   else failwith "try enter while-block when condition is false"
-               | _ -> failwith "this stmt is not compound (peek_while")
-               tl (lvl + 1)
-         | _ -> failwith "invalid list of counters (counts)"
-       in
-       helper t_stat.stmts counters 0
-
-     let check t_stat =
-       try match get_stmt t_stat with _ -> true with Failure _ -> false
-
-     let reduce ls = ls |> List.rev |> List.tl |> List.rev
-
-     let thread_stat_inc t_stat =
-       { t_stat with counters = inc_last t_stat.counters }
-
-     let correct_t_stat_inc t_stat =
-       let rec helper t_stat =
-         let t_stat' = thread_stat_inc t_stat in
-         if List.length t_stat'.counters = 1 || check t_stat' then t_stat'
-         else
-           let ret_t_stat =
-             {
-               t_stat' with
-               counters = reduce t_stat'.counters;
-               branch_exprs = reduce t_stat'.branch_exprs;
-             }
-           in
-           if peek_while ret_t_stat ret_t_stat.counters then
-             (* print_endline "peek_while = true"; *)
-             ret_t_stat
-           else
-             (* print_endline "peek_while = false"; *)
-             helper
-               {
-                 t_stat' with
-                 counters = reduce t_stat'.counters;
-                 branch_exprs = reduce t_stat'.branch_exprs;
-               }
-       in
-       helper t_stat
-
-     let set v' n = List.mapi (fun i v -> if i = n then v' else v)
-
-     let prog_stat_inc p_stat n =
-       {
-         p_stat with
-         threads =
-           set (correct_t_stat_inc (List.nth p_stat.threads n)) n p_stat.threads;
-       }
-
-     let process_read_resp_in_thread n p_stat v_name value =
-       let local_thread = get_thread p_stat n in
-       let read_rq_tbl = local_thread.read_rq_tbl in
-       match Hashtbl.find_opt read_rq_tbl v_name with
-       | None ->
-           failwith
-             "thread that issued ReadRq must put in his read_rq_tbl pair of key = \
-              v_name; value = (false, 0)"
-       | Some (is_obtained, cnt) -> (
-           if is_obtained = false && cnt = 0 then (
-             (* это первый поступивший ответ на запрос чтения *)
-             match value with
-             | None ->
-                 Hashtbl.replace read_rq_tbl v_name (false, 1);
-                 p_stat
-             | Some v ->
-                 (* add to our cache *)
-                 add_entry_to_cache local_thread.cache v_name v;
-
-                 (* так как значение получили от других кешей, то наша кэш линия
-                    должна быть в состоянии Shared *)
-                 change_mesi_state local_thread.cache v_name Shared;
-                 Hashtbl.replace read_rq_tbl v_name (true, 1);
-                 if v_name = local_thread.pending_load.v_name then
-                   finish_pending_load_in_thread n p_stat
-                 else p_stat)
-           else
-             let cnt' = cnt + 1 in
-             match is_obtained with
-             | true ->
-                 Hashtbl.replace read_rq_tbl v_name (true, cnt');
-                 p_stat
-             | false -> (
-                 match value with
-                 | None ->
-                     Hashtbl.replace read_rq_tbl v_name (false, cnt');
-                     p_stat
-                 | Some v ->
-                     (* add to our cache *)
-                     add_entry_to_cache local_thread.cache v_name v;
-                     Hashtbl.replace read_rq_tbl v_name (true, cnt');
-                     if v_name = local_thread.pending_load.v_name then
-                       finish_pending_load_in_thread n p_stat
-                     else p_stat))
-
-     let process_inv_ack_in_thread n p_stat v_name =
-       let local_thread = get_thread p_stat n in
-       let inv_rq_tbl = local_thread.inv_rq_tbl in
-       match Hashtbl.find_opt inv_rq_tbl v_name with
-       | None -> Hashtbl.add inv_rq_tbl v_name 1
-       | Some cnt -> Hashtbl.replace inv_rq_tbl v_name (cnt + 1)
-
-     (* поток должен уметь принимать акноуледжменты и обрабатывать запросы, которые лежат в очередях
-        cache_ack_queue and cache_request_queue
-        Для этого нужны отдельные ф-ии *)
-     let process_rq_in_thread n p_stat =
-       print_endline @@ "process_rq_in_thread " ^ string_of_int n;
-       let local_thread = get_thread p_stat n in
-       match Queue.peek_opt local_thread.cache_request_queue with
-       | None -> p_stat
-       | Some rq -> (
-           match rq with
-           | ReadRq (_, _) -> process_read_request p_stat n
-           | Invalidate (_, _) -> speculativly_process_invalidate_request p_stat n
-           | _ -> failwith "processing of this rq is not impl")
-
-     let process_ack_in_thread n p_stat =
-       print_endline @@ "process_ack_in_thread " ^ string_of_int n;
-       let local_thread = get_thread p_stat n in
-       let num_of_caches = List.length p_stat.threads in
-       match Queue.take_opt local_thread.cache_ack_queue with
-       | None -> p_stat
-       | Some ack -> (
-           match ack with
-           | ReadResponse (v_name, value, responder_cache_state) ->
-               let p_stat' = process_read_resp_in_thread n p_stat v_name value in
-               let read_rq = Hashtbl.find local_thread.read_rq_tbl v_name in
-               let is_obtained = fst read_rq in
-               let cnt' = snd read_rq in
-
-               if cnt' = num_of_caches - 1 then (
-                 Hashtbl.remove local_thread.read_rq_tbl v_name;
-                 if not is_obtained then (
-                   load_to_cache_from_ram p_stat n v_name;
-                   if v_name = local_thread.pending_load.v_name then
-                     finish_pending_load_in_thread n p_stat'
-                   else p_stat')
-                 else p_stat')
-               else p_stat'
-           | InvalidateAcknowledge (v_name, responder_t_num) ->
-               process_inv_ack_in_thread n p_stat v_name;
-               let num_of_resps = Hashtbl.find local_thread.inv_rq_tbl v_name in
-               let _ =
-                 if num_of_resps = num_of_caches - 1 then (
-                   Hashtbl.remove local_thread.inv_rq_tbl v_name;
-                   (* move store from st_buf to cache; change cache line state *)
-                   match Queue.peek_opt local_thread.st_buf with
-                   | None ->
-                       failwith
-                         "we received all inv_acks but there is no store in \
-                          store_buffer"
-                   | Some store ->
-                       if store.name = v_name then (
-                         (* add_entry_to_cache local_thread.cache v_name store.value; *)
-                         add_or_modify_cache_line local_thread.cache v_name
-                           store.value;
-                         let _ = Queue.pop local_thread.st_buf in
-                         ())
-                       else
-                         failwith
-                           ("we received all inv_acks but first entry in st_buf \
-                             is a store to a location different from " ^ v_name))
-                 else ()
-               in
-               p_stat
-           | _ ->
-               failwith "process_ack_in_thread: processing of this ack is not impl"
-           )
-
-     let process_smp_wmb n p_stat =
-       let t_stat = get_thread p_stat n in
-       match t_stat.is_waiting_on_wmb with
-       | false ->
-           let t_stat' = { t_stat with is_waiting_on_wmb = true } in
-           let threads = set t_stat' n p_stat.threads in
-           { p_stat with threads }
-       | true -> (
-           match Queue.is_empty t_stat.st_buf with
-           | false -> p_stat
-           | true ->
-               let t_stat' = { t_stat with is_waiting_on_wmb = false } in
-               let threads = set t_stat' n p_stat.threads in
-               let p_stat' = { p_stat with threads } in
-               prog_stat_inc p_stat' n)
-
-     let exec_single_stmt_in_thread n p_stat =
-       print_endline @@ "exec_stmt in thread " ^ string_of_int n;
-       let t_stat = get_thread p_stat n in
-       match get_stmt t_stat with
-       | WHILE (e, _) -> (
-           let p_stat' = eval_expr n p_stat e in
-           let t_stat' = get_thread p_stat' n in
-           match t_stat'.pending_load.is_pending with
-           | false ->
-               if t_stat'.last_eval_res = 0 then prog_stat_inc p_stat' n
-               else enter_block_in_thread n p_stat' t_stat'.last_eval_res
-           | true -> p_stat')
-       | IF (e, _) -> (
-           let p_stat' = eval_expr n p_stat e in
-           let t_stat' = get_thread p_stat' n in
-           match t_stat'.pending_load.is_pending with
-           | false ->
-               if t_stat'.last_eval_res = 0 then prog_stat_inc p_stat' n
-               else enter_block_in_thread n p_stat' t_stat'.last_eval_res
-           | true -> p_stat')
-       | IF_ELSE (e, _, _) -> (
-           let p_stat' = eval_expr n p_stat e in
-           let t_stat' = get_thread p_stat' n in
-           match t_stat'.pending_load.is_pending with
-           | false -> enter_block_in_thread n p_stat' t_stat'.last_eval_res
-           | true -> p_stat'
-           (* enter_block_in_thread n p_stat (eval_expr n p_stat e) *))
-       | NO_OP ->
-           (* print_endline "no_op"; *)
-           prog_stat_inc p_stat n
-       | ASSIGN (l, r) -> (
-           (* print_endline "assign"; *)
-           let p_stat' = eval_assign n p_stat l r in
-           let t_stat' = get_thread p_stat' n in
-           match t_stat'.pending_load.is_pending with
-           | true -> p_stat'
-           | false -> prog_stat_inc p_stat' n
-           (* prog_stat_inc (eval_assign n p_stat l r) n *))
-       | ASSERT e -> (
-           let p_stat' = eval_expr n p_stat e in
-           let t_stat' = get_thread p_stat' n in
-           match t_stat'.pending_load.is_pending with
-           | false ->
-               if t_stat'.last_eval_res = 0 then (
-                 print_endline "*************************";
-                 print_endline "state of program before failed";
-                 print_p_stat p_stat';
-                 failwith "assertation fails")
-               else prog_stat_inc p_stat' n
-           | true -> p_stat')
-       | SMP_RMB ->
-           process_whole_inv_q t_stat;
-           prog_stat_inc p_stat n
-       | SMP_WMB -> process_smp_wmb n p_stat
-       | SMP_MB -> (
-           let t_stat = get_thread p_stat n in
-           match t_stat.is_waiting_on_wmb with
-           | false ->
-               let t_stat' = { t_stat with is_waiting_on_wmb = true } in
-               let threads = set t_stat' n p_stat.threads in
-               { p_stat with threads }
-           | true -> (
-               match Queue.is_empty t_stat.st_buf with
-               | false -> p_stat
-               | true ->
-                   let t_stat' = { t_stat with is_waiting_on_wmb = false } in
-                   process_whole_inv_q t_stat';
-                   let threads = set t_stat' n p_stat.threads in
-                   let p_stat' = { p_stat with threads } in
-                   prog_stat_inc p_stat' n))
-
-     (* prog_stat_inc p_stat n *)
-     (* failwith "mem bars not impl yet" *)
-
-     let thread_is_not_finished t_stat =
-       if
-         List.hd t_stat.counters < t_stat.length
-         || (not @@ Queue.is_empty t_stat.cache_ack_queue)
-         || (not @@ Queue.is_empty t_stat.cache_request_queue)
-       then true
-       else false
-
-     let prog_is_not_finished p_stat =
-       List.exists
-         (fun x -> x = true)
-         (List.map thread_is_not_finished p_stat.threads)
-
-     let choose_not_finished_thread p_stat =
-       let len = List.length p_stat.threads in
-       let rec helper p_stat n i =
-         if List.nth p_stat.threads i |> thread_is_not_finished then i
-         else helper p_stat n (Random.int len)
-       in
-       helper p_stat len (Random.int len)
-
-     (* let exec_stmt_rq_ack n p_stat =
-        let t_stat = get_thread p_stat n in
-        if List.hd t_stat.counters < t_stat.length then
-          let p_stat1 = exec_single_stmt_in_thread n p_stat in
-          let p_stat2 = process_rq_in_thread n p_stat1 in
-          process_ack_in_thread n p_stat2
+module TSO = struct
+  let set v' n = List.mapi (fun i v -> if i = n then v' else v)
+
+  type store_op = { name : string; value : int }
+
+  let print_store_op op =
+    let s = op.name ^ " <- " ^ string_of_int op.value in
+    print_endline s
+
+  type invalidation = { target : string }
+
+  let print_inv inv =
+    let s = "invalidate " ^ inv.target in
+    print_endline s
+
+  type store_buf = store_op Queue.t
+
+  let print_store_buf buf =
+    print_endline "store_buf:";
+    Queue.iter print_store_op buf
+
+  type inv_queue = invalidation Queue.t
+
+  let print_inv_q q =
+    print_endline "inv_q:";
+    Queue.iter print_inv q
+
+  let buffer_invalidation inv inv_queue = Queue.add inv inv_queue
+
+  let buffer_store (store : store_op) st_buf = Queue.add store st_buf
+
+  (* посчитать число записей в переменную name ,которые находятся в store buffer-e *)
+  let calc_entries_in_store_buf name st_buf =
+    Queue.fold
+      (fun accu store_op -> if store_op.name = name then accu + 1 else accu)
+      0 st_buf
+
+  let calc_entries_in_inv_q name inv_q =
+    Queue.fold
+      (fun accu inv -> if inv.target = name then accu + 1 else accu)
+      0 inv_q
+
+  (* получить последнее значение записанное в переменную name и
+     находящееся в буфере записи *)
+  let store_forwarding (name : string) (st_buf : store_buf) =
+    let n = calc_entries_in_store_buf name st_buf in
+    if n = 0 then None
+    else
+      let last_buffered_store_to_name_value =
+        Queue.fold
+          (fun accu store_op ->
+            if store_op.name = name then store_op.value else accu)
+          0 st_buf
+      in
+      Some last_buffered_store_to_name_value
+
+  type ram = (string, int) Hashtbl.t
+
+  type ram_controller = { load_requests : (string * int) Queue.t }
+
+  type mesi_state = Modified | Exclusive | Shared | Invalidated
+
+  let mesi_state_to_string = function
+    | Modified -> "M"
+    | Exclusive -> "E"
+    | Shared -> "S"
+    | Invalidated -> "I"
+
+  type mesi_msg =
+    (* какую переменную и от какого потока. номep нужен, чтобы знать кому потом посылать ответ *)
+    | ReadRq of (string * int)
+    (* имя запрашиваемой переменной, её значение, если присутствует в опрашиваемом кэше и в каком состоянии
+       она была в кэше(если была), который отправляет ответ*)
+    | ReadResponse of (string * int option * mesi_state option)
+    | Invalidate of (string * int)
+    (* инвалидэйт акноуледжмент какой кэш линии (переменной) и от процессора с каким номером *)
+    | InvalidateAcknowledge of (string * int)
+    | ReadInvalidate of string
+    | Writeback of string * int
+
+  let print_mesi_msg = function
+    | ReadRq (v_name, n) ->
+        print_endline ("ReadRq: " ^ v_name ^ " by thread " ^ string_of_int n)
+    | ReadResponse (v_name, value, state) -> (
+        match value with
+        | None -> print_endline ("ReadResp: " ^ v_name ^ " is not in cache")
+        | Some v -> (
+            match state with
+            | None -> failwith "impossible"
+            | Some st ->
+                print_endline
+                  ("ReadResp: " ^ v_name ^ " = " ^ string_of_int v
+                 ^ " was in state " ^ mesi_state_to_string st)))
+    | Invalidate (v_name, n) ->
+        print_endline ("Invalidate " ^ v_name ^ " by thread " ^ string_of_int n)
+    | InvalidateAcknowledge (v_name, n) ->
+        print_endline
+          ("InvalidateAck " ^ v_name ^ " by thread " ^ string_of_int n)
+    | _ -> failwith "ReadInvalidate and Writeback don't printed"
+
+  let print_cache_rq_q = Queue.iter print_mesi_msg
+
+  (* В мою кэш линию влезает лишь одна int переменная
+     ключ для таблицы это имя переменной*)
+  type cache_line = { state : mesi_state; value : int }
+
+  type cache = (string, cache_line) Hashtbl.t
+
+  let add_entry_to_cache (cache : cache) name value =
+    match Hashtbl.find_opt cache name with
+    | Some c_line -> (
+        match c_line.state with
+        | Invalidated -> Hashtbl.replace cache name { state = Exclusive; value }
+        | _ -> failwith "tried to add cache line that was already in cache")
+    | None -> Hashtbl.add cache name { state = Exclusive; value }
+
+  let add_or_modify_cache_line cache name value =
+    match Hashtbl.find_opt cache name with
+    | Some _ -> Hashtbl.replace cache name { state = Modified; value }
+    | None -> Hashtbl.add cache name { state = Exclusive; value }
+
+  let check_cache_hit cache name =
+    let bindings = Hashtbl.find_all cache name in
+    if List.length bindings > 1 then
+      failwith "variable sits in several cache lines"
+    else if List.length bindings = 1 then
+      match Hashtbl.find cache name with
+      | c_line -> if c_line.state = Invalidated then None else Some c_line
+    else None
+
+  type pending_load = { is_pending : bool; v_name : string }
+
+  type thread_stat = {
+    stmts : stmt list;
+    counters : int list;
+    length : int;
+    branch_exprs : int list;
+    cache : cache;
+    cache_request_queue : mesi_msg Queue.t;
+    cache_ack_queue : mesi_msg Queue.t;
+    st_buf : store_buf;
+    inv_q : inv_queue;
+    number : int;
+    pending_load : pending_load;
+    last_eval_res : int;
+    read_rq_tbl : (string, bool * int) Hashtbl.t;
+    inv_rq_tbl : (string, int) Hashtbl.t;
+    is_waiting_on_wmb : bool;
+    registers : (string, int) Hashtbl.t;
+  }
+
+  type action = Exec_stmt | Proc_rq | Proc_ack
+  [@@deriving show { with_path = false }]
+
+  type step = int * action [@@deriving show { with_path = false }]
+
+  type trace = step list [@@deriving show { with_path = false }]
+
+  type prog_stat = {
+    threads : thread_stat list;
+    ram : ram;
+    ram_controller : ram_controller;
+    trace : trace;
+  }
+
+  let get_thread p_stat n =
+    let rec helper t_stats =
+      match t_stats with
+      | [] ->
+          failwith ("program doesn't have thread with num " ^ string_of_int n)
+      | t_stat :: tl -> if t_stat.number = n then t_stat else helper tl
+    in
+    helper p_stat.threads
+
+  let await_pending_load_in_thread n p_stat v_name =
+    let helper t_stat =
+      match t_stat.pending_load.is_pending with
+      | true -> t_stat
+      (* failwith "previous pending_load is not ended" *)
+      (* надо ли last_eval_res = None? *)
+      | false -> { t_stat with pending_load = { is_pending = true; v_name } }
+    in
+    let t_stat' = helper (get_thread p_stat n) in
+    let t_stats' = set t_stat' n p_stat.threads in
+    { p_stat with threads = t_stats' }
+
+  let finish_pending_load_in_thread n p_stat =
+    let helper t_stat =
+      match t_stat.pending_load.is_pending with
+      | true ->
+          { t_stat with pending_load = { is_pending = false; v_name = "" } }
+      | false -> t_stat
+    in
+    let t_stat' = helper (get_thread p_stat n) in
+    let t_stats' = set t_stat' n p_stat.threads in
+    { p_stat with threads = t_stats' }
+
+  (* updates only value of cache line, mesi-state is untouched *)
+  let update_cache_line cache name value =
+    match Hashtbl.find_opt cache name with
+    | None -> failwith "tried to update cache line which is not in cache"
+    | Some c_line -> Hashtbl.replace cache name { c_line with value }
+
+  let change_mesi_state cache name new_mesi_state =
+    match Hashtbl.find_opt cache name with
+    | None ->
+        failwith
+          "tried to change mesi_state for cache line which is not in cache"
+    | Some c_line ->
+        Hashtbl.replace cache name { c_line with state = new_mesi_state }
+
+  let invalidate_cache_line name cache =
+    match check_cache_hit cache name with
+    | None -> ()
+    | Some _ -> change_mesi_state cache name Invalidated
+
+  let rec process_inv_q t_stat v_name =
+    match calc_entries_in_inv_q v_name t_stat.inv_q with
+    | 0 -> ()
+    | _ ->
+        let invalidation = Queue.take t_stat.inv_q in
+        invalidate_cache_line invalidation.target t_stat.cache;
+        process_inv_q t_stat v_name
+
+  let process_one_element_of_inv_q t_stat =
+    match Queue.take_opt t_stat.inv_q with
+    | None -> ()
+    | Some invalidation ->
+        invalidate_cache_line invalidation.target t_stat.cache
+
+  let rec process_whole_inv_q t_stat =
+    match Queue.take_opt t_stat.inv_q with
+    | None -> ()
+    | Some invalidation ->
+        invalidate_cache_line invalidation.target t_stat.cache;
+        process_whole_inv_q t_stat
+
+  let write_back_to_ram_from_cache ram cache name =
+    match check_cache_hit cache name with
+    | None ->
+        failwith "tried to write back to ram the variable that is not in cache"
+    | Some c_line ->
+        let store_to_ram ram (name : string) (value : int) =
+          Hashtbl.replace ram name value
+        in
+        store_to_ram ram name c_line.value
+
+  let flush_cache_to_ram cache ram =
+    Hashtbl.iter
+      (fun name c_line ->
+        match c_line.state with
+        | Invalidated -> ()
+        | Modified | Exclusive | Shared ->
+            write_back_to_ram_from_cache ram cache name)
+      cache
+
+  let flush_all_caches p_stat =
+    List.iter
+      (fun t_stat -> flush_cache_to_ram t_stat.cache p_stat.ram)
+      p_stat.threads
+
+  let rec select_other_caches p_stat n =
+    let rec helper t_stats acc =
+      match t_stats with
+      | [] -> acc
+      | t_stat :: tl ->
+          if t_stat.number = n then helper tl acc
+          else helper tl (t_stat.cache :: acc)
+    in
+    helper p_stat.threads []
+
+  (* послать запрос из потока n на инвалидацию кэш линии (переменной) другим кэшам *)
+  let send_invalidate_request p_stat n name =
+    List.iter
+      (fun t_stat ->
+        (* посылаем всем кэшам, можно подумать об отправке только тем, которые содержат name *)
+        if t_stat.number <> n then
+          Queue.add (Invalidate (name, n)) t_stat.cache_request_queue
+        else ())
+      p_stat.threads
+
+  (* это метод вызывается, когда у потока в начале очереди cache_request_queue
+     находится Invalidate (v_name, n). Наша задача это при наличии в кэше переменной name
+     инвалидировать её, а потом положить в очередь cache_ack_queue потока n наш acknowledgment *)
+  (* применяя этот метод мы удаляем из очереди первый запрос! *)
+  let speculativly_process_invalidate_request p_stat cur_thread_num =
+    let local_thread = get_thread p_stat cur_thread_num in
+    match Queue.take_opt local_thread.cache_request_queue with
+    | None -> failwith "nothing to put in inv_queue"
+    | Some request -> (
+        match request with
+        | Invalidate (v_name, source_t_num) ->
+            let requestor_thread = get_thread p_stat source_t_num in
+            (* добавляем инвалидацию в свою invalidation_queue *)
+            Queue.add { target = v_name } local_thread.inv_q;
+            (* отправляем акноуледжмент *)
+            Queue.add
+              (InvalidateAcknowledge (v_name, cur_thread_num))
+              requestor_thread.cache_ack_queue;
+            p_stat
+        | _ ->
+            failwith
+              "first element in cache_request_queue isn't an Invalidate request"
+        )
+
+  let load_from_ram_request p_stat n name =
+    Queue.add (name, n) p_stat.ram_controller.load_requests
+
+  let send_read_request p_stat n name =
+    List.iter
+      (fun t_stat ->
+        if t_stat.number <> n then
+          Queue.add (ReadRq (name, n)) t_stat.cache_request_queue
+        else ())
+      p_stat.threads
+
+  (* применяя этот метод мы удаляем из очереди первый запрос! *)
+  let process_read_request p_stat cur_t_num =
+    let local_thread = get_thread p_stat cur_t_num in
+    match Queue.take_opt local_thread.cache_request_queue with
+    | None -> failwith "no (read) requests to process"
+    | Some request -> (
+        match request with
+        | ReadRq (v_name, source_t_num) -> (
+            process_inv_q local_thread v_name;
+            let requestor_thread = get_thread p_stat source_t_num in
+            match check_cache_hit local_thread.cache v_name with
+            | None ->
+                Queue.add
+                  (ReadResponse (v_name, None, None))
+                  requestor_thread.cache_ack_queue;
+                p_stat
+            | Some c_line -> (
+                match c_line.state with
+                | Exclusive ->
+                    Queue.add
+                      (ReadResponse (v_name, Some c_line.value, Some Exclusive))
+                      requestor_thread.cache_ack_queue;
+                    change_mesi_state local_thread.cache v_name Shared;
+                    p_stat
+                | Modified ->
+                    write_back_to_ram_from_cache p_stat.ram local_thread.cache
+                      v_name;
+                    change_mesi_state local_thread.cache v_name Shared;
+                    Queue.add
+                      (ReadResponse (v_name, Some c_line.value, Some Modified))
+                      requestor_thread.cache_ack_queue;
+                    p_stat
+                | Shared ->
+                    Queue.add
+                      (ReadResponse (v_name, Some c_line.value, Some Shared))
+                      requestor_thread.cache_ack_queue;
+                    p_stat
+                | Invalidated ->
+                    failwith
+                      "cache hit for line in Invalidated state is an error"))
+        | _ -> failwith "fst element in cache_request_queue isn't ReadRq")
+
+  let issue_read_rq p_stat n v_name =
+    let local_thread = get_thread p_stat n in
+    match Hashtbl.find_opt local_thread.read_rq_tbl v_name with
+    | None ->
+        Hashtbl.add local_thread.read_rq_tbl v_name (false, 0);
+        send_read_request p_stat n v_name
+        (* значит запрос на чтении этой переменной уже послан, надо ожидать ответа других кэшей *)
+    | Some _ -> ()
+
+  let issue_inv_rq p_stat n v_name =
+    let local_thread = get_thread p_stat n in
+    (* process_inv_q local_thread v_name; <-------------------------------------------------------------*)
+    match Hashtbl.find_opt local_thread.inv_rq_tbl v_name with
+    | None ->
+        Hashtbl.add local_thread.inv_rq_tbl v_name 0;
+        send_invalidate_request p_stat n v_name
+        (* запрос на инвалидацию этой переменной уже послан, надо ожидать ответа всех других кэшей *)
+    | Some _ -> ()
+
+  let rec store_to_cache p_stat n name value =
+    let local_thread = get_thread p_stat n in
+    let local_cache = local_thread.cache in
+    process_inv_q local_thread name;
+    match check_cache_hit local_cache name with
+    | Some c_line -> (
+        match c_line.state with
+        | Modified -> update_cache_line local_cache name value
+        | Exclusive ->
+            update_cache_line local_cache name value;
+            change_mesi_state local_cache name Modified
+        | Shared ->
+            (* помещаем запись в буфер_записей,
+               посылаем запрос на инвалидацию дригим кэшам *)
+            buffer_store { name; value } local_thread.st_buf;
+            issue_inv_rq p_stat n name
+            (* send_invalidate_request p_stat n name *)
+        | Invalidated ->
+            failwith "store_to_cache: cache hit of line in Invalidated state")
+    | None ->
+        (* можно ли помещать в буфер_записей запись в кэш-линию в состоянии Invalidated?  *)
+        (* предположим, что это можно делать *)
+        buffer_store { name; value } local_thread.st_buf;
+        issue_read_rq p_stat n name;
+        issue_inv_rq p_stat n name
+
+  and load_to_cache_from_ram p_stat n name =
+    let load_from_ram ram var =
+      match Hashtbl.find_opt ram var with
+      | Some value -> value
+      | None ->
+          (* Вернуть ноль *)
+          let init_var memory var =
+            match Hashtbl.find_opt memory var with
+            | Some _ -> failwith ("variable @" ^ var ^ " already initialized")
+            | None -> Hashtbl.add memory var 0
+          in
+          init_var ram var;
+          Hashtbl.find ram var
+    in
+    let value = load_from_ram p_stat.ram name in
+    add_entry_to_cache (get_thread p_stat n).cache name value
+
+  let load_from_cache_opt p_stat n name =
+    let local_thread = get_thread p_stat n in
+    let local_cache = local_thread.cache in
+    match store_forwarding name local_thread.st_buf with
+    | Some v -> Some v (* store forwarding *)
+    | None -> (
+        match check_cache_hit local_cache name with
+        | Some c_line -> Some c_line.value
+        | None ->
+            (* send ReadRq to other caches and leave method
+               (to await other caches or ram supply us with "cache line" (variable)) *)
+            (* send_read_request p_stat n name; *)
+            if List.length p_stat.threads > 1 then (
+              issue_read_rq p_stat n name;
+              None)
+            else (
+              load_to_cache_from_ram p_stat n name;
+              match check_cache_hit local_cache name with
+              | None -> failwith "var was loaded from ram but absent in cache"
+              | Some c_line -> Some c_line.value))
+
+  let get_from_cache_or_st_buf p_stat n name =
+    let local_thread = get_thread p_stat n in
+    let local_cache = local_thread.cache in
+    match store_forwarding name local_thread.st_buf with
+    | Some v -> v (* store forwarding *)
+    | None -> (
+        match check_cache_hit local_cache name with
+        | Some c_line -> c_line.value
+        | None -> failwith "variable doesn't sits in cache or st_buf")
+
+  let print_ht ht =
+    Hashtbl.iter
+      (fun v_name value ->
+        print_string (v_name ^ " = " ^ string_of_int value ^ "\t"))
+      ht;
+    print_endline ""
+
+  let print_cache =
+    Hashtbl.iter (fun name c_line ->
+        print_string
+          (name ^ " = " ^ string_of_int c_line.value ^ " in state: "
+          ^ mesi_state_to_string c_line.state
+          ^ "\n"))
+
+  let eval_int c t_num p_stat =
+    let t_stat = get_thread p_stat t_num in
+    let t_stat' = { t_stat with last_eval_res = c } in
+    { p_stat with threads = set t_stat' t_num p_stat.threads }
+
+  (* n - is a thread number where expression is evaluated *)
+  let rec eval_expr n p_stat = function
+    | INT value -> eval_int value n p_stat
+    | VAR_NAME var -> (
+        match load_from_cache_opt p_stat n var with
+        | Some value -> eval_int value n p_stat
+        (* надо ожидать поступления значения из других кешей или основной памяти.
+               Плюс надо факт такого ожидания отметить в p_stat или t_stat
+               Когда данные придут, то передающий их кэш или основная память должны
+               изменить значение флага pending_load на false *)
+        | None -> await_pending_load_in_thread n p_stat var)
+    | REGISTER r -> (
+        let thread = get_thread p_stat n in
+        match Hashtbl.find_opt thread.registers r with
+        | Some value -> eval_int value n p_stat
+        | None ->
+            Hashtbl.add thread.registers r 0;
+            eval_int 0 n p_stat
+        (* failwith "reads from registers not impl yet" *))
+    | PLUS (l, r) -> (
+        let p_stat1 = eval_expr n p_stat l in
+        let t_stat1 = get_thread p_stat1 n in
+        match t_stat1.pending_load.is_pending with
+        | true -> p_stat1
+        | false -> (
+            let p_stat2 = eval_expr n p_stat r in
+            let t_stat2 = get_thread p_stat2 n in
+            match t_stat2.pending_load.is_pending with
+            | false ->
+                eval_int
+                  (t_stat1.last_eval_res + t_stat2.last_eval_res)
+                  n p_stat2
+            | true -> p_stat2))
+    | SUB (l, r) -> (
+        let p_stat1 = eval_expr n p_stat l in
+        let t_stat1 = get_thread p_stat1 n in
+        match t_stat1.pending_load.is_pending with
+        | true -> p_stat1
+        | false -> (
+            let p_stat2 = eval_expr n p_stat r in
+            let t_stat2 = get_thread p_stat2 n in
+            match t_stat2.pending_load.is_pending with
+            | false ->
+                eval_int
+                  (t_stat1.last_eval_res - t_stat2.last_eval_res)
+                  n p_stat2
+            | true -> p_stat2))
+    | MUL (l, r) -> (
+        let p_stat1 = eval_expr n p_stat l in
+        let t_stat1 = get_thread p_stat1 n in
+        match t_stat1.pending_load.is_pending with
+        | true -> p_stat1
+        | false -> (
+            let p_stat2 = eval_expr n p_stat r in
+            let t_stat2 = get_thread p_stat2 n in
+            match t_stat2.pending_load.is_pending with
+            | false ->
+                eval_int
+                  (t_stat1.last_eval_res * t_stat2.last_eval_res)
+                  n p_stat2
+            | true -> p_stat2))
+    | DIV (l, r) -> (
+        let p_stat1 = eval_expr n p_stat l in
+        let t_stat1 = get_thread p_stat1 n in
+        match t_stat1.pending_load.is_pending with
+        | true -> p_stat1
+        | false -> (
+            let p_stat2 = eval_expr n p_stat r in
+            let t_stat2 = get_thread p_stat2 n in
+            match t_stat2.pending_load.is_pending with
+            | false ->
+                if t_stat2.last_eval_res = 0 then failwith "div by zero"
+                else
+                  eval_int
+                    (t_stat1.last_eval_res / t_stat2.last_eval_res)
+                    n p_stat2
+            | true -> p_stat2))
+
+  let eval_assign n p_stat l r =
+    let p_stat' = eval_expr n p_stat r in
+    let t_stat' = get_thread p_stat' n in
+    if t_stat'.pending_load.is_pending then p_stat'
+    else
+      match l with
+      | VAR_NAME v ->
+          store_to_cache p_stat' n v t_stat'.last_eval_res;
+          p_stat'
+      | REGISTER reg ->
+          Hashtbl.replace t_stat'.registers reg t_stat'.last_eval_res;
+          p_stat'
+          (* failwith "assignment to register is not implemented" *)
+          (* Hashtbl.replace ctx.regs reg value;
+             p_stat *)
+      | _ -> failwith "assignment allowed only to variable and register"
+
+  let print_read_rq_tbl =
+    Hashtbl.iter (fun v_name pair ->
+        print_endline
+          (v_name ^ " "
+          ^ string_of_bool (fst pair)
+          ^ " "
+          ^ string_of_int (snd pair)))
+
+  let print_t_stat t_stat =
+    print_string ("thread " ^ string_of_int t_stat.number ^ ":\n");
+    print_string "counters: ";
+    List.iter (fun x -> print_string @@ string_of_int x ^ "; ") t_stat.counters;
+    print_string "\n";
+    print_cache t_stat.cache;
+    print_endline "regs:";
+    print_ht t_stat.registers;
+    print_endline "read_rq_tbl: ";
+    print_read_rq_tbl t_stat.read_rq_tbl;
+    print_endline "inv_rq_tbl: ";
+    print_ht t_stat.inv_rq_tbl;
+    print_store_buf t_stat.st_buf;
+    print_inv_q t_stat.inv_q;
+    print_endline "cache_request_queue: ";
+    print_cache_rq_q t_stat.cache_request_queue;
+    print_endline "cache_ack_queue: ";
+    print_cache_rq_q t_stat.cache_ack_queue;
+    print_endline "----------------"
+
+  let print_p_stat p_stat =
+    List.iter print_t_stat p_stat.threads;
+    print_string "\n";
+    print_string "ram: ";
+    print_ht p_stat.ram;
+    print_endline "trace:";
+    List.iter (fun step -> print_endline ("\t" ^ show_step step)) p_stat.trace;
+    print_string "\n"
+
+  let init_thread_stat t =
+    let t_info = match t with THREAD (n, stmt_list) -> (n, stmt_list) in
+    {
+      stmts = snd t_info;
+      counters = [ 0 ];
+      length = List.length (snd t_info);
+      branch_exprs = [];
+      cache = Hashtbl.create 8;
+      st_buf = Queue.create ();
+      inv_q = Queue.create ();
+      cache_request_queue = Queue.create ();
+      cache_ack_queue = Queue.create ();
+      number = fst t_info;
+      pending_load = { is_pending = false; v_name = "" };
+      last_eval_res = 0;
+      read_rq_tbl = Hashtbl.create 32;
+      inv_rq_tbl = Hashtbl.create 32;
+      is_waiting_on_wmb = false;
+      registers = Hashtbl.create 2;
+    }
+
+  let init_prog_stat p =
+    let t_stats =
+      match p with PROG threads -> List.map init_thread_stat threads
+    in
+    {
+      threads = t_stats;
+      ram = Hashtbl.create 16;
+      ram_controller = { load_requests = Queue.create () };
+      trace = [];
+    }
+
+  let inc_last ls =
+    let len = List.length ls in
+    List.mapi (fun i x -> if i = len - 1 then x + 1 else x) ls
+
+  let last ls = List.nth ls (List.length ls - 1)
+
+  let enter_block t_stat v =
+    {
+      t_stat with
+      counters = t_stat.counters @ [ 0 ];
+      branch_exprs = t_stat.branch_exprs @ [ v ];
+    }
+
+  let enter_block_in_thread n p_stat v =
+    {
+      p_stat with
+      threads =
+        List.mapi
+          (fun i t_stat -> if i = n then enter_block t_stat v else t_stat)
+          p_stat.threads;
+    }
+
+  let get_stmt t_stat =
+    let rec helper stmts counts lvl =
+      match counts with
+      | [ n ] -> List.nth stmts n
+      | n :: tl ->
+          helper
+            (match List.nth stmts n with
+            | IF (_, stmt_list) ->
+                if List.nth t_stat.branch_exprs lvl <> 0 then stmt_list
+                else failwith "try enter if-block when condition is false"
+            | IF_ELSE (_, bk1, bk2) ->
+                if List.nth t_stat.branch_exprs lvl <> 0 then bk1 else bk2
+            | WHILE (_, bk) ->
+                if List.nth t_stat.branch_exprs lvl <> 0 then bk
+                else failwith "try enter while-loop when condition is false"
+            | _ -> failwith "this stmt is not compound")
+            tl (lvl + 1)
+      | [] -> failwith "invalid list of counters (counts)"
+    in
+    helper t_stat.stmts t_stat.counters 0
+
+  let peek_while t_stat counters =
+    let rec helper stmts counts lvl =
+      match counts with
+      | [ n ] -> (
+          let stmt = List.nth stmts n in
+          match stmt with WHILE (_, _) -> true | _ -> false)
+      | n :: tl ->
+          helper
+            (match List.nth stmts n with
+            | IF (_, stmt_list) ->
+                if List.nth t_stat.branch_exprs lvl <> 0 then stmt_list
+                else failwith "try enter if-block when condition is false"
+            | IF_ELSE (_, bk1, bk2) ->
+                if List.nth t_stat.branch_exprs lvl <> 0 then bk1 else bk2
+            | WHILE (_, bk) ->
+                if List.nth t_stat.branch_exprs lvl <> 0 then bk
+                else failwith "try enter while-block when condition is false"
+            | _ -> failwith "this stmt is not compound (peek_while")
+            tl (lvl + 1)
+      | _ -> failwith "invalid list of counters (counts)"
+    in
+    helper t_stat.stmts counters 0
+
+  let check t_stat =
+    try match get_stmt t_stat with _ -> true with Failure _ -> false
+
+  let reduce ls = ls |> List.rev |> List.tl |> List.rev
+
+  let thread_stat_inc t_stat =
+    { t_stat with counters = inc_last t_stat.counters }
+
+  let correct_t_stat_inc t_stat =
+    let rec helper t_stat =
+      let t_stat' = thread_stat_inc t_stat in
+      if List.length t_stat'.counters = 1 || check t_stat' then t_stat'
+      else
+        let ret_t_stat =
+          {
+            t_stat' with
+            counters = reduce t_stat'.counters;
+            branch_exprs = reduce t_stat'.branch_exprs;
+          }
+        in
+        if peek_while ret_t_stat ret_t_stat.counters then
+          (* print_endline "peek_while = true"; *)
+          ret_t_stat
         else
-          let p_stat1 = process_rq_in_thread n p_stat in
-          process_ack_in_thread n p_stat1 *)
+          (* print_endline "peek_while = false"; *)
+          helper
+            {
+              t_stat' with
+              counters = reduce t_stat'.counters;
+              branch_exprs = reduce t_stat'.branch_exprs;
+            }
+    in
+    helper t_stat
 
-     let exec_stmt_or_process_cache n p_stat =
-       let t_stat = get_thread p_stat n in
-       match Random.int 3 with
-       | 0 ->
-           if List.hd t_stat.counters < t_stat.length then
-             exec_single_stmt_in_thread n p_stat
-           else if not @@ Queue.is_empty t_stat.cache_ack_queue then
-             process_ack_in_thread n p_stat
-           else if not @@ Queue.is_empty t_stat.cache_request_queue then
-             process_rq_in_thread n p_stat
-           else (
-             print_endline "null 0";
-             p_stat)
-       | 1 ->
-           if not @@ Queue.is_empty t_stat.cache_ack_queue then
-             process_ack_in_thread n p_stat
-           else (
-             print_endline "null 1";
-             p_stat)
-       | 2 ->
-           if not @@ Queue.is_empty t_stat.cache_request_queue then
-             process_rq_in_thread n p_stat
-           else (
-             print_endline "null 2";
-             p_stat)
-       | _ -> failwith "Random.int works incorrectly :)"
+  let set v' n = List.mapi (fun i v -> if i = n then v' else v)
 
-     let rec insert_wmb_in_compound_stmt compound_stmt =
-       match compound_stmt with
-       | IF (e, stmt_list) -> IF (e, insert_wmb_before_assignments stmt_list)
-       | IF_ELSE (e, stmts1, stmts2) ->
-           IF_ELSE
-             ( e,
-               insert_wmb_before_assignments stmts1,
-               insert_wmb_before_assignments stmts2 )
-       | WHILE (e, stmt_list) -> WHILE (e, insert_wmb_before_assignments stmt_list)
-       | _ -> failwith "not compound stmt"
+  let prog_stat_inc p_stat n =
+    {
+      p_stat with
+      threads =
+        set (correct_t_stat_inc (List.nth p_stat.threads n)) n p_stat.threads;
+    }
 
-     and insert_wmb_before_assignments stmt_list =
-       let rec helper stmts acc =
-         match stmts with
-         | [] -> acc
-         | stmt :: tl when List.length acc > 0 -> (
-             match stmt with
-             | ASSIGN (_, _) -> helper tl (acc @ [ SMP_WMB; stmt ])
-             | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
-                 helper tl (acc @ [ insert_wmb_in_compound_stmt stmt ])
-             | _ -> helper tl (acc @ [ stmt ]))
-         | stmt :: tl -> (
-             match stmt with
-             | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
-                 helper tl (acc @ [ insert_wmb_in_compound_stmt stmt ])
-             | _ -> helper tl (acc @ [ stmt ]))
-       in
-       helper stmt_list []
+  let process_read_resp_in_thread n p_stat v_name value =
+    let local_thread = get_thread p_stat n in
+    let read_rq_tbl = local_thread.read_rq_tbl in
+    match Hashtbl.find_opt read_rq_tbl v_name with
+    | None ->
+        failwith
+          "thread that issued ReadRq must put in his read_rq_tbl pair of key = \
+           v_name; value = (false, 0)"
+    | Some (is_obtained, cnt) -> (
+        if is_obtained = false && cnt = 0 then (
+          (* это первый поступивший ответ на запрос чтения *)
+          match value with
+          | None ->
+              Hashtbl.replace read_rq_tbl v_name (false, 1);
+              p_stat
+          | Some v ->
+              (* add to our cache *)
+              add_entry_to_cache local_thread.cache v_name v;
+              (* так как значение получили от других кешей, то наша кэш линия
+                 должна быть в состоянии Shared *)
+              change_mesi_state local_thread.cache v_name Shared;
+              Hashtbl.replace read_rq_tbl v_name (true, 1);
+              if v_name = local_thread.pending_load.v_name then
+                finish_pending_load_in_thread n p_stat
+              else p_stat)
+        else
+          let cnt' = cnt + 1 in
+          match is_obtained with
+          | true ->
+              Hashtbl.replace read_rq_tbl v_name (true, cnt');
+              p_stat
+          | false -> (
+              match value with
+              | None ->
+                  Hashtbl.replace read_rq_tbl v_name (false, cnt');
+                  p_stat
+              | Some v ->
+                  (* add to our cache *)
+                  add_entry_to_cache local_thread.cache v_name v;
+                  Hashtbl.replace read_rq_tbl v_name (true, cnt');
+                  if v_name = local_thread.pending_load.v_name then
+                    finish_pending_load_in_thread n p_stat
+                  else p_stat))
 
-     let insert_wmb_to_thread_for_tso thread =
-       match thread with
-       | THREAD (n, stmt_list) ->
-           THREAD (n, insert_wmb_before_assignments stmt_list)
+  let process_inv_ack_in_thread n p_stat v_name =
+    let local_thread = get_thread p_stat n in
+    let inv_rq_tbl = local_thread.inv_rq_tbl in
+    match Hashtbl.find_opt inv_rq_tbl v_name with
+    | None -> Hashtbl.add inv_rq_tbl v_name 1
+    | Some cnt -> Hashtbl.replace inv_rq_tbl v_name (cnt + 1)
 
-     let insert_wmb_to_prog_for_tso p =
-       match p with
-       | PROG thread_list ->
-           let threads = List.map insert_wmb_to_thread_for_tso thread_list in
-           PROG threads
+  (* поток должен уметь принимать акноуледжменты и обрабатывать запросы, которые лежат в очередях
+     cache_ack_queue and cache_request_queue
+     Для этого нужны отдельные ф-ии *)
+  let process_rq_in_thread n p_stat =
+    let p_stat = { p_stat with trace = p_stat.trace @ [ (n, Proc_rq) ] } in
+    (* print_endline @@ "process_rq_in_thread " ^ string_of_int n; *)
+    let local_thread = get_thread p_stat n in
+    match Queue.peek_opt local_thread.cache_request_queue with
+    | None -> p_stat
+    | Some rq -> (
+        match rq with
+        | ReadRq (_, _) -> process_read_request p_stat n
+        | Invalidate (_, _) -> speculativly_process_invalidate_request p_stat n
+        | _ -> failwith "processing of this rq is not impl")
 
-     let rec expr_has_loads_from_vars = function
-       | INT _ -> false
-       | VAR_NAME _ -> true
-       | REGISTER _ -> false
-       | PLUS (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
-       | SUB (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
-       | MUL (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
-       | DIV (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
+  let process_ack_in_thread n p_stat =
+    let p_stat = { p_stat with trace = p_stat.trace @ [ (n, Proc_ack) ] } in
+    (* print_endline @@ "process_ack_in_thread " ^ string_of_int n; *)
+    let local_thread = get_thread p_stat n in
+    let num_of_caches = List.length p_stat.threads in
+    match Queue.take_opt local_thread.cache_ack_queue with
+    | None -> p_stat
+    | Some ack -> (
+        match ack with
+        | ReadResponse (v_name, value, responder_cache_state) ->
+            let p_stat' = process_read_resp_in_thread n p_stat v_name value in
+            let read_rq = Hashtbl.find local_thread.read_rq_tbl v_name in
+            let is_obtained = fst read_rq in
+            let cnt' = snd read_rq in
+            if cnt' = num_of_caches - 1 then (
+              Hashtbl.remove local_thread.read_rq_tbl v_name;
+              if not is_obtained then (
+                load_to_cache_from_ram p_stat n v_name;
+                if v_name = local_thread.pending_load.v_name then
+                  finish_pending_load_in_thread n p_stat'
+                else p_stat')
+              else p_stat')
+            else p_stat'
+        | InvalidateAcknowledge (v_name, responder_t_num) ->
+            process_inv_ack_in_thread n p_stat v_name;
+            let num_of_resps = Hashtbl.find local_thread.inv_rq_tbl v_name in
+            (* let _ = *)
+            if num_of_resps = num_of_caches - 1 then (
+              Hashtbl.remove local_thread.inv_rq_tbl v_name;
+              (* move store from st_buf to cache; change cache line state *)
+              match Queue.peek_opt local_thread.st_buf with
+              | None ->
+                  failwith
+                    "we received all inv_acks but there is no store in \
+                     store_buffer"
+              | Some store ->
+                  if store.name = v_name then (
+                    (* add_entry_to_cache local_thread.cache v_name store.value; *)
+                    add_or_modify_cache_line local_thread.cache v_name
+                      store.value;
+                    let _ = Queue.pop local_thread.st_buf in
+                    (* если ждали на барьере записи и полностью очистили буфер записей, то
+                       перестаем ждать и переходим на следующую инструкцию *)
+                    if
+                      Queue.is_empty local_thread.st_buf
+                      && local_thread.is_waiting_on_wmb
+                    then (
+                      print_endline
+                        "leave SMP_WMB \
+                         <><><><><><><><><><><><><><><><><><><><><><><><>";
+                      let local_thread =
+                        { local_thread with is_waiting_on_wmb = false }
+                      in
+                      let threads = set local_thread n p_stat.threads in
+                      let p_stat = { p_stat with threads } in
+                      prog_stat_inc p_stat n)
+                    else p_stat)
+                  else
+                    failwith
+                      ("we received all inv_acks but first entry in st_buf is \
+                        a store to a location different from " ^ v_name))
+            else p_stat
+            (* in p_stat *)
+        | _ ->
+            failwith "process_ack_in_thread: processing of this ack is not impl"
+        )
 
-     let rec insert_rmb_in_compound_stmt compound_stmt =
-       match compound_stmt with
-       | IF (e, stmt_list) -> IF (e, insert_rmb stmt_list)
-       | IF_ELSE (e, stmts1, stmts2) ->
-           IF_ELSE (e, insert_rmb stmts1, insert_rmb stmts2)
-       | WHILE (e, stmt_list) -> WHILE (e, insert_rmb stmt_list)
-       | _ -> failwith "not compound stmt"
+  let process_smp_wmb n p_stat =
+    let t_stat = get_thread p_stat n in
+    match t_stat.is_waiting_on_wmb with
+    | false ->
+        if not @@ Queue.is_empty t_stat.st_buf then
+          let t_stat' = { t_stat with is_waiting_on_wmb = true } in
+          let threads = set t_stat' n p_stat.threads in
+          { p_stat with threads }
+          (* если в буфере запписей ничего нет, то барьеру не надо ничего делать: идем на
+             следующую инструкцию *)
+        else prog_stat_inc p_stat n
+    | true -> failwith "this part of processing wmb must be unreachable"
 
-     and insert_rmb stmt_list =
-       let rec helper stmts acc =
-         match stmts with
-         | [] -> acc
-         | stmt :: tl when List.length acc > 0 -> (
-             match stmt with
-             | ASSERT _ -> helper tl (acc @ [ SMP_RMB; stmt ])
-             | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
-                 helper tl (acc @ [ SMP_RMB; insert_rmb_in_compound_stmt stmt ])
-             | ASSIGN (_, r) -> (
-                 match expr_has_loads_from_vars r with
-                 | true -> helper tl (acc @ [ SMP_RMB; stmt ])
-                 | false -> helper tl (acc @ [ stmt ]))
-             | _ -> helper tl (acc @ [ stmt ]))
-         | stmt :: tl -> (
-             match stmt with
-             | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
-                 helper tl (acc @ [ insert_rmb_in_compound_stmt stmt ])
-             | _ -> helper tl (acc @ [ stmt ]))
-       in
-       helper stmt_list []
+  (* (
+     match Queue.is_empty t_stat.st_buf with
+     | false -> p_stat
+     | true ->
+         let t_stat' = { t_stat with is_waiting_on_wmb = false } in
+         let threads = set t_stat' n p_stat.threads in
+         let p_stat' = { p_stat with threads } in
+         prog_stat_inc p_stat' n) *)
 
-     let insert_rmb_to_thread_for_tso thread =
-       match thread with THREAD (n, stmt_list) -> THREAD (n, insert_rmb stmt_list)
+  let exec_single_stmt_in_thread n p_stat =
+    let p_stat = { p_stat with trace = p_stat.trace @ [ (n, Exec_stmt) ] } in
+    (* print_endline @@ "exec_stmt in thread " ^ string_of_int n; *)
+    let t_stat = get_thread p_stat n in
+    if t_stat.is_waiting_on_wmb then
+      failwith "exec_stmt is blocked when thread sits on SMP_WMB"
+    else
+      match get_stmt t_stat with
+      | WHILE (e, _) -> (
+          let p_stat' = eval_expr n p_stat e in
+          let t_stat' = get_thread p_stat' n in
+          match t_stat'.pending_load.is_pending with
+          | false ->
+              if t_stat'.last_eval_res = 0 then prog_stat_inc p_stat' n
+              else enter_block_in_thread n p_stat' t_stat'.last_eval_res
+          | true -> p_stat')
+      | IF (e, _) -> (
+          let p_stat' = eval_expr n p_stat e in
+          let t_stat' = get_thread p_stat' n in
+          match t_stat'.pending_load.is_pending with
+          | false ->
+              if t_stat'.last_eval_res = 0 then prog_stat_inc p_stat' n
+              else enter_block_in_thread n p_stat' t_stat'.last_eval_res
+          | true -> p_stat')
+      | IF_ELSE (e, _, _) -> (
+          let p_stat' = eval_expr n p_stat e in
+          let t_stat' = get_thread p_stat' n in
+          match t_stat'.pending_load.is_pending with
+          | false -> enter_block_in_thread n p_stat' t_stat'.last_eval_res
+          | true -> p_stat'
+          (* enter_block_in_thread n p_stat (eval_expr n p_stat e) *))
+      | NO_OP ->
+          (* print_endline "no_op"; *)
+          prog_stat_inc p_stat n
+      | ASSIGN (l, r) -> (
+          (* print_endline "assign"; *)
+          let p_stat' = eval_assign n p_stat l r in
+          let t_stat' = get_thread p_stat' n in
+          match t_stat'.pending_load.is_pending with
+          | true ->
+              (* print_endline "pending_load"; *)
+              p_stat'
+          | false -> prog_stat_inc p_stat' n
+          (* prog_stat_inc (eval_assign n p_stat l r) n *))
+      | ASSERT e -> (
+          let p_stat' = eval_expr n p_stat e in
+          let t_stat' = get_thread p_stat' n in
+          match t_stat'.pending_load.is_pending with
+          | false ->
+              if t_stat'.last_eval_res = 0 then (
+                print_endline "*************************";
+                print_endline "state of program before failed";
+                print_p_stat p_stat';
+                failwith "assertation fails")
+              else prog_stat_inc p_stat' n
+          | true -> p_stat')
+      | SMP_RMB ->
+          process_whole_inv_q t_stat;
+          prog_stat_inc p_stat n
+      | SMP_WMB -> process_smp_wmb n p_stat
+      | SMP_MB -> (
+          let t_stat = get_thread p_stat n in
+          match t_stat.is_waiting_on_wmb with
+          | false ->
+              let t_stat' = { t_stat with is_waiting_on_wmb = true } in
+              let threads = set t_stat' n p_stat.threads in
+              { p_stat with threads }
+          | true -> (
+              match Queue.is_empty t_stat.st_buf with
+              | false -> p_stat
+              | true ->
+                  let t_stat' = { t_stat with is_waiting_on_wmb = false } in
+                  process_whole_inv_q t_stat';
+                  let threads = set t_stat' n p_stat.threads in
+                  let p_stat' = { p_stat with threads } in
+                  prog_stat_inc p_stat' n))
 
-     let insert_rmb_to_prog_for_tso p =
-       match p with
-       | PROG thread_list ->
-           let threads = List.map insert_rmb_to_thread_for_tso thread_list in
-           PROG threads
+  (* prog_stat_inc p_stat n *)
+  (* failwith "mem bars not impl yet" *)
+  let thread_is_not_finished t_stat =
+    if
+      List.hd t_stat.counters < t_stat.length
+      || (not @@ Queue.is_empty t_stat.cache_ack_queue)
+      || (not @@ Queue.is_empty t_stat.cache_request_queue)
+    then true
+    else false
 
-     let insert_barriers_for_tso p =
-       p |> insert_rmb_to_prog_for_tso |> insert_wmb_to_prog_for_tso
+  let prog_is_not_finished p_stat =
+    List.exists
+      (fun x -> x = true)
+      (List.map thread_is_not_finished p_stat.threads)
 
-     let exec_prog_in_tso p =
-       let p = insert_barriers_for_tso p in
-       let p_stat = init_prog_stat p in
-       let rec helper p_stat =
-         if prog_is_not_finished p_stat then (
-           let n = choose_not_finished_thread p_stat in
-           if Random.int 1000 = 0 then
-             process_one_element_of_inv_q (get_thread p_stat n)
-           else ();
+  let all_stmts_executed p_stat =
+    let list =
+      List.map
+        (fun t_stat -> not (List.hd t_stat.counters < t_stat.length))
+        p_stat.threads
+    in
+    List.for_all (fun b -> b = true) list
 
-           helper (exec_stmt_or_process_cache n p_stat))
-         else p_stat
-       in
-       let res_p_stat = helper p_stat in
-       flush_all_caches res_p_stat;
-       res_p_stat
+  let choose_not_finished_thread p_stat =
+    let len = List.length p_stat.threads in
+    let rec helper p_stat n i =
+      if List.nth p_stat.threads i |> thread_is_not_finished then i
+      else helper p_stat n (Random.int len)
+    in
+    helper p_stat len (Random.int len)
 
-     (* нужно вручную использовать функцию insert_barriers_for_tso при создании p_stat,
-        который будет подан на вход этой функции. Иначе встроенных барьеров характерных для TSO
-        НЕ БУДЕТ!
-        Эта ф-ия применяется, когда перед исполнением нужно задать кэшам определенное состояние, как сделано
-        в тестах.
-        Наверное можно сделать аргументами программу prog и ф-ию, которая задаст кэшу нужное состояние
-     *)
-     let exec_prog_stat p_stat =
-       let rec helper p_stat =
-         if prog_is_not_finished p_stat then (
-           let n = choose_not_finished_thread p_stat in
-           if Random.int 1000 = 0 then
-             process_one_element_of_inv_q (get_thread p_stat n)
-           else ();
+  (* let exec_stmt_rq_ack n p_stat =
+     let t_stat = get_thread p_stat n in
+     if List.hd t_stat.counters < t_stat.length then
+       let p_stat1 = exec_single_stmt_in_thread n p_stat in
+       let p_stat2 = process_rq_in_thread n p_stat1 in
+       process_ack_in_thread n p_stat2
+     else
+       let p_stat1 = process_rq_in_thread n p_stat in
+       process_ack_in_thread n p_stat1 *)
+  let exec_stmt_or_process_cache n p_stat =
+    let t_stat = get_thread p_stat n in
+    match Random.int 3 with
+    | 0 ->
+        if
+          List.hd t_stat.counters < t_stat.length
+          && (not t_stat.pending_load.is_pending)
+          && not t_stat.is_waiting_on_wmb
+        then exec_single_stmt_in_thread n p_stat
+        else if not @@ Queue.is_empty t_stat.cache_ack_queue then
+          process_ack_in_thread n p_stat
+        else if not @@ Queue.is_empty t_stat.cache_request_queue then
+          process_rq_in_thread n p_stat
+        else (* print_endline "null 0"; *)
+          p_stat
+    | 1 ->
+        if not @@ Queue.is_empty t_stat.cache_ack_queue then
+          process_ack_in_thread n p_stat
+        else (* print_endline "null 1"; *)
+          p_stat
+    | 2 ->
+        if not @@ Queue.is_empty t_stat.cache_request_queue then
+          process_rq_in_thread n p_stat
+        else (* print_endline "null 2"; *)
+          p_stat
+    | _ -> failwith "Random.int works incorrectly :)"
 
-           helper (exec_stmt_or_process_cache n p_stat))
-         else p_stat
-       in
-       let res_p_stat = helper p_stat in
-       flush_all_caches res_p_stat;
-       res_p_stat
-   end *)
+  (* let exec_next_instr n p_stat = *)
+
+  let rec insert_wmb_in_compound_stmt compound_stmt =
+    match compound_stmt with
+    | IF (e, stmt_list) -> IF (e, insert_wmb_before_assignments stmt_list)
+    | IF_ELSE (e, stmts1, stmts2) ->
+        IF_ELSE
+          ( e,
+            insert_wmb_before_assignments stmts1,
+            insert_wmb_before_assignments stmts2 )
+    | WHILE (e, stmt_list) -> WHILE (e, insert_wmb_before_assignments stmt_list)
+    | _ -> failwith "not compound stmt"
+
+  and insert_wmb_before_assignments stmt_list =
+    let rec helper stmts acc =
+      match stmts with
+      | [] -> acc
+      | stmt :: tl when List.length acc > 0 -> (
+          match stmt with
+          | ASSIGN (_, _) -> helper tl (acc @ [ SMP_WMB; stmt ])
+          | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
+              helper tl (acc @ [ insert_wmb_in_compound_stmt stmt ])
+          | _ -> helper tl (acc @ [ stmt ]))
+      | stmt :: tl -> (
+          match stmt with
+          | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
+              helper tl (acc @ [ insert_wmb_in_compound_stmt stmt ])
+          | _ -> helper tl (acc @ [ stmt ]))
+    in
+    helper stmt_list []
+
+  let insert_wmb_to_thread_for_tso thread =
+    match thread with
+    | THREAD (n, stmt_list) ->
+        THREAD (n, insert_wmb_before_assignments stmt_list)
+
+  let insert_wmb_to_prog_for_tso p =
+    match p with
+    | PROG thread_list ->
+        let threads = List.map insert_wmb_to_thread_for_tso thread_list in
+        PROG threads
+
+  let rec expr_has_loads_from_vars = function
+    | INT _ -> false
+    | VAR_NAME _ -> true
+    | REGISTER _ -> false
+    | PLUS (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
+    | SUB (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
+    | MUL (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
+    | DIV (l, r) -> expr_has_loads_from_vars l || expr_has_loads_from_vars r
+
+  let rec insert_rmb_in_compound_stmt compound_stmt =
+    match compound_stmt with
+    | IF (e, stmt_list) -> IF (e, insert_rmb stmt_list)
+    | IF_ELSE (e, stmts1, stmts2) ->
+        IF_ELSE (e, insert_rmb stmts1, insert_rmb stmts2)
+    | WHILE (e, stmt_list) -> WHILE (e, insert_rmb stmt_list)
+    | _ -> failwith "not compound stmt"
+
+  and insert_rmb stmt_list =
+    let rec helper stmts acc =
+      match stmts with
+      | [] -> acc
+      | stmt :: tl when List.length acc > 0 -> (
+          match stmt with
+          | ASSERT _ -> helper tl (acc @ [ SMP_RMB; stmt ])
+          | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
+              helper tl (acc @ [ SMP_RMB; insert_rmb_in_compound_stmt stmt ])
+          | ASSIGN (_, r) -> (
+              match expr_has_loads_from_vars r with
+              | true -> helper tl (acc @ [ SMP_RMB; stmt ])
+              | false -> helper tl (acc @ [ stmt ]))
+          | _ -> helper tl (acc @ [ stmt ]))
+      | stmt :: tl -> (
+          match stmt with
+          | IF (_, _) | WHILE (_, _) | IF_ELSE (_, _, _) ->
+              helper tl (acc @ [ insert_rmb_in_compound_stmt stmt ])
+          | _ -> helper tl (acc @ [ stmt ]))
+    in
+    helper stmt_list []
+
+  let insert_rmb_to_thread_for_tso thread =
+    match thread with THREAD (n, stmt_list) -> THREAD (n, insert_rmb stmt_list)
+
+  let insert_rmb_to_prog_for_tso p =
+    match p with
+    | PROG thread_list ->
+        let threads = List.map insert_rmb_to_thread_for_tso thread_list in
+        PROG threads
+
+  let insert_barriers_for_tso p =
+    p |> insert_rmb_to_prog_for_tso |> insert_wmb_to_prog_for_tso
+
+  let exec_prog_in_tso p =
+    match p with
+    | PROG thread_list ->
+        let p =
+          if List.length thread_list > 1 then insert_barriers_for_tso p else p
+        in
+        let p_stat = init_prog_stat p in
+        let rec helper p_stat =
+          if (* prog_is_not_finished p_stat  *)
+             not @@ all_stmts_executed p_stat
+          then (
+            (* print_p_stat p_stat; *)
+            let n = choose_not_finished_thread p_stat in
+            if Random.int 1000 = 0 then
+              process_one_element_of_inv_q (get_thread p_stat n)
+            else ();
+            helper (exec_stmt_or_process_cache n p_stat))
+          else (
+            print_p_stat p_stat;
+            p_stat)
+        in
+        let res_p_stat = helper p_stat in
+        flush_all_caches res_p_stat;
+        res_p_stat
+
+  (* нужно вручную использовать функцию insert_barriers_for_tso при создании p_stat,
+     который будет подан на вход этой функции. Иначе встроенных барьеров характерных для TSO
+     НЕ БУДЕТ!
+     Эта ф-ия применяется, когда перед исполнением нужно задать кэшам определенное состояние, как сделано
+     в тестах.
+     Наверное можно сделать аргументами программу prog и ф-ию, которая задаст кэшу нужное состояние
+  *)
+  (* let exec_prog_stat p_stat =
+     let rec helper p_stat =
+       if prog_is_not_finished p_stat then (
+         let n = choose_not_finished_thread p_stat in
+         if Random.int 1000 = 0 then
+           process_one_element_of_inv_q (get_thread p_stat n)
+         else ();
+         helper (exec_stmt_or_process_cache n p_stat))
+       else p_stat
+     in
+     let res_p_stat = helper p_stat in
+     flush_all_caches res_p_stat;
+     res_p_stat *)
+
+  let exec_prog_stat p_stat =
+    let rec helper p_stat =
+      if (* prog_is_not_finished p_stat  *)
+         not @@ all_stmts_executed p_stat then (
+        (* print_p_stat p_stat; *)
+        let n = choose_not_finished_thread p_stat in
+        if Random.int 1000 = 0 then
+          process_one_element_of_inv_q (get_thread p_stat n)
+        else ();
+        helper (exec_stmt_or_process_cache n p_stat))
+      else (
+        print_p_stat p_stat;
+        p_stat)
+    in
+    let res_p_stat = helper p_stat in
+    flush_all_caches res_p_stat;
+    res_p_stat
+
+  let rec exec_trace p_stat trace =
+    if List.length trace > 0 then
+      match List.hd trace with
+      | n, Exec_stmt ->
+          exec_trace (exec_single_stmt_in_thread n p_stat) (List.tl trace)
+      | n, Proc_rq -> exec_trace (process_rq_in_thread n p_stat) (List.tl trace)
+      | n, Proc_ack ->
+          exec_trace (process_ack_in_thread n p_stat) (List.tl trace)
+    else p_stat
+
+  let get_available_moves p_stat =
+    if all_stmts_executed p_stat then []
+    else
+      let helper p_stat =
+        let get_moves_for_thread n t_stat =
+          let moves = [] in
+          let moves =
+            if
+              List.hd t_stat.counters < t_stat.length
+              && not t_stat.pending_load.is_pending
+            then (n, Exec_stmt) :: moves
+            else moves
+          in
+          let moves =
+            if not (Queue.is_empty t_stat.cache_request_queue) then
+              (n, Proc_rq) :: moves
+            else moves
+          in
+          let moves =
+            if not (Queue.is_empty t_stat.cache_ack_queue) then
+              (n, Proc_ack) :: moves
+            else moves
+          in
+          moves
+        in
+        let lists =
+          List.mapi
+            (fun i t_stat -> get_moves_for_thread i t_stat)
+            p_stat.threads
+        in
+        List.concat lists
+      in
+      helper p_stat
+
+  type pair = { total : int; was_executed : int }
+
+  type database = { data : (step list, pair) Hashtbl.t }
+
+  let print_table table =
+    Hashtbl.iter
+      (fun trace pair ->
+        print_endline
+          (show_trace trace ^ " " ^ string_of_int pair.total ^ " "
+          ^ string_of_int pair.was_executed))
+      table
+
+  exception Done of string
+
+  let reach_leaf p_stat table max_depth =
+    let cur_p_stat = ref p_stat in
+    let flag = ref false in
+    (* let leaf = ref !cur_p_stat in *)
+    while List.length !cur_p_stat.trace < max_depth && !flag = false do
+      (* print_endline (string_of_int (List.length !cur_p_stat.trace)); *)
+      match Hashtbl.find_opt table !cur_p_stat.trace with
+      | None ->
+          let moves = get_available_moves !cur_p_stat in
+          Hashtbl.add table !cur_p_stat.trace
+            { total = List.length moves; was_executed = 0 };
+          if List.length moves = 0 then flag := true (* leaf := !cur_p_stat *)
+          else
+            let move =
+              List.nth moves (Hashtbl.find table !cur_p_stat.trace).was_executed
+            in
+            let next_p_stat = exec_trace !cur_p_stat [ move ] in
+            cur_p_stat := next_p_stat
+      | Some pair ->
+          let moves = get_available_moves !cur_p_stat in
+          if List.length moves > pair.was_executed then
+            let move = List.nth moves pair.was_executed in
+            let next_p_stat = exec_trace !cur_p_stat [ move ] in
+            cur_p_stat := next_p_stat
+          else raise (Done "all executions checked!")
+    done;
+    (* !leaf *)
+    !cur_p_stat
+
+  let rec process_table table trace =
+    if List.length trace = 0 then print_endline "THE END!!!"
+    else
+      let reduced_trace = reduce trace in
+      let pair = Hashtbl.find table reduced_trace in
+      Hashtbl.replace table reduced_trace
+        { pair with was_executed = pair.was_executed + 1 };
+      let updated_pair = Hashtbl.find table reduced_trace in
+      if updated_pair.total = updated_pair.was_executed then (
+        if List.length reduced_trace <> 0 then
+          Hashtbl.remove table reduced_trace
+        else ();
+        process_table table reduced_trace)
+      else ()
+
+  let process_leaf p_stat table i =
+    if List.length @@ get_available_moves p_stat <> 0 then ()
+      (* print_endline "too deep" *)
+    else (
+      print_endline ("execution " ^ string_of_int i);
+      print_p_stat p_stat);
+    Hashtbl.remove table p_stat.trace;
+    process_table table p_stat.trace
+
+  let prepare_for_test2 p_stat =
+    add_entry_to_cache (get_thread p_stat 0).cache "x" 0;
+    add_entry_to_cache (get_thread p_stat 1).cache "x" 0;
+    add_entry_to_cache (get_thread p_stat 0).cache "y" 0;
+    add_entry_to_cache (get_thread p_stat 1).cache "y" 0;
+    change_mesi_state (get_thread p_stat 0).cache "x" Shared;
+    change_mesi_state (get_thread p_stat 1).cache "x" Shared;
+    change_mesi_state (get_thread p_stat 0).cache "y" Shared;
+    change_mesi_state (get_thread p_stat 1).cache "y" Shared
+
+  let try_all_executions p max_depth =
+    let helper p =
+      let p = insert_barriers_for_tso p in
+      let p_stat = init_prog_stat p in
+      prepare_for_test2 p_stat;
+      p_stat
+    in
+    (* let p_stat = init_prog_stat p in *)
+    let table = { data = Hashtbl.create 4 } in
+    let i = ref 1 in
+    try
+      while true do
+        let leaf = reach_leaf (init_prog_stat p) table.data max_depth in
+        (* print_endline ("execution " ^ string_of_int !i); *)
+        process_leaf leaf table.data !i;
+        if !i mod 100000 = 0 then
+          print_endline ("execution number " ^ string_of_int !i)
+        else ();
+        i := !i + 1
+      done
+    with Done msg ->
+      print_endline msg;
+      print_endline ("total executions = " ^ string_of_int !i);
+      print_endline ("size = " ^ string_of_int (Hashtbl.length table.data))
+
+  let table = { data = Hashtbl.create 4 }
+
+  let p = parse_prog {|
+  a<-1 ||| b<-1
+  EAX<-2 ||| EBX <- a|}
+
+  let p_stat = init_prog_stat p
+end
 
 let s1 = {|
-a<-1    ||| while (b-1) {}
-b<-1    ||| assert(a)
-|}
+   a<-1    ||| while (b-1) {}
+   b<-1    ||| assert(a)
+   |}
 
 let s2 = {|
-x<-1   ||| y<-1
-EAX<-y   ||| EBX<-x
-|}
+   x<-1   ||| y<-1
+   EAX <- y ||| EBX <- x
+   |}
 
-(* open Parser
-   open TSO
+(* open Parser *)
+open TSO
 
-   let p1 = parse_prog s1
-   (* |> insert_barriers_for_tso *)
+let p1 = parse_prog s1
+(* |> insert_barriers_for_tso *)
 
-   let p2 = parse_prog s2
-   (* |> insert_barriers_for_tso *)
+let p2 = parse_prog s2
+(* |> insert_barriers_for_tso *)
 
-   let prepare_for_test p_stat =
-     add_entry_to_cache (get_thread p_stat 0).cache "a" 0;
-     add_entry_to_cache (get_thread p_stat 1).cache "a" 0;
-     add_entry_to_cache (get_thread p_stat 0).cache "b" 0;
-     change_mesi_state (get_thread p_stat 0).cache "a" Shared;
-     change_mesi_state (get_thread p_stat 1).cache "a" Shared
+let prepare_for_test p_stat =
+  add_entry_to_cache (get_thread p_stat 0).cache "a" 0;
+  add_entry_to_cache (get_thread p_stat 1).cache "a" 0;
+  add_entry_to_cache (get_thread p_stat 0).cache "b" 0;
+  change_mesi_state (get_thread p_stat 0).cache "a" Shared;
+  change_mesi_state (get_thread p_stat 1).cache "a" Shared
 
-   (* для теста на модель TSO, т.е на StoreLoad barrier *)
-   let prepare_for_test2 p_stat =
-     add_entry_to_cache (get_thread p_stat 0).cache "x" 0;
-     add_entry_to_cache (get_thread p_stat 1).cache "x" 0;
-     add_entry_to_cache (get_thread p_stat 0).cache "y" 0;
-     add_entry_to_cache (get_thread p_stat 1).cache "y" 0;
-     change_mesi_state (get_thread p_stat 0).cache "x" Shared;
-     change_mesi_state (get_thread p_stat 1).cache "x" Shared;
-     change_mesi_state (get_thread p_stat 0).cache "y" Shared;
-     change_mesi_state (get_thread p_stat 1).cache "y" Shared
+(* для теста на модель TSO, т.е на StoreLoad barrier *)
+let prepare_for_test2 p_stat =
+  add_entry_to_cache (get_thread p_stat 0).cache "x" 0;
+  add_entry_to_cache (get_thread p_stat 1).cache "x" 0;
+  add_entry_to_cache (get_thread p_stat 0).cache "y" 0;
+  add_entry_to_cache (get_thread p_stat 1).cache "y" 0;
+  change_mesi_state (get_thread p_stat 0).cache "x" Shared;
+  change_mesi_state (get_thread p_stat 1).cache "x" Shared;
+  change_mesi_state (get_thread p_stat 0).cache "y" Shared;
+  change_mesi_state (get_thread p_stat 1).cache "y" Shared
 
-   let test_store_load_barrier () =
-     let get_p_stat_for_test2 () =
-       let p = insert_barriers_for_tso p2 in
-       let p_stat = init_prog_stat p in
-       prepare_for_test2 p_stat;
-       p_stat
-     in
-     let i = 0 in
-     let cnt = ref i in
-     while true do
-       print_string @@ "iteration " ^ string_of_int !cnt ^ ": ";
-       let res = exec_prog_stat (get_p_stat_for_test2 ()) in
-       assert (Hashtbl.find res.ram "a" = 1 || Hashtbl.find res.ram "b" = 1);
-       cnt := !cnt + 1;
-       print_endline @@ "success"
-     done
+let test_store_load_barrier () =
+  let get_p_stat_for_test2 () =
+    let p = insert_barriers_for_tso p2 in
+    let p_stat = init_prog_stat p in
+    prepare_for_test2 p_stat;
+    p_stat
+  in
+  let i = 0 in
+  let cnt = ref i in
+  while true do
+    print_string @@ "iteration " ^ string_of_int !cnt ^ ": ";
+    let res = exec_prog_stat (get_p_stat_for_test2 ()) in
+    (* assert (Hashtbl.find res.ram "a" = 1 || Hashtbl.find res.ram "b" = 1); *)
+    assert (
+      Hashtbl.find (get_thread res 0).registers "EAX" = 1
+      || Hashtbl.find (get_thread res 1).registers "EBX" = 1);
+    cnt := !cnt + 1;
+    print_endline @@ "success"
+  done
 
-   let test_wmb_and_rmb () =
-     let get_p_stat_for_test () =
-       let p = insert_barriers_for_tso p1 in
-       let p_stat = init_prog_stat p in
-       prepare_for_test p_stat;
-       p_stat
-     in
-     let i = 0 in
-     let cnt = ref i in
+let test_wmb_and_rmb () =
+  let get_p_stat_for_test () =
+    let p = insert_barriers_for_tso p1 in
+    let p_stat = init_prog_stat p in
+    prepare_for_test p_stat;
+    p_stat
+  in
+  let i = 0 in
+  let cnt = ref i in
 
-     while true do
-       print_string @@ "iteration " ^ string_of_int !cnt ^ ": ";
-       let _ = exec_prog_stat (get_p_stat_for_test ()) in
-       cnt := !cnt + 1;
-       print_endline @@ "success"
-     done *)
+  while true do
+    print_string @@ "iteration " ^ string_of_int !cnt ^ ": ";
+    let _ = exec_prog_stat (get_p_stat_for_test ()) in
+    cnt := !cnt + 1;
+    print_endline @@ "success"
+  done
