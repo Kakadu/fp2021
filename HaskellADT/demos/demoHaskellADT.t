@@ -39,10 +39,10 @@ $ ./demoHaskellADT.exe <<-EOF
 > c = surface circle
 abs = <fun>
 surface = <fun>
-p1 = Point (0, 0)
-p2 = Point (3, 4)
-rect = Rectangle (Point (0, 0), Point (3, 4))
-circle = Circle (Point (0, 0), 3)
+p1 = (Point 0 0)
+p2 = (Point 3 4)
+rect = (Rectangle (Point 0 0) (Point 3 4))
+circle = (Circle (Point 0 0) 3)
 s = 12
 c = 27
 ============================
@@ -92,11 +92,11 @@ peekRoot = <fun>
 helper = <fun>
 changeToMin = <fun>
 size = <fun>
-t = Empty ()
-t1 = Node (Empty (), 3, Empty ())
-t2 = Node (Node (Empty (), 3, Empty ()), 1, Empty ())
-t3 = Node (Node (Node (Empty (), 3, Empty ()), 1, Empty ()), 0, Empty ())
-t4 = Node (Node (Node (Empty (), 0, Empty ()), 0, Empty ()), 0, Empty ())
+t = (Empty )
+t1 = (Node (Empty ) 3 (Empty ))
+t2 = (Node (Node (Empty ) 3 (Empty )) 1 (Empty ))
+t3 = (Node (Node (Node (Empty ) 3 (Empty )) 1 (Empty )) 0 (Empty ))
+t4 = (Node (Node (Node (Empty ) 0 (Empty )) 0 (Empty )) 0 (Empty ))
 ============================
 $ ./demoHaskellADT.exe <<-EOF
 > minus xs ys = case xs of
@@ -115,9 +115,10 @@ $ ./demoHaskellADT.exe <<-EOF
 > 
 > primesTo n = eratos n (lstGen 2 n 1)
 > 
-> x = primesTo 20
+> x = primesTo 100
 minus = <fun>
 lstGen = <fun>
 eratos = <fun>
 primesTo = <fun>
-x = [2, 3, 5, 7, 11, 13, 17, 19]
+x = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
+============================
