@@ -388,6 +388,27 @@ let parse_test code expected =
     false
 ;;
 
+(* let () =
+  let code =
+    {|
+    data Tree = Empty | Node Tree Int Tree
+
+    addToTree d t = case t of
+        Empty -> Node Empty d Empty
+        (Node l d' r) -> if d < d' 
+            then (Node (Node l d' r) d Empty)
+            else (Node (Node l d Empty) d' r) 
+
+    peekRoot t = case t of
+        Empty -> error "Empty tree\n"
+        (Node _ d _) -> d
+    |}
+  in
+  match parse_with prog code with
+  | Ok ok -> Format.printf "%a\n" pp_prog ok
+  | Error err -> Format.printf "%s\n" err
+;; *)
+
 let%test _ =
   parse_test
     {|
