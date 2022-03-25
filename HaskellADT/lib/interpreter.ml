@@ -76,6 +76,17 @@ end = struct
     | Not_found -> fail (Unbound name)
   ;;
 
+  let print_map (m : 'a option ref BindsMap.t) =
+    let string_of_option = function
+      | { contents = Some _ } -> "Some"
+      | { contents = None } -> "None"
+    in
+    let print_note key (value : 'a option ref) =
+      print_string (key ^ ": " ^ string_of_option value ^ "\n")
+    in
+    BindsMap.iter print_note m
+  ;;
+
   let extend_env env binds =
     List.fold_left (fun env (id, v) -> BindsMap.add id (ref (Some v)) env) env binds
   ;;
@@ -132,7 +143,8 @@ end = struct
     | _ -> false
   ;;
 
-  let rec eval env = function
+  let rec eval env expr =
+    match expr with
     | EVar name -> look_for_bind env name
     | EConst c ->
       (match c with
