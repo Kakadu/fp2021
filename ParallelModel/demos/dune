@@ -28,6 +28,12 @@
  (public_name demoSC3)
  (libraries parallelmodel_lib))
 
+ (executable
+ (name demoTSO)
+ (modules demoTSO)
+ (public_name demoTSO)
+ (libraries parallelmodel_lib))
+
 (executable
  (name demoParse)
  (modules demoParse)
@@ -35,4 +41,4 @@
  (libraries parallelmodel_lib))
 
 (cram
- (deps ./demoSC1.exe ./demoSC2.exe ./demoSC3.exe ./demoParse.exe))
+ (deps ./demoSC1.exe ./demoSC2.exe ./demoSC3.exe ./demoTSO.exe ./demoParse.exe))
