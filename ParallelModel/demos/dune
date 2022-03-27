@@ -1,44 +1,82 @@
-; (executable
-;  (name demoAO)
-;  (modules demoAO)
-;  (public_name demoAO)
-;  (libraries parallelmodel_lib))
-
-; (executable
-;  (name demoNO)
-;  (modules demoNO)
-;  (public_name demoNO)
-;  (libraries parallelmodel_lib))
-
-(executable
- (name demoSC1)
- (modules demoSC1)
- (public_name demoSC1)
- (libraries parallelmodel_lib))
 
  (executable
- (name demoSC2)
- (modules demoSC2)
- (public_name demoSC2)
- (libraries parallelmodel_lib))
-
- (executable
- (name demoSC3)
- (modules demoSC3)
- (public_name demoSC3)
- (libraries parallelmodel_lib))
-
- (executable
- (name demoTSO)
- (modules demoTSO)
- (public_name demoTSO)
+ (name storeBufferingTSO)
+ (modules storeBufferingTSO)
+ (public_name storeBufferingTSO)
  (libraries parallelmodel_lib))
 
 (executable
- (name demoParse)
- (modules demoParse)
- (public_name demoParse)
+ (name storeBufferingSC)
+ (modules storeBufferingSC)
+ (public_name storeBufferingSC)
  (libraries parallelmodel_lib))
+
+ (executable
+ (name loadBufferingSC)
+ (modules loadBufferingSC)
+ (public_name loadBufferingSC)
+ (libraries parallelmodel_lib))
+
+ (executable
+ (name loadBufferingTSO)
+ (modules loadBufferingTSO)
+ (public_name loadBufferingTSO)
+ (libraries parallelmodel_lib))
+
+ (executable
+ (name msgPassingSC)
+ (modules msgPassingSC)
+ (public_name msgPassingSC)
+ (libraries parallelmodel_lib))
+
+ (executable
+ (name msgPassingTSO)
+ (modules msgPassingTSO)
+ (public_name msgPassingTSO)
+ (libraries parallelmodel_lib))
+
+ (executable
+ (name readReadCoherenceSC)
+ (modules readReadCoherenceSC)
+ (public_name readReadCoherenceSC)
+ (libraries parallelmodel_lib))
+
+ (executable
+ (name readReadCoherenceTSO)
+ (modules readReadCoherenceTSO)
+ (public_name readReadCoherenceTSO)
+ (libraries parallelmodel_lib))
+
+ 
+ (executable
+ (name independentReadsOfIndependentWritesSC)
+ (modules independentReadsOfIndependentWritesSC)
+ (public_name independentReadsOfIndependentWritesSC)
+ (libraries parallelmodel_lib))
+
+ (executable
+ (name independentReadsOfIndependentWritesTSO)
+ (modules independentReadsOfIndependentWritesTSO)
+ (public_name independentReadsOfIndependentWritesTSO)
+ (libraries parallelmodel_lib))
+
+(executable
+ (name writeToReadCausalitySC)
+ (modules writeToReadCausalitySC)
+ (public_name writeToReadCausalitySC)
+ (libraries parallelmodel_lib))
+
+ (executable
+ (name writeToReadCausalityTSO)
+ (modules writeToReadCausalityTSO)
+ (public_name writeToReadCausalityTSO)
+ (libraries parallelmodel_lib))
+ 
+
+ 
 
 (cram
- (deps ./demoSC1.exe ./demoSC2.exe ./demoSC3.exe ./demoTSO.exe ./demoParse.exe))
+ (deps ./storeBufferingTSO.exe ./storeBufferingSC.exe ./loadBufferingSC.exe ./loadBufferingTSO.exe
+ ./msgPassingSC.exe ./msgPassingTSO.exe ./readReadCoherenceSC.exe ./readReadCoherenceTSO.exe
+ ./independentReadsOfIndependentWritesSC.exe ./independentReadsOfIndependentWritesTSO.exe
+ ./writeToReadCausalitySC.exe ./writeToReadCausalityTSO.exe ))

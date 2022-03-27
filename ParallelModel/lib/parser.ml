@@ -79,12 +79,17 @@ let div = token "/" *> return (fun e1 e2 -> DIV (e1, e2))
 
 let is_big_letter = function 'A' .. 'Z' -> true | _ -> false
 
-let registers = [ "EAX"; "EBX" ]
+let registers = [ "EAX"; "EBX"; "r1"; "r2"; "r3"; "r4" ]
 
 let is_register name = List.mem name registers
 
 let reg =
-  space *> take_while1 is_big_letter >>= fun s ->
+  let is_allowed_var_name_char = function
+    | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> true
+    | _ -> false
+  in
+  (* space *> take_while1 is_big_letter >>= fun s -> *)
+  space *> take_while1 is_allowed_var_name_char >>= fun s ->
   match is_register s with
   | true -> return @@ REGISTER s
   | false -> fail "No register with such name"
@@ -134,15 +139,13 @@ let expr =
 let end_of_instr = choice [ token "\n"; token "|||" *> skip_rest_of_line ]
 
 let mem_barrier thread_num =
-  let smp_rmb = token "smp_rmb" *> return SMP_RMB in
-  let smp_wmb = token "smp_wmb" *> return SMP_WMB in
   let smp_mb = token "smp_mb" *> return SMP_MB in
-  cross_n_delims thread_num *> (smp_rmb <|> smp_wmb <|> smp_mb) <* end_of_instr
+  cross_n_delims thread_num *> smp_mb <* end_of_instr
 
-let assert_stmt thread_num =
-  cross_n_delims thread_num *> token "assert" *> token "(" *> expr
-  <* token ")" <* end_of_instr
-  >>= fun e -> return @@ ASSERT e
+(* let assert_stmt thread_num =
+   cross_n_delims thread_num *> token "assert" *> token "(" *> expr
+   <* token ")" <* end_of_instr
+   >>= fun e -> return @@ ASSERT e *)
 
 let assignment thread_num =
   cross_n_delims thread_num *> (reg <|> var_name) >>= fun named_loc ->
@@ -177,10 +180,10 @@ let block stmt_parser thread_number =
   in
   choice [ correct_block; empty_block ]
 
-let while_stmt stmt_parser thread_num =
-  cross_n_delims thread_num *> token "while" *> token "(" *> expr <* token ")"
-  >>= fun e ->
-  block stmt_parser thread_num >>= fun block -> return @@ WHILE (e, block)
+(* let while_stmt stmt_parser thread_num =
+   cross_n_delims thread_num *> token "while" *> token "(" *> expr <* token ")"
+   >>= fun e ->
+   block stmt_parser thread_num >>= fun block -> return @@ WHILE (e, block) *)
 
 let if_stmt stmt_parser thread_number =
   cross_n_delims thread_number *> token "if" *> token "(" *> expr <* token ")"
@@ -204,9 +207,11 @@ let stmt thread_number =
   fix (fun stmt ->
       if_else_stmt stmt thread_number
       <|> if_stmt stmt thread_number
-      <|> while_stmt stmt thread_number
-      <|> assignment thread_number <|> assert_stmt thread_number
-      <|> mem_barrier thread_number <|> no_op thread_number)
+      (* <|> while_stmt stmt thread_number *)
+      <|> assignment thread_number
+      (* <|> assert_stmt thread_number *)
+      <|> mem_barrier thread_number
+      <|> no_op thread_number)
 
 let thread n = many (stmt n) >>= fun stmts -> return @@ THREAD (n, stmts)
 

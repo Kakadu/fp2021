@@ -9,13 +9,11 @@ type expr =
 [@@deriving show { with_path = false }]
 
 type stmt =
-  | ASSERT of expr
+  (* | ASSERT of expr *)
   | ASSIGN of expr * expr
-  | WHILE of expr * stmt list
+  (* | WHILE of expr * stmt list *)
   | IF of expr * stmt list
   | IF_ELSE of expr * stmt list * stmt list
-  | SMP_RMB
-  | SMP_WMB
   | SMP_MB
   | NO_OP
 [@@deriving show { with_path = false }]
