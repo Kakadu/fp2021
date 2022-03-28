@@ -76,7 +76,7 @@ let ecase e ls = ECase (e, ls)
 let ector id e = ECtor (id, e)
 
 let efun args rhs =
-  let helper p e = EFun (p, e) in
+  let helper p e = EFun (p, e, BindsMap.empty) in
   List.fold_right args ~f:helper ~init:rhs
 ;;
 
@@ -381,7 +381,7 @@ let parse_test code expected =
     (match List.equal equal_decl ok expected with
     | true -> true
     | false ->
-      Caml.Format.printf "Expected: %a\nActual: %a\n" pp_prog expected pp_prog ok;
+      (* Caml.Format.printf "Expected: %a\nActual: %a\n" pp_prog expected pp_prog ok; *)
       false)
   | Error err ->
     Caml.Format.printf "Error: %s\n" err;
@@ -391,17 +391,10 @@ let parse_test code expected =
 (* let () =
   let code =
     {|
-    data Tree = Empty | Node Tree Int Tree
-
-    addToTree d t = case t of
-        Empty -> Node Empty d Empty
-        (Node l d' r) -> if d < d' 
-            then (Node (Node l d' r) d Empty)
-            else (Node (Node l d Empty) d' r) 
-
-    peekRoot t = case t of
-        Empty -> error "Empty tree\n"
-        (Node _ d _) -> d
+    map f xs = case xs of
+             [] -> []
+             hs:tl -> (f hs) : map f tl
+xs = map (\x -> x * 10) [1,2,3,4]
     |}
   in
   match parse_with prog code with
@@ -445,8 +438,12 @@ let%test _ =
             ( PVar "xs"
             , EApp
                 ( EApp
-                    (EVar "map", EFun (PVar "x", EBinOp (Mul, EConst (CInt 2), EVar "x")))
-                , EVar "xs" ) ) )
+                    ( EVar "map"
+                    , EFun
+                        (PVar "x", EBinOp (Mul, EConst (CInt 2), EVar "x"), BindsMap.empty)
+                    )
+                , EVar "xs" )
+            , BindsMap.empty ) )
     ]
 ;;
 
@@ -456,8 +453,17 @@ let%test _ =
     f x y = x * y
     f5 x = f 5 x
   |}
-    [ DLet (PVar "f", EFun (PVar "x", EFun (PVar "y", EBinOp (Mul, EVar "x", EVar "y"))))
-    ; DLet (PVar "f5", EFun (PVar "x", EApp (EApp (EVar "f", EConst (CInt 5)), EVar "x")))
+    [ DLet
+        ( PVar "f"
+        , EFun
+            ( PVar "x"
+            , EFun (PVar "y", EBinOp (Mul, EVar "x", EVar "y"), BindsMap.empty)
+            , BindsMap.empty ) )
+    ; DLet
+        ( PVar "f5"
+        , EFun
+            (PVar "x", EApp (EApp (EVar "f", EConst (CInt 5)), EVar "x"), BindsMap.empty)
+        )
     ]
 ;;
 
@@ -485,12 +491,17 @@ let%test _ =
                                   , EIf
                                       ( EBinOp (GT, EVar "x", EConst (CInt 0))
                                       , EVar "x"
-                                      , EBinOp (Sub, EConst (CInt 0), EVar "x") ) ) )
+                                      , EBinOp (Sub, EConst (CInt 0), EVar "x") )
+                                  , BindsMap.empty ) )
                             , EBinOp
                                 ( Mul
                                 , EApp (EVar "abs", EBinOp (Sub, EVar "x1", EVar "x2"))
                                 , EApp (EVar "abs", EBinOp (Sub, EVar "y1", EVar "y2")) )
-                            ) ) ) ) ) )
+                            )
+                        , BindsMap.empty )
+                    , BindsMap.empty )
+                , BindsMap.empty )
+            , BindsMap.empty ) )
     ]
 ;;
 
@@ -519,8 +530,11 @@ let%test _ =
                               , EApp
                                   ( EApp
                                       (EVar "helper", EBinOp (Mul, EVar "acc", EVar "n"))
-                                  , EBinOp (Sub, EVar "n", EConst (CInt 1)) ) ) ) ) )
-                , EApp (EApp (EVar "helper", EConst (CInt 1)), EVar "x") ) ) )
+                                  , EBinOp (Sub, EVar "n", EConst (CInt 1)) ) )
+                          , BindsMap.empty )
+                      , BindsMap.empty ) )
+                , EApp (EApp (EVar "helper", EConst (CInt 1)), EVar "x") )
+            , BindsMap.empty ) )
     ]
 ;;
 
@@ -585,7 +599,8 @@ let%test _ =
         ( PVar "surface"
         , EFun
             ( PAdt ("Circle", PTuple [ PWild; PVar "r" ])
-            , EBinOp (Mul, EVar "p", EBinOp (Mul, EVar "r", EVar "r")) ) )
+            , EBinOp (Mul, EVar "p", EBinOp (Mul, EVar "r", EVar "r"))
+            , BindsMap.empty ) )
     ; DLet
         ( PVar "surface"
         , EFun
@@ -598,6 +613,7 @@ let%test _ =
             , EBinOp
                 ( Mul
                 , EApp (EVar "abs", EBinOp (Sub, EVar "x1", EVar "x2"))
-                , EApp (EVar "abs", EBinOp (Sub, EVar "y1", EVar "y2")) ) ) )
+                , EApp (EVar "abs", EBinOp (Sub, EVar "y1", EVar "y2")) )
+            , BindsMap.empty ) )
     ]
 ;;
