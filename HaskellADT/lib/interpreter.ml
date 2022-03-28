@@ -451,7 +451,7 @@ data Shape = Circle Point Int
 circle = Circle (Point 0 0) 4
 s = let surface s = case s of 
           (Circle _ r) -> 3 * r * r 
-in surface circle|}
+        in surface circle|}
     [ ( "circle"
       , ECtor ("Circle", ETuple [ ECtor ("Point", ETuple [ cint 0; cint 0 ]); cint 4 ]) )
     ; "s", cint 48
