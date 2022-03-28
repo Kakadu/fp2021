@@ -401,7 +401,9 @@ module SequentialConsistency = struct
             print_endline "<><><><><><><><><><><><><><><><><><>")
       p_stats_results
 
-  let show_execution_statistics results check_property descr =
+  let show_execution_statistics results check_property descr code =
+    print_endline "Code:";
+    print_endline code;
     let rec helper results checker errors oks not_oks =
       if List.length results = 0 then [ errors; oks; not_oks ]
       else
@@ -447,6 +449,12 @@ module SequentialConsistency = struct
       else p_stats_results
     in
     helper [ return p_stat ]
+
+  let get_reg_val p_stat n r_name =
+    snd
+      (List.find
+         (fun (s, _) -> s = r_name)
+         (List.nth p_stat.threads n).registers)
 end
 
 module TSO = struct
@@ -939,7 +947,9 @@ module TSO = struct
             print_endline "<><><><><><><><><><><><><><><><><><>")
       p_stats_results
 
-  let show_execution_statistics results check_property descr =
+  let show_execution_statistics results check_property descr code =
+    print_endline "Code:";
+    print_endline code;
     let rec helper results checker errors oks not_oks =
       if List.length results = 0 then [ errors; oks; not_oks ]
       else
@@ -985,4 +995,10 @@ module TSO = struct
       else p_stats_results
     in
     helper [ return p_stat ]
+
+  let get_reg_val p_stat n r_name =
+    snd
+      (List.find
+         (fun (s, _) -> s = r_name)
+         (List.nth p_stat.threads n).registers)
 end
