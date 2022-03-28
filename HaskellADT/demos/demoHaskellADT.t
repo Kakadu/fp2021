@@ -100,11 +100,11 @@ t4 = (Node (Node (Node (Empty ) 0 (Empty )) 0 (Empty )) 0 (Empty ))
 ============================
 $ ./demoHaskellADT.exe <<-EOF
 > minus xs ys = case xs of
->     (x:xs) -> case ys of
->         (y:ys) -> if (x < y) then x : minus xs (y:ys) else
->                   if (x == y) then minus xs ys else
->                   minus (x:xs) ys
->         tl -> x:xs
+>     (hx:tx) -> case ys of
+>         (hy:ty) -> if (hx < hy) then hx : minus tx (hy:ty) else
+>                   if (hx == hy) then minus tx ty else
+>                   minus (hx:tx) ty
+>         tl -> hx:tx
 >     tl -> tl
 > 
 > lstGen fst last step = if fst <= (last - step) then fst:(lstGen (fst+step) last step) else fst:[]
@@ -121,4 +121,11 @@ lstGen = <fun>
 eratos = <fun>
 primesTo = <fun>
 x = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
+============================
+$ ./demoHaskellADT.exe <<-EOF
+> strangeFunc x = 22
+> 
+> x = strangeFunc (15 / 0)
+strangeFunc = <fun>
+x = 22
 ============================
