@@ -8,15 +8,9 @@ Author: Ivan Azarnikov, st076357@student.spbu.ru
 
 Features done (append only):
 
-- Parser  (for example)
-- interpreter of non-recursive functions (for example)
-- ...
-
-Features in progress (and TODOs):
-
-- Interpreter of recursive functions is not yet ready  (for example)
-- TODO: make pretty-printing less memory consuming (for example)
-- ...
+- Parser
+- Interpreter
+- Lazy evaluations
 
 
 ##### Замечания по стилю кодирования
