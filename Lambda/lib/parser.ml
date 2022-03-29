@@ -20,15 +20,9 @@ let conde = function
 ;;
 
 type dispatch =
-  { apps : dispatch -> string Ast.t Angstrom.t
-  ; single : dispatch -> string Ast.t Angstrom.t
+  { apps : dispatch -> char Ast.t Angstrom.t
+  ; single : dispatch -> char Ast.t Angstrom.t
   }
-
-type error = [ `ParsingError of string ]
-
-let pp_error ppf = function
-  | `ParsingError s -> Format.fprintf ppf "%s" s
-;;
 
 let parse_lam =
   let single pack =
@@ -38,9 +32,8 @@ let parse_lam =
           ; ((string "λ" <|> string "\\") *> spaces *> varname
             <* spaces
             <* char '.'
-            >>= fun var ->
-            pack.apps pack >>= fun b -> return (Ast.Abs (String.make 1 var, b)))
-          ; (varname <* spaces >>= fun c -> return (Ast.Var (String.make 1 c)))
+            >>= fun var -> pack.apps pack >>= fun b -> return (Ast.Abs (var, b)))
+          ; (varname <* spaces >>= fun c -> return (Ast.Var c))
           ])
   in
   let apps pack =
@@ -52,33 +45,26 @@ let parse_lam =
   { single; apps }
 ;;
 
-let parse str =
-  match
-    Angstrom.parse_string (parse_lam.apps parse_lam) ~consume:Angstrom.Consume.All str
-  with
-  | Result.Ok x -> Result.Ok x
-  | Error er -> Result.Error (`ParsingError er)
-;;
-
+let parse = Angstrom.parse_string (parse_lam.apps parse_lam) ~consume:Angstrom.Consume.All
 let parse_optimistically str = Result.get_ok (parse str)
-let pp = Printast.pp_named
+let pp = Printast.pp Format.pp_print_char
 
 let%expect_test _ =
   Format.printf "%a" pp (parse_optimistically "x y");
-  [%expect {| (App ((Var x), (Var y))) |}]
+  [%expect {| App (Var (x), Var (y)) |}]
 ;;
 
 let%expect_test _ =
   Format.printf "%a" pp (parse_optimistically "(x y)");
-  [%expect {| (App ((Var x), (Var y))) |}]
+  [%expect {| App (Var (x), Var (y)) |}]
 ;;
 
 let%expect_test _ =
   Format.printf "%a" pp (parse_optimistically "(\\x . x x)");
-  [%expect {| (Abs (x, (App ((Var x), (Var x))))) |}]
+  [%expect {| Abs (x, App (Var (x), Var (x))) |}]
 ;;
 
 let%expect_test _ =
   Format.printf "%a" pp (parse_optimistically "(λf.λx. f (x x))");
-  [%expect {| (Abs (f, (Abs (x, (App ((Var f), (App ((Var x), (Var x))))))))) |}]
+  [%expect {| Abs (f, Abs (x, App (Var (f), App (Var (x), Var (x))))) |}]
 ;;
