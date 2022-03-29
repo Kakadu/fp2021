@@ -30,16 +30,15 @@ and expr =
   | ETuple of expr list (**  ("Tom", "Hardy", 44)  *)
   | ECons of expr * expr (**  h : tl  *)
   | ENull (**  []  *)
-  | EList of expr list (** [1, 2, 3] *)
   | EApp of expr * expr (**  f x y  = (f x) y*)
   | EIf of expr * expr * expr (**  if x >= 5 then "Nice" else "Bad"  *)
-  | ELet of binding * expr (**  let x = 5; y = 10 in x + y  *)
+  | ELet of binding list * expr (**  let x = 5; y = 10 in x + y  *)
   | ECase of expr * case list
       (**  case xs of [] -> -100
                       (x:_) -> x  *)
   | ECtor of id * expr (**  (Point 1 1) *)
   | EFun of pat * expr * env (**  \x -> x + 10  *)
-  | Undefined of id
+  | Undefined
 [@@deriving eq]
 
 and env = expr option ref BindsMap.t [@@derivind eq]

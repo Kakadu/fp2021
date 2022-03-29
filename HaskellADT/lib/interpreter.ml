@@ -12,7 +12,6 @@ end
 let cint i = EConst (CInt i)
 let cstring s = EConst (CString s)
 let cbool b = EConst (CBool b)
-let elist lst = EList lst
 
 let pp_bin_op fmt = function
   | Add -> fprintf fmt "+"
@@ -28,6 +27,19 @@ let pp_bin_op fmt = function
   | _ -> fprintf fmt ""
 ;;
 
+let rec pp_pat fmt = function
+  | PVar name -> fprintf fmt "%s" name
+  | PTuple t ->
+    fprintf fmt "(%a)" (pp_print_list ~pp_sep:(fun _ _ -> fprintf fmt ", ") pp_pat) t
+  | PNull -> fprintf fmt "[]"
+  | PCons (l, r) -> fprintf fmt "%a:%a" pp_pat l pp_pat r
+  | _ -> fprintf fmt "pat?"
+;;
+
+let pp_binding fmt = function
+  | pat, expr -> fprintf fmt "%a = %a" pp_pat pat pp_expr expr
+;;
+
 let rec pp_expr fmt = function
   | EConst c ->
     (match c with
@@ -36,8 +48,6 @@ let rec pp_expr fmt = function
     | CBool b -> fprintf fmt (if b then "True" else "False"))
   | ETuple t ->
     fprintf fmt "(%a)" (pp_print_list ~pp_sep:(fun _ _ -> fprintf fmt ", ") pp_expr) t
-  | EList l ->
-    fprintf fmt "[%a]" (pp_print_list ~pp_sep:(fun _ _ -> fprintf fmt ", ") pp_expr) l
   | EFun _ -> fprintf fmt "<fun>"
   | ECtor (id, value) ->
     let pp_tuple fmt = function
@@ -51,9 +61,18 @@ let rec pp_expr fmt = function
   | EVar name -> fprintf fmt "%s" name
   | EIf (cond, then', else') ->
     fprintf fmt "if %a then %a else %a" pp_expr cond pp_expr then' pp_expr else'
+  | ECons (l, r) -> fprintf fmt "%a:%a" pp_expr l pp_expr r
   | ENull -> fprintf fmt "[]"
-  | Undefined name -> fprintf fmt "Unbound value: %s" name
-  | _ -> fprintf fmt "?"
+  | Undefined -> fprintf fmt "Unbound value"
+  | ELet _ -> fprintf fmt "let"
+  | ECase (expr, lst) ->
+    fprintf
+      fmt
+      "case %a of\n%a"
+      pp_expr
+      expr
+      (pp_print_list ~pp_sep:(fun _ _ -> fprintf fmt "\n") pp_binding)
+      lst
 ;;
 
 type interpret_err =
@@ -99,9 +118,9 @@ end = struct
     try
       match !(BindsMap.find name env) with
       | Some e -> e
-      | None -> Undefined name
+      | None -> Undefined
     with
-    | Not_found -> Undefined name
+    | Not_found -> Undefined
   ;;
 
   let id_equal pat expr =
@@ -110,13 +129,14 @@ end = struct
     | _ -> false
   ;;
 
-  let print_map (m : 'a option ref BindsMap.t) =
+  let print_map (m : expr option ref BindsMap.t) =
     let string_of_option = function
-      | { contents = Some _ } -> "Some"
-      | { contents = None } -> "None"
+      | { contents = Some v } -> printf "%a\n" pp_expr v
+      | { contents = None } -> printf "None"
     in
     let print_note key (value : 'a option ref) =
-      print_string (key ^ ": " ^ string_of_option value ^ "\n")
+      print_string (key ^ ": ");
+      string_of_option value
     in
     BindsMap.iter print_note m
   ;;
@@ -135,8 +155,9 @@ end = struct
   ;;
 
   let rec pattern_decl_bindings pattern expr =
+    (* printf "PDB: %a <~> %a\n" pp_pat pattern pp_expr expr; *)
     match pattern, expr with
-    | PNull, EList [] -> return []
+    | PNull, ENull -> return []
     | PWild, _ -> return []
     | PVar name, v -> return [ name, v ]
     | PConst (CInt c), EConst (CInt v) when c = v -> return []
@@ -145,10 +166,10 @@ end = struct
     | PConst (CString _), EConst (CString _) -> fail Non_exaust
     | PConst (CBool c), EConst (CBool v) when c = v -> return []
     | PConst (CBool _), EConst (CBool _) -> fail Non_exaust
-    | PCons (l, r), EList (hd :: tl) ->
+    | PCons (l, r), ECons (hd, tl) ->
       pattern_decl_bindings l hd
       >>= fun hd_match ->
-      pattern_decl_bindings r (EList tl) >>= fun tl_match -> return (hd_match @ tl_match)
+      pattern_decl_bindings r tl >>= fun tl_match -> return (hd_match @ tl_match)
     | PTuple elems, ETuple vs ->
       (match elems, vs with
       | [], [] -> return []
@@ -163,15 +184,15 @@ end = struct
   ;;
 
   let rec check_pattern pattern expr =
+    (* printf "CHECK_PATTERN: %a ?= %a\n" pp_pat pattern pp_expr expr; *)
     match pattern, expr with
     | PVar _, _ -> true
     | PWild, _ -> true
     | PConst (CInt c), EConst (CInt v) -> c = v
     | PConst (CString c), EConst (CString v) -> c = v
     | PConst (CBool c), EConst (CBool v) -> c = v
-    | PCons (phd, ptl), EList (vhd :: vtl) ->
-      check_pattern phd vhd && check_pattern ptl (EList vtl)
-    | PNull, EList [] -> true
+    | PCons (phd, ptl), ECons (vhd, vtl) -> check_pattern phd vhd && check_pattern ptl vtl
+    | PNull, ENull -> true
     | PTuple p, ETuple v ->
       List.length p = List.length v && List.for_all2 (fun p v -> check_pattern p v) p v
     | PAdt (pid, p), ECtor (vid, v) -> pid = vid && check_pattern p v
@@ -197,16 +218,17 @@ end = struct
     | EConst (CBool x), EConst (CBool y), NE -> return (cbool (x != y))
     | EConst (CString x), EConst (CString y), EQ -> return (cbool (x = y))
     | EConst (CString x), EConst (CString y), NE -> return (cbool (x <> y))
-    | Undefined name, _, _ | _, Undefined name, _ -> fail @@ Unbound name
+    | Undefined, _, _ | _, Undefined, _ -> fail @@ Unbound "name"
     | _ -> fail (Incorrect_eval (EBinOp (op, l, r)))
   ;;
 
   let rec eval : env -> expr -> (expr, interpret_err) t =
    fun env expr ->
+    (* printf "EVAL: %a\n" pp_expr expr; *)
     match expr with
     | EVar name -> return (get_by_name env name)
     | EConst c -> return (EConst c)
-    | ENull -> return (EList [])
+    | ENull -> return ENull
     | EBinOp (op, e1, e2) ->
       let* e1' = eval env e1 in
       let* e2' = eval env e2 in
@@ -222,14 +244,44 @@ end = struct
     | ECons (hd, tl) ->
       let* vhd = eval env hd in
       let* vtl = eval env tl in
-      (match vtl with
-      | EList l -> return (EList (vhd :: l))
-      | _ -> fail (Incorrect_eval vtl))
+      return (ECons (vhd, vtl))
     | EApp _ ->
       let* e = process_application env expr in
       eval env e
-    | ELet (binding, expr) ->
-      let* env = add_binding binding env in
+    | ELet (binding_lst, expr) ->
+      let binds_ll = List.concat_map (fun (pat, _) -> pattern_bindings pat) binding_lst in
+      let env =
+        List.fold_left (fun env id -> BindsMap.add id (ref None) env) env binds_ll
+      in
+      let _ =
+        List.map
+          (fun (pat, expr) ->
+            match pat with
+            | PTuple _ ->
+              let* f = fst env expr in
+              (* printf "FST: %a\n" pp_expr f; *)
+              let* s = snd env expr in
+              let* res = pattern_decl_bindings pat (ETuple [ f; s ]) in
+              List.iter (fun (id, expr) -> BindsMap.find id env := Some expr) res;
+              return []
+            | _ ->
+              let* res = pattern_decl_bindings pat expr in
+              List.iter (fun (id, expr) -> BindsMap.find id env := Some expr) res;
+              return [])
+          binding_lst
+      in
+      (* let binds =
+        let rec helper acc = function
+          | hd :: tl ->
+            let* head = hd in
+            helper (acc @ head) tl
+          | [] -> return acc
+        in
+        helper [] binds'
+      in
+      let* no_monad = binds in
+      (* List.iter (fun (id, value) -> printf "%s <~> %a\n" id pp_expr value) no_monad; *)
+      List.iter (fun (id, value) -> BindsMap.find id env := Some value) no_monad; *)
       eval env expr
     | ECase (expr, cases) ->
       let* value = eval env expr in
@@ -241,10 +293,10 @@ end = struct
     | ECtor (id, expr) ->
       let* value = eval env expr in
       return @@ ector id value
-    | EList _ -> fail (Another "EList") (* EList is impossible here *)
-    | Undefined name -> fail (Unbound name)
+    | Undefined -> fail (Unbound "name")
 
   and add_binding (pattern, expr) env =
+    (* printf "ADD_BINDING: %a <~> %a\n" pp_pat pattern pp_expr expr; *)
     let binds = pattern_bindings pattern in
     let env = List.fold_left (fun env id -> BindsMap.add id (ref None) env) env binds in
     let* value = eval env expr in
@@ -252,7 +304,22 @@ end = struct
     List.iter (fun (id, value) -> BindsMap.find id env := Some value) binds;
     return env
 
+  and fst env expr =
+    (* printf "FST: %a\n" pp_expr expr; *)
+    let* res = eval_whnf env expr in
+    match res with
+    | ETuple (h :: _) -> return h
+    | _ -> fail (Another "Tuple expected for fst")
+
+  and snd env expr =
+    (* printf "SND: %a\n" pp_expr expr; *)
+    let* res = eval_whnf env expr in
+    match res with
+    | ETuple (_ :: s :: _) -> return s
+    | _ -> fail (Another "Tuple expected for snd")
+
   and eval_whnf env expr =
+    (* printf "EVAL_WHNF: %a\n" pp_expr expr; *)
     match expr with
     | EVar name -> eval_whnf env (get_by_name env name)
     | EConst c -> return (EConst c)
@@ -262,7 +329,6 @@ end = struct
       let* value2 = eval_whnf env e2 in
       calc_bin_op value1 value2 op
     | ETuple t -> return (ETuple t)
-    | EList lst -> return (EList lst)
     | EIf (e1, e2, e3) ->
       let* rez = eval_whnf env e1 in
       (match rez with
@@ -271,15 +337,23 @@ end = struct
       | _ -> fail Non_exaust)
     | EFun _ -> return expr
     | ECons (hd, tl) ->
-      (match tl with
+      return (ECons (hd, tl))
+      (* (match tl with
       | EList tl -> return (EList (hd :: tl))
-      | _ -> fail (Incorrect_eval tl))
+      | _ -> fail (Incorrect_eval tl)) *)
     | EApp _ ->
       let* e = process_application env expr in
       eval_whnf env e
     | ECase (expr, cases) ->
       let* value = eval_whnf env expr in
-      (match List.find_opt (fun (pattern, _) -> check_pattern pattern value) cases with
+      (match
+         List.find_opt
+           (fun (pattern, _) ->
+             (* printf "In Case\n";
+             printf "MATCHING: %a <~> %a\n" pp_pat pattern pp_expr value; *)
+             check_pattern pattern value)
+           cases
+       with
       | None -> fail Non_exaust
       | Some (pattern, expr) ->
         let* binds = pattern_decl_bindings pattern value in
@@ -287,10 +361,12 @@ end = struct
     | ECtor (id, expr) ->
       let* value = eval_whnf env expr in
       return @@ ector id value
+    | ELet (_, _) -> eval env expr
     | _ -> fail (Incorrect_eval expr)
 
   and repl env pat arg =
     let rec helper expr =
+      (* printf "REPL: %a <= %a\n" pp_expr expr pp_expr arg; *)
       match expr with
       | EVar _ when id_equal pat expr -> arg
       | EVar v -> EVar v
@@ -299,7 +375,9 @@ end = struct
       | ECons (e1, e2) -> ECons (helper e1, helper e2)
       | ETuple lst -> ETuple (List.map (fun expr -> helper expr) lst)
       | EFun (pat, body, _) -> EFun (pat, helper body, env)
-      | ELet (binding, expr) -> ELet (binding, helper expr)
+      | ELet (binding, expr) ->
+        let n = List.map (fun (pat, exp) -> pat, helper exp) binding in
+        ELet (n, helper expr)
       | EBinOp (op, e1, e2) -> EBinOp (op, helper e1, helper e2)
       | EIf (cond, then', else') ->
         let cond = helper cond in
@@ -312,14 +390,15 @@ end = struct
         let cases' = List.map (fun (pat, expr) -> ccase pat (helper expr)) cases in
         ECase (expr', cases')
       | ECtor (id, expr) -> ECtor (id, helper expr)
-      | Undefined id -> Undefined id
-      | EList lst -> EList (List.map (fun e -> helper e) lst)
+      | Undefined -> Undefined
     in
     helper
 
   and substitute env expr arg =
+    (* printf "SUB: %a <= %a\n" pp_expr expr pp_expr arg; *)
     match expr with
     | EFun (pat, body, _) ->
+      (* print_string "HERE\n"; *)
       (match pat with
       | PVar _ -> return (repl env pat arg body)
       | _ -> fail (Another "Incorrect pattern"))
@@ -328,6 +407,7 @@ end = struct
       substitute env expr' arg
 
   and process_application env expr =
+    (* printf "PA: %a\n" pp_expr expr; *)
     match expr with
     | EApp (func, arg) ->
       let* lambda =
@@ -349,6 +429,7 @@ end = struct
           | DLet binding ->
             let* binds, env = acc in
             let* env = add_binding binding env in
+            print_map env;
             let pattern, _ = binding in
             let* new_binds =
               all

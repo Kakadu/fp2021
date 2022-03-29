@@ -1,6 +1,7 @@
 open Ast
 open Angstrom
 open Base
+open Format
 
 let chainl1 e op =
   let rec go acc = lift2 (fun f x -> f acc x) op e >>= go <|> return acc in
@@ -46,6 +47,7 @@ let empty1 = take_while1 (fun c -> is_ws c)
 let empty1' = take_while1 (fun c -> is_ws c || is_eol c)
 let token s = empty *> string s
 let trim p = empty *> p
+let trim' p = empty' *> p
 let kwd s = empty *> token s
 let between l r p = l *> p <* r
 
@@ -233,17 +235,16 @@ let pack =
            (between empty' empty' (kwd "else") *> d.expr d))
     in
     let elet =
-      let binding =
-        trim
-          (lift2
-             bbind
-             (token "let" *> pattern)
-             (lift2
-                efun
-                (empty1 *> many pattern <* token "=")
-                (d.expr d <* empty' <* kwd "in" <* empty')))
+      let bindings =
+        let bind =
+          lift2
+            bbind
+            (empty *> pattern)
+            (lift2 efun (empty1 *> many pattern <* token "=") (d.expr d <* empty <* eol))
+        in
+        trim (token "let" *> many1 bind <* kwd "in" <* empty')
       in
-      trim (lift2 elet binding (d.expr d))
+      trim' (lift2 elet bindings (d.expr d <* empty'))
     in
     let efun = trim (lift2 efun (kwd "\\" *> many pattern <* arrow) (d.expr d)) in
     let ecase =
@@ -364,6 +365,43 @@ let decl =
   trim @@ dlet <|> dadt
 ;;
 
+let rec pp_expr fmt = function
+  | EConst c ->
+    (match c with
+    | CInt i -> fprintf fmt "%d" i
+    | CString s -> fprintf fmt "%s" s
+    | CBool b -> fprintf fmt (if b then "True" else "False"))
+  | ETuple t ->
+    fprintf fmt "(%a)" (pp_print_list ~pp_sep:(fun _ _ -> fprintf fmt ", ") pp_expr) t
+  | EFun _ -> fprintf fmt "<fun>"
+  | ECtor (id, value) ->
+    let pp_tuple fmt = function
+      | ETuple t ->
+        fprintf fmt "%a" (pp_print_list ~pp_sep:(fun _ _ -> fprintf fmt " ") pp_expr) t
+      | _ -> fprintf fmt "Not Tuple"
+    in
+    fprintf fmt "(%s %a)" id pp_tuple value
+  | ELet (bind_lst, expr) ->
+    let pp_bind fmt = function
+      | _, expr -> fprintf fmt "pat = %a" pp_expr expr
+    in
+    fprintf
+      fmt
+      "%a in\n %a"
+      (pp_print_list ~pp_sep:(fun _ _ -> fprintf fmt "\n") pp_bind)
+      bind_lst
+      pp_expr
+      expr
+  | EApp (e1, e2) -> fprintf fmt "%a (%a)" pp_expr e1 pp_expr e2
+  (* | EBinOp (op, e1, e2) -> fprintf fmt "(%a %a %a)" pp_expr e1 pp_bin_op op pp_expr e2 *)
+  | EVar name -> fprintf fmt "%s" name
+  | EIf (cond, then', else') ->
+    fprintf fmt "if %a then %a else %a" pp_expr cond pp_expr then' pp_expr else'
+  | ENull -> fprintf fmt "[]"
+  | Undefined -> fprintf fmt "Unbound value"
+  | _ -> fprintf fmt "?"
+;;
+
 let prog = many1 (trim @@ decl <* trim (many (trim (token ";;"))) <|> decl)
 let parse_with p s = parse_string ~consume:Consume.All p s
 
@@ -389,16 +427,12 @@ let parse_test code expected =
 ;;
 
 (* let () =
-  let code =
-    {|
-    map f xs = case xs of
-             [] -> []
-             hs:tl -> (f hs) : map f tl
-xs = map (\x -> x * 10) [1,2,3,4]
-    |}
-  in
-  match parse_with prog code with
-  | Ok ok -> Format.printf "%a\n" pp_prog ok
+  let code = {|
+  let f x = x + 1 
+    g x = 10 * x
+    in f 5 |} in
+  match parse_with expr code with
+  | Ok ok -> Format.printf "%a\n" pp_expr ok
   | Error err -> Format.printf "%s\n" err
 ;; *)
 
@@ -471,7 +505,8 @@ let%test _ =
   parse_test
     {|
     rect_surface x1 y1 x2 y2 = 
-      let abs x = if x > 0 then x else 0 - x in
+      let abs x = if x > 0 then x else 0 - x 
+      in 
       (abs (x1 - x2)) * (abs (y1 - y2))
   |}
     [ DLet
@@ -485,14 +520,15 @@ let%test _ =
                     , EFun
                         ( PVar "y2"
                         , ELet
-                            ( ( PVar "abs"
-                              , EFun
-                                  ( PVar "x"
-                                  , EIf
-                                      ( EBinOp (GT, EVar "x", EConst (CInt 0))
-                                      , EVar "x"
-                                      , EBinOp (Sub, EConst (CInt 0), EVar "x") )
-                                  , BindsMap.empty ) )
+                            ( [ ( PVar "abs"
+                                , EFun
+                                    ( PVar "x"
+                                    , EIf
+                                        ( EBinOp (GT, EVar "x", EConst (CInt 0))
+                                        , EVar "x"
+                                        , EBinOp (Sub, EConst (CInt 0), EVar "x") )
+                                    , BindsMap.empty ) )
+                              ]
                             , EBinOp
                                 ( Mul
                                 , EApp (EVar "abs", EBinOp (Sub, EVar "x1", EVar "x2"))
@@ -519,20 +555,21 @@ let%test _ =
         , EFun
             ( PVar "x"
             , ELet
-                ( ( PVar "helper"
-                  , EFun
-                      ( PVar "acc"
-                      , EFun
-                          ( PVar "n"
-                          , EIf
-                              ( EBinOp (EQ, EVar "n", EConst (CInt 1))
-                              , EVar "acc"
-                              , EApp
-                                  ( EApp
-                                      (EVar "helper", EBinOp (Mul, EVar "acc", EVar "n"))
-                                  , EBinOp (Sub, EVar "n", EConst (CInt 1)) ) )
-                          , BindsMap.empty )
-                      , BindsMap.empty ) )
+                ( [ ( PVar "helper"
+                    , EFun
+                        ( PVar "acc"
+                        , EFun
+                            ( PVar "n"
+                            , EIf
+                                ( EBinOp (EQ, EVar "n", EConst (CInt 1))
+                                , EVar "acc"
+                                , EApp
+                                    ( EApp
+                                        (EVar "helper", EBinOp (Mul, EVar "acc", EVar "n"))
+                                    , EBinOp (Sub, EVar "n", EConst (CInt 1)) ) )
+                            , BindsMap.empty )
+                        , BindsMap.empty ) )
+                  ]
                 , EApp (EApp (EVar "helper", EConst (CInt 1)), EVar "x") )
             , BindsMap.empty ) )
     ]
