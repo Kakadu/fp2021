@@ -18,7 +18,5 @@ type stmt =
   | NO_OP
 [@@deriving show { with_path = false }]
 
-type thread = THREAD of (int * stmt list)
-[@@deriving show { with_path = false }]
-
+type thread = THREAD of (int * stmt list) [@@deriving show { with_path = false }]
 type prog = PROG of thread list [@@deriving show { with_path = false }]
