@@ -41,8 +41,6 @@ let is_whitespace = function
   | _ -> false
 ;;
 
-(* let whitespace = take_while is_whitespace *)
-
 let space =
   let is_space = function
     | ' ' | '\t' -> true
@@ -57,8 +55,6 @@ let is_end_of_line = function
 ;;
 
 let is_not_end_of_line c = not @@ is_end_of_line @@ c
-
-(* let token s = whitespace *> string s *)
 let token s = space *> string s
 
 let is_digit = function
@@ -70,8 +66,6 @@ let parse p s = parse_string ~consume:All p (preprocess s)
 let parse_unproc p s = parse_string ~consume:All p s
 let skip_rest_of_line = take_while (fun c -> c <> '\n') *> string "\n"
 
-(* let jump_to_new_line = take_till is_end_of_line *> take_while is_end_of_line *)
-
 let cross_thread_delim =
   take_till (fun c ->
       match c with
@@ -81,9 +75,6 @@ let cross_thread_delim =
 ;;
 
 let cross_n_delims n = count n cross_thread_delim
-
-(* let go_to_next_line_for_thread n =
-   jump_to_new_line *> count n cross_thread_delim *)
 
 let number =
   let digits = space *> take_while1 is_digit in
@@ -112,7 +103,6 @@ let reg =
     | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> true
     | _ -> false
   in
-  (* space *> take_while1 is_big_letter >>= fun s -> *)
   space *> take_while1 is_allowed_var_name_char
   >>= fun s ->
   match is_register s with
@@ -177,11 +167,6 @@ let mem_barrier thread_num =
   cross_n_delims thread_num *> smp_mb <* end_of_instr
 ;;
 
-(* let assert_stmt thread_num =
-   cross_n_delims thread_num *> token "assert" *> token "(" *> expr
-   <* token ")" <* end_of_instr
-   >>= fun e -> return @@ ASSERT e *)
-
 let assignment thread_num =
   cross_n_delims thread_num *> (reg <|> var_name)
   >>= fun named_loc ->
@@ -216,11 +201,6 @@ let block stmt_parser thread_number =
   choice [ correct_block; empty_block ]
 ;;
 
-(* let while_stmt stmt_parser thread_num =
-   cross_n_delims thread_num *> token "while" *> token "(" *> expr <* token ")"
-   >>= fun e ->
-   block stmt_parser thread_num >>= fun block -> return @@ WHILE (e, block) *)
-
 let if_stmt stmt_parser thread_number =
   cross_n_delims thread_number *> token "if" *> token "(" *> expr
   <* token ")"
@@ -245,9 +225,7 @@ let stmt thread_number =
   fix (fun stmt ->
       if_else_stmt stmt thread_number
       <|> if_stmt stmt thread_number
-      (* <|> while_stmt stmt thread_number *)
       <|> assignment thread_number
-      (* <|> assert_stmt thread_number *)
       <|> mem_barrier thread_number
       <|> no_op thread_number)
 ;;
