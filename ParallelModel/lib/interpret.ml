@@ -85,17 +85,7 @@ module SequentialConsistency = struct
             error ("variable " ^ var ^ " was initialized but not found in ram")
         | Some value -> return { p_stat with loaded = value })
 
-  let remove list name =
-    let rec helper list name acc =
-      match list with
-      | [] -> acc
-      | h :: tl -> (
-          match h with
-          | v_name, _ ->
-              if v_name = name then helper tl name acc
-              else helper tl name (h :: acc))
-    in
-    helper list name []
+  let remove list name = List.filter (fun (v_name, _) -> v_name <> name) list
 
   let rec replace list name value =
     match
@@ -826,7 +816,7 @@ module TSO = struct
     if st_buf_is_empty t then return p_stat
     else
       push_store_to_ram_trace_disabled p_stat n >>= fun p_stat ->
-      show_trace p_stat;
+      (* show_trace p_stat; *)
       let step = snd (last p_stat.trace) in
       let step =
         match step with

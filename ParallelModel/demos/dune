@@ -1,14 +1,26 @@
 
  (executable
- (name storeBufferingTSO)
- (modules storeBufferingTSO)
- (public_name storeBufferingTSO)
+ (name storeBufferingNoBarsTSO)
+ (modules storeBufferingNoBarsTSO)
+ (public_name storeBufferingNoBarsTSO)
+ (libraries parallelmodel_lib))
+
+ (executable
+ (name storeBufferingWithBarsTSO)
+ (modules storeBufferingWithBarsTSO)
+ (public_name storeBufferingWithBarsTSO)
  (libraries parallelmodel_lib))
 
 (executable
- (name storeBufferingSC)
- (modules storeBufferingSC)
- (public_name storeBufferingSC)
+ (name storeBufferingNoBarsSC)
+ (modules storeBufferingNoBarsSC)
+ (public_name storeBufferingNoBarsSC)
+ (libraries parallelmodel_lib))
+
+ (executable
+ (name storeBufferingWithBarsSC)
+ (modules storeBufferingWithBarsSC)
+ (public_name storeBufferingWithBarsSC)
  (libraries parallelmodel_lib))
 
  (executable
@@ -76,7 +88,9 @@
  
 
 (cram
- (deps ./storeBufferingTSO.exe ./storeBufferingSC.exe ./loadBufferingSC.exe ./loadBufferingTSO.exe
+ (deps ./storeBufferingNoBarsTSO.exe ./storeBufferingWithBarsTSO.exe 
+ ./storeBufferingNoBarsSC.exe ./storeBufferingWithBarsSC.exe 
+ ./loadBufferingSC.exe ./loadBufferingTSO.exe
  ./msgPassingSC.exe ./msgPassingTSO.exe ./readReadCoherenceSC.exe ./readReadCoherenceTSO.exe
  ./independentReadsOfIndependentWritesSC.exe ./independentReadsOfIndependentWritesTSO.exe
  ./writeToReadCausalitySC.exe ./writeToReadCausalityTSO.exe ))
