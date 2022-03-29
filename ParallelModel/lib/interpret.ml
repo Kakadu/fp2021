@@ -1,6 +1,40 @@
 open Ast
 open Angstrom
 
+module type MONAD = sig
+  type 'a t
+
+  val return : 'a -> 'a t
+
+  val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
+
+  val ( >> ) : 'a t -> 'b t -> 'b t
+end
+
+module type MONADERROR = sig
+  include MONAD
+
+  val error : string -> 'a t
+end
+
+module Resultq = struct
+  type 'a t = ('a, string) Result.t
+
+  let ( >>= ) = Result.bind
+
+  let return = Result.ok
+
+  let error = Result.error
+end
+
+module Listq = struct
+  type 'a t = 'a list
+
+  let ( >>= ) xs f = List.concat (List.map f xs)
+
+  let return x = [ x ]
+end
+
 module SequentialConsistency = struct
   (* return для монады list *)
   let l_return x = [ x ]
@@ -9,6 +43,8 @@ module SequentialConsistency = struct
   let ( >>== ) xs f = List.concat (List.map f xs)
 
   let ( >>= ) = Result.bind
+
+  let ( >=> ) f g x = f x >>= fun y -> g y
 
   let return = Result.ok
 

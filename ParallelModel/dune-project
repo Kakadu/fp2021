@@ -15,7 +15,7 @@
 (homepage "breakdownofsanity1404@gmail.com")
 
 (package
- (name Parallelmodel) ; FIXME and regenerate .opam file using 'dune build @install'
+ (name ParallelModel) ; FIXME and regenerate .opam file using 'dune build @install'
  (synopsis "An interpreter for language of modeling program execution in different memory models")
  (description
   "Perform and show all possible executions of program in two memory models: Sequential Consistency and 
