@@ -138,21 +138,19 @@ module SequentialConsistency = struct
   let store_to_reg p_stat n r_name value =
     get_thread p_stat n
     >>= fun thread ->
-    return (replace thread.registers r_name value)
-    >>= fun regs ->
-    return { thread with registers = regs }
-    >>= fun thread ->
-    return (set thread n p_stat.threads) >>= fun threads -> return { p_stat with threads }
+    let registers = replace thread.registers r_name value in
+    let thread = { thread with registers } in
+    let threads = set thread n p_stat.threads in
+    return { p_stat with threads }
   ;;
 
   let add_to_regs p_stat n r_name value =
     get_thread p_stat n
-    >>= fun t_stat ->
-    return ((r_name, value) :: t_stat.registers)
-    >>= fun regs ->
-    return { t_stat with registers = regs }
-    >>= fun t_stat ->
-    return (set t_stat n p_stat.threads) >>= fun threads -> return { p_stat with threads }
+    >>= fun thread ->
+    let registers = (r_name, value) :: thread.registers in
+    let thread = { thread with registers } in
+    let threads = set thread n p_stat.threads in
+    return { p_stat with threads }
   ;;
 
   let load_from_regs p_stat n r_name =
@@ -201,18 +199,6 @@ module SequentialConsistency = struct
     | REGISTER reg -> store_to_reg p_stat n reg value
     | _ -> error "assignment allowed only to variable and register"
   ;;
-
-  (* let print_t_stat t_stat =
-       print_string ("thread " ^ string_of_int t_stat.number ^ ":\n");
-       print_string "counters: ";
-       List.iter (fun x -> print_string @@ string_of_int x ^ "; ") t_stat.counters;
-       print_string "\n";
-       print_ht t_stat.registers
-
-     let print_p_stat p_stat =
-       List.iter print_t_stat p_stat.threads;
-       print_string "ram: ";
-       print_ht p_stat.ram *)
 
   let init_thread_stat t =
     let t_info =
@@ -276,9 +262,6 @@ module SequentialConsistency = struct
             else error "try enter if-block when condition is false"
           | IF_ELSE (_, bk1, bk2) ->
             if List.nth t_stat.branch_exprs lvl <> 0 then return bk1 else return bk2
-          (* | WHILE (_, block) ->
-                if List.nth t_stat.branch_exprs lvl <> 0 then return block
-                else error "try enter while-loop when condition is false" *)
           | _ -> error ("this stmt is not compound: " ^ show_stmt (List.nth stmts n)))
           tl
           (lvl + 1)
@@ -286,31 +269,6 @@ module SequentialConsistency = struct
     in
     helper (return t_stat.stmts) t_stat.counters 0
   ;;
-
-  (* let peek_while t_stat counters =
-     let rec helper stmts counts lvl =
-       stmts >>= fun stmts ->
-       match counts with
-       | [ n ] -> (
-           let stmt = List.nth stmts n in
-           match stmt with WHILE (_, _) -> return true | _ -> return false)
-       | n :: tl ->
-           helper
-             (match List.nth stmts n with
-             | IF (_, stmt_list) ->
-                 if List.nth t_stat.branch_exprs lvl <> 0 then return stmt_list
-                 else error "try enter if-block when condition is false"
-             | IF_ELSE (_, bk1, bk2) ->
-                 if List.nth t_stat.branch_exprs lvl <> 0 then return bk1
-                 else return bk2
-             | WHILE (_, bk) ->
-                 if List.nth t_stat.branch_exprs lvl <> 0 then return bk
-                 else error "try enter while-block when condition is false"
-             | _ -> error "this stmt is not compound (peek_while")
-             tl (lvl + 1)
-       | _ -> error "invalid list of counters (counts)"
-     in
-     helper (return t_stat.stmts) counters 0 *)
 
   let check p_stat n =
     try
@@ -342,8 +300,6 @@ module SequentialConsistency = struct
         in
         let threads2 = set t_stat2 n p_stat'.threads in
         let p_stat2 = { p_stat' with threads = threads2 } in
-        (* peek_while t_stat2 t_stat2.counters >>= fun is_peeked ->
-           if is_peeked then return p_stat2 else *)
         helper p_stat2 n)
     in
     helper p_stat n
@@ -357,11 +313,6 @@ module SequentialConsistency = struct
   let exec_single_stmt_in_thread n p_stat =
     get_stmt p_stat n
     >>= function
-    (* | WHILE (e, _) ->
-        let p_stat = update_trace p_stat n (WHILE (e, [])) in
-        eval_expr n p_stat e >>= fun e ->
-        if e = 0 then prog_stat_inc p_stat n
-        else return (enter_block_in_thread n p_stat e) *)
     | IF (e, _) ->
       let p_stat = update_trace p_stat n (IF (e, [])) in
       eval_expr n p_stat e
@@ -376,15 +327,10 @@ module SequentialConsistency = struct
     | ASSIGN (l, r) ->
       let p_stat = update_trace p_stat n (ASSIGN (l, r)) in
       eval_assign n p_stat l r >>= fun p_stat -> prog_stat_inc p_stat n
-    (* | ASSERT e ->
-        let p_stat = update_trace p_stat n (ASSERT e) in
-        eval_assert n p_stat e >>= fun p_stat -> prog_stat_inc p_stat n *)
     | SMP_MB ->
       let p_stat = update_trace p_stat n SMP_MB in
       prog_stat_inc p_stat n
   ;;
-
-  (* error "you can't use memory barriers in Sequential Consistency" *)
 
   let thread_is_not_finished t_stat = List.hd t_stat.counters < t_stat.length
 
@@ -392,39 +338,11 @@ module SequentialConsistency = struct
     List.exists (fun x -> x = true) (List.map thread_is_not_finished p_stat.threads)
   ;;
 
-  (* let choose_not_finished_thread p_stat =
-     let len = List.length p_stat.threads in
-     let rec helper p_stat n i =
-       if List.nth p_stat.threads i |> thread_is_not_finished then i
-       else helper p_stat n (Random.int len)
-     in
-     helper p_stat len (Random.int len) *)
-
-  (* let exec_prog_in_seq_cons p =
-     let p_stat = init_prog_stat p in
-     let rec helper p_stat =
-       if prog_is_not_finished p_stat then
-         exec_single_stmt_in_thread (choose_not_finished_thread p_stat) p_stat
-         >>= fun p_stat -> helper p_stat
-       else return p_stat
-     in
-     helper p_stat *)
-
   let not_finished_threads p_stat =
     List.filter_map
       (fun t -> if thread_is_not_finished t then Some t.number else None)
       p_stat.threads
   ;;
-
-  (* let rec helper threads acc = 
-      match threads with
-      | [] -> acc
-      | thread :: tl ->
-        if thread_is_not_finished thread
-        then helper tl (thread.number :: acc)
-        else helper tl acc
-    in
-    helper p_stat.threads [] *)
 
   let exec_next_instr p_stat max_depth =
     if p_stat.depth < max_depth
@@ -632,8 +550,6 @@ module TSO = struct
   ;;
 
   let store_to_var p_stat n v_name value =
-    (* let ram = replace p_stat.ram v_name value in
-       return { p_stat with ram } *)
     get_thread p_stat n
     >>= fun t ->
     let st_buf = t.st_buf @ [ v_name, value ] in
@@ -644,21 +560,19 @@ module TSO = struct
   let store_to_reg p_stat n r_name value =
     get_thread p_stat n
     >>= fun thread ->
-    return (replace thread.registers r_name value)
-    >>= fun regs ->
-    return { thread with registers = regs }
-    >>= fun thread ->
-    return (set thread n p_stat.threads) >>= fun threads -> return { p_stat with threads }
+    let registers = replace thread.registers r_name value in
+    let thread = { thread with registers } in
+    let threads = set thread n p_stat.threads in
+    return { p_stat with threads }
   ;;
 
   let add_to_regs p_stat n r_name value =
     get_thread p_stat n
-    >>= fun t_stat ->
-    return ((r_name, value) :: t_stat.registers)
-    >>= fun regs ->
-    return { t_stat with registers = regs }
-    >>= fun t_stat ->
-    return (set t_stat n p_stat.threads) >>= fun threads -> return { p_stat with threads }
+    >>= fun thread ->
+    let registers = (r_name, value) :: thread.registers in
+    let thread = { thread with registers } in
+    let threads = set thread n p_stat.threads in
+    return { p_stat with threads }
   ;;
 
   let load_from_regs p_stat n r_name =
@@ -725,18 +639,6 @@ module TSO = struct
     | _ -> error "assignment allowed only to variable and register"
   ;;
 
-  (* let print_t_stat t_stat =
-       print_string ("thread " ^ string_of_int t_stat.number ^ ":\n");
-       print_string "counters: ";
-       List.iter (fun x -> print_string @@ string_of_int x ^ "; ") t_stat.counters;
-       print_string "\n";
-       print_ht t_stat.registers
-
-     let print_p_stat p_stat =
-       List.iter print_t_stat p_stat.threads;
-       print_string "ram: ";
-       print_ht p_stat.ram *)
-
   let init_thread_stat t =
     let t_info =
       match t with
@@ -800,9 +702,6 @@ module TSO = struct
             else error "try enter if-block when condition is false"
           | IF_ELSE (_, bk1, bk2) ->
             if List.nth t_stat.branch_exprs lvl <> 0 then return bk1 else return bk2
-          (* | WHILE (_, block) ->
-                if List.nth t_stat.branch_exprs lvl <> 0 then return block
-                else error "try enter while-loop when condition is false" *)
           | _ -> error ("this stmt is not compound: " ^ show_stmt (List.nth stmts n)))
           tl
           (lvl + 1)
@@ -810,31 +709,6 @@ module TSO = struct
     in
     helper (return t_stat.stmts) t_stat.counters 0
   ;;
-
-  (* let peek_while t_stat counters =
-     let rec helper stmts counts lvl =
-       stmts >>= fun stmts ->
-       match counts with
-       | [ n ] -> (
-           let stmt = List.nth stmts n in
-           match stmt with WHILE (_, _) -> return true | _ -> return false)
-       | n :: tl ->
-           helper
-             (match List.nth stmts n with
-             | IF (_, stmt_list) ->
-                 if List.nth t_stat.branch_exprs lvl <> 0 then return stmt_list
-                 else error "try enter if-block when condition is false"
-             | IF_ELSE (_, bk1, bk2) ->
-                 if List.nth t_stat.branch_exprs lvl <> 0 then return bk1
-                 else return bk2
-             | WHILE (_, bk) ->
-                 if List.nth t_stat.branch_exprs lvl <> 0 then return bk
-                 else error "try enter while-block when condition is false"
-             | _ -> error "this stmt is not compound (peek_while")
-             tl (lvl + 1)
-       | _ -> error "invalid list of counters (counts)"
-     in
-     helper (return t_stat.stmts) counters 0 *)
 
   let check p_stat n =
     try
@@ -866,8 +740,6 @@ module TSO = struct
         in
         let threads2 = set t_stat2 n p_stat'.threads in
         let p_stat2 = { p_stat' with threads = threads2 } in
-        (* peek_while t_stat2 t_stat2.counters >>= fun is_peeked ->
-           if is_peeked then return p_stat2 else *)
         helper p_stat2 n)
     in
     helper p_stat n
@@ -939,11 +811,6 @@ module TSO = struct
   let exec_single_stmt_in_thread n p_stat =
     get_stmt p_stat n
     >>= function
-    (* | WHILE (e, _) ->
-        let p_stat = update_trace p_stat n (STMT (WHILE (e, []))) in
-        eval_expr n p_stat e >>= fun e ->
-        if e = 0 then prog_stat_inc p_stat n
-        else return (enter_block_in_thread n p_stat e) *)
     | IF (e, _) ->
       let p_stat = update_trace p_stat n (STMT (IF (e, []))) in
       eval_expr n p_stat e
@@ -958,9 +825,6 @@ module TSO = struct
     | ASSIGN (l, r) ->
       let p_stat = update_trace p_stat n (STMT (ASSIGN (l, r))) in
       eval_assign n p_stat l r >>= fun p_stat -> prog_stat_inc p_stat n
-    (* | ASSERT e ->
-        let p_stat = update_trace p_stat n (STMT (ASSERT e)) in
-        eval_assert n p_stat e >>= fun p_stat -> prog_stat_inc p_stat n *)
     | SMP_MB ->
       let p_stat = update_trace p_stat n (FENCE []) in
       flush_st_buf p_stat n >>= fun p_stat -> prog_stat_inc p_stat n
@@ -972,40 +836,11 @@ module TSO = struct
     List.exists (fun x -> x = true) (List.map thread_is_not_finished p_stat.threads)
   ;;
 
-  (* let choose_not_finished_thread p_stat =
-     let len = List.length p_stat.threads in
-     let rec helper p_stat n i =
-       if List.nth p_stat.threads i |> thread_is_not_finished then i
-       else helper p_stat n (Random.int len)
-     in
-     helper p_stat len (Random.int len) *)
-
-  (* let exec_prog_in_seq_cons p =
-     let p_stat = init_prog_stat p in
-     let rec helper p_stat =
-       if prog_is_not_finished p_stat then
-         exec_single_stmt_in_thread (choose_not_finished_thread p_stat) p_stat
-         >>= fun p_stat -> helper p_stat
-       else return p_stat
-     in
-     helper p_stat *)
   let not_finished_threads p_stat =
     List.filter_map
       (fun t -> if thread_is_not_finished t then Some t.number else None)
       p_stat.threads
   ;;
-
-  (* let not_finished_threads p_stat =
-    let rec helper threads acc =
-      match threads with
-      | [] -> acc
-      | thread :: tl ->
-        if thread_is_not_finished thread
-        then helper tl (thread.number :: acc)
-        else helper tl acc
-    in
-    helper p_stat.threads []
-  ;; *)
 
   let threads_with_not_empty_st_buf p_stat =
     let rec helper threads acc =
