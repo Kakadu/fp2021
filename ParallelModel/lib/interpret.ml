@@ -459,16 +459,15 @@ module SequentialConsistency = struct
     print_endline "Code:";
     print_endline code;
     let rec helper results checker errors oks not_oks =
-      if List.length results = 0
-      then [ errors; oks; not_oks ]
-      else (
-        let res = List.hd results in
-        match res with
-        | Error _ -> helper (List.tl results) checker (errors + 1) oks not_oks
+      match results with
+      | [] -> [ errors; oks; not_oks ]
+      | h :: tl ->
+        (match h with
+        | Error _ -> helper tl checker (errors + 1) oks not_oks
         | Ok p_stat ->
           if checker p_stat
-          then helper (List.tl results) checker errors (oks + 1) not_oks
-          else helper (List.tl results) checker errors oks (not_oks + 1))
+          then helper tl checker errors (oks + 1) not_oks
+          else helper tl checker errors oks (not_oks + 1))
     in
     let stats = helper results check_property 0 0 0 in
     print_endline "\tEXECUTION STATISTICS";
@@ -1054,16 +1053,15 @@ module TSO = struct
     print_endline "Code:";
     print_endline code;
     let rec helper results checker errors oks not_oks =
-      if List.length results = 0
-      then [ errors; oks; not_oks ]
-      else (
-        let res = List.hd results in
-        match res with
-        | Error _ -> helper (List.tl results) checker (errors + 1) oks not_oks
+      match results with
+      | [] -> [ errors; oks; not_oks ]
+      | h :: tl ->
+        (match h with
+        | Error _ -> helper tl checker (errors + 1) oks not_oks
         | Ok p_stat ->
           if checker p_stat
-          then helper (List.tl results) checker errors (oks + 1) not_oks
-          else helper (List.tl results) checker errors oks (not_oks + 1))
+          then helper tl checker errors (oks + 1) not_oks
+          else helper tl checker errors oks (not_oks + 1))
     in
     let stats = helper results check_property 0 0 0 in
     print_endline "\tEXECUTION STATISTICS";
