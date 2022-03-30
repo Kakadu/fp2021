@@ -78,8 +78,7 @@ module SequentialConsistency = struct
   ;;
 
   let get_thread p_stat n =
-    let rec helper t_stats =
-      match t_stats with
+    let rec helper = function
       | [] -> error ("program doesn't have thread with num " ^ string_of_int n)
       | t_stat :: tl -> if t_stat.number = n then return t_stat else helper tl
     in
@@ -119,8 +118,7 @@ module SequentialConsistency = struct
   let rec replace list name value =
     match
       List.find_opt
-        (fun x ->
-          match x with
+        (function
           | v_name, _ -> v_name = name)
         list
     with
@@ -498,8 +496,7 @@ module SequentialConsistency = struct
     let p_stat = init_prog_stat p in
     let rec helper p_stats_results =
       if List.exists
-           (fun p_stat_res ->
-             match p_stat_res with
+           (function
              | Error _ -> false
              | Ok p_stat -> prog_is_not_finished p_stat)
            p_stats_results
@@ -576,8 +573,7 @@ module TSO = struct
   ;;
 
   let get_thread p_stat n =
-    let rec helper t_stats =
-      match t_stats with
+    let rec helper = function
       | [] -> error ("program doesn't have thread with num " ^ string_of_int n)
       | t_stat :: tl -> if t_stat.number = n then return t_stat else helper tl
     in
