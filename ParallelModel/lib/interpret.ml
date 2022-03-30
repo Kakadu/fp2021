@@ -459,7 +459,7 @@ module SequentialConsistency = struct
     print_endline "Code:";
     print_endline code;
     let rec helper results checker errors oks not_oks =
-      if List.length results = 0
+      if results = []
       then [ errors; oks; not_oks ]
       else (
         let res = List.hd results in
@@ -915,7 +915,7 @@ module TSO = struct
       return { p_stat with ram }
   ;;
 
-  let st_buf_is_empty thread = List.length thread.st_buf = 0
+  let st_buf_is_empty thread = thread.st_buf = []
 
   let rec flush_st_buf p_stat n =
     get_thread p_stat n
@@ -1054,7 +1054,7 @@ module TSO = struct
     print_endline "Code:";
     print_endline code;
     let rec helper results checker errors oks not_oks =
-      if List.length results = 0
+      if results = []
       then [ errors; oks; not_oks ]
       else (
         let res = List.hd results in
