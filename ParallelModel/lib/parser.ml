@@ -67,8 +67,7 @@ let parse_unproc p s = parse_string ~consume:All p s
 let skip_rest_of_line = take_while (fun c -> c <> '\n') *> string "\n"
 
 let cross_thread_delim =
-  take_till (fun c ->
-      match c with
+  take_till (function
       | '|' | '\n' | '\r' -> true
       | _ -> false)
   *> token "|||"

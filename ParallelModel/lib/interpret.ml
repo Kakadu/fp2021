@@ -41,10 +41,6 @@ module SequentialConsistency = struct
   let return = Result.ok
   let error = Result.error
 
-  (* type ram = (string, int) Hashtbl.t
-
-     type regs = (string, int) Hashtbl.t *)
-
   type ram = (string * int) list [@@deriving show { with_path = false }]
   type regs = ram [@@deriving show { with_path = false }]
 
@@ -100,7 +96,7 @@ module SequentialConsistency = struct
 
   let init_var p_stat var =
     match find p_stat.ram var with
-    | Some _ -> error ("variable @" ^ var ^ " already initialized")
+    | Some _ -> error (String.concat "" [ "variable @"; var; " already initialized" ])
     | None -> return { p_stat with ram = (var, 0) :: p_stat.ram }
   ;;
 
@@ -112,7 +108,9 @@ module SequentialConsistency = struct
       init_var p_stat var
       >>= fun p_stat ->
       (match find p_stat.ram var with
-      | None -> error ("variable " ^ var ^ " was initialized but not found in ram")
+      | None ->
+        error
+          (String.concat "" [ "variable "; var; " was initialized but not found in ram" ])
       | Some value -> return { p_stat with loaded = value })
   ;;
 
@@ -415,7 +413,12 @@ module SequentialConsistency = struct
      helper p_stat *)
 
   let not_finished_threads p_stat =
-    let rec helper threads acc =
+    List.filter_map
+      (fun t -> if thread_is_not_finished t then Some t.number else None)
+      p_stat.threads
+  ;;
+
+  (* let rec helper threads acc = 
       match threads with
       | [] -> acc
       | thread :: tl ->
@@ -423,8 +426,7 @@ module SequentialConsistency = struct
         then helper tl (thread.number :: acc)
         else helper tl acc
     in
-    helper p_stat.threads []
-  ;;
+    helper p_stat.threads [] *)
 
   let exec_next_instr p_stat max_depth =
     if p_stat.depth < max_depth
@@ -617,8 +619,7 @@ module TSO = struct
   let rec replace list name value =
     match
       List.find_opt
-        (fun x ->
-          match x with
+        (function
           | v_name, _ -> v_name = name)
         list
     with
@@ -993,8 +994,13 @@ module TSO = struct
        else return p_stat
      in
      helper p_stat *)
-
   let not_finished_threads p_stat =
+    List.filter_map
+      (fun t -> if thread_is_not_finished t then Some t.number else None)
+      p_stat.threads
+  ;;
+
+  (* let not_finished_threads p_stat =
     let rec helper threads acc =
       match threads with
       | [] -> acc
@@ -1004,7 +1010,7 @@ module TSO = struct
         else helper tl acc
     in
     helper p_stat.threads []
-  ;;
+  ;; *)
 
   let threads_with_not_empty_st_buf p_stat =
     let rec helper threads acc =
@@ -1089,8 +1095,7 @@ module TSO = struct
     let p_stat = init_prog_stat p in
     let rec helper p_stats_results =
       if List.exists
-           (fun p_stat_res ->
-             match p_stat_res with
+           (function
              | Error _ -> false
              | Ok p_stat -> prog_is_not_finished p_stat)
            p_stats_results
