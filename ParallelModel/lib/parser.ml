@@ -1,7 +1,7 @@
 open Angstrom
 open Ast
 
-let splitter s = Str.split (Str.regexp "|||") (" " ^ s ^ " ")
+let splitter s = Str.split (Str.regexp "|||") (String.concat "" [ " "; s; " " ])
 
 let split_on_parts s =
   let lines = String.split_on_char '\n' (String.trim s) in

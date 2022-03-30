@@ -26,7 +26,7 @@ end
 module Listq = struct
   type 'a t = 'a list
 
-  let ( >>= ) xs f = List.concat (List.map f xs)
+  let ( >>= ) xs f = List.concat_map f xs
   let return x = [ x ]
 end
 
@@ -35,7 +35,7 @@ module SequentialConsistency = struct
   let l_return x = [ x ]
 
   (* bind для монады list *)
-  let ( >>== ) xs f = List.concat (List.map f xs)
+  let ( >>== ) xs f = List.concat_map f xs
   let ( >>= ) = Result.bind
   let ( >=> ) f g x = f x >>= fun y -> g y
   let return = Result.ok
@@ -78,7 +78,7 @@ module SequentialConsistency = struct
 
   let print_ht =
     Hashtbl.iter (fun v_name value ->
-        print_endline ("\t" ^ v_name ^ " = " ^ string_of_int value))
+        print_endline (String.concat "" [ "\t"; v_name; " = "; string_of_int value ]))
   ;;
 
   let get_thread p_stat n =
@@ -201,8 +201,8 @@ module SequentialConsistency = struct
     eval_expr n p_stat r
     >>= fun value ->
     match l with
-    | VAR_NAME var -> store_to_var p_stat var value >>= fun p_stat -> return p_stat
-    | REGISTER reg -> store_to_reg p_stat n reg value >>= fun p_stat -> return p_stat
+    | VAR_NAME var -> store_to_var p_stat var value
+    | REGISTER reg -> store_to_reg p_stat n reg value
     | _ -> error "assignment allowed only to variable and register"
   ;;
 
@@ -390,9 +390,7 @@ module SequentialConsistency = struct
 
   (* error "you can't use memory barriers in Sequential Consistency" *)
 
-  let thread_is_not_finished t_stat =
-    if List.hd t_stat.counters < t_stat.length then true else false
-  ;;
+  let thread_is_not_finished t_stat = List.hd t_stat.counters < t_stat.length
 
   let prog_is_not_finished p_stat =
     List.exists (fun x -> x = true) (List.map thread_is_not_finished p_stat.threads)
@@ -440,7 +438,7 @@ module SequentialConsistency = struct
   let show_executions p_stats_results =
     List.iteri
       (fun i p_stat_res ->
-        print_endline ("\t" ^ "execution " ^ string_of_int (i + 1));
+        print_endline (String.concat "" [ "\t"; "execution "; string_of_int (i + 1) ]);
         match p_stat_res with
         | Error msg ->
           print_endline msg;
@@ -478,12 +476,20 @@ module SequentialConsistency = struct
     print_endline (string_of_int errors ^ " executions crushed");
     let oks = List.nth stats 1 in
     print_endline
-      (string_of_int oks ^ " executions finished and have following behavior: " ^ descr);
+      (String.concat
+         ""
+         [ string_of_int oks
+         ; " executions finished and have following behavior: "
+         ; descr
+         ]);
     let not_oks = List.nth stats 2 in
     print_endline
-      (string_of_int not_oks
-      ^ " executions finished but don't have following behavior: "
-      ^ descr)
+      (String.concat
+         ""
+         [ string_of_int not_oks
+         ; " executions finished but don't have following behavior: "
+         ; descr
+         ])
   ;;
 
   let exec_prog_in_seq_cons_monad_list p max_depth =
@@ -518,7 +524,7 @@ module TSO = struct
   let l_return x = [ x ]
 
   (* bind для монады list *)
-  let ( >>== ) xs f = List.concat (List.map f xs)
+  let ( >>== ) xs f = List.concat_map f xs
   let ( >>= ) = Result.bind
   let return = Result.ok
   let error = Result.error
@@ -564,7 +570,7 @@ module TSO = struct
 
   let print_ht =
     Hashtbl.iter (fun v_name value ->
-        print_endline ("\t" ^ v_name ^ " = " ^ string_of_int value))
+        print_endline (String.concat "" [ "\t"; v_name; " = "; string_of_int value ]))
   ;;
 
   let get_thread p_stat n =
@@ -586,7 +592,7 @@ module TSO = struct
 
   let init_var p_stat var =
     match find p_stat.ram var with
-    | Some _ -> error ("variable @" ^ var ^ " already initialized")
+    | Some _ -> error (String.concat "" [ "variable @"; var; " already initialized" ])
     | None -> return { p_stat with ram = (var, 0) :: p_stat.ram }
   ;;
 
@@ -598,21 +604,15 @@ module TSO = struct
       init_var p_stat var
       >>= fun p_stat ->
       (match find p_stat.ram var with
-      | None -> error ("variable " ^ var ^ " was initialized but not found in ram")
+      | None ->
+        error
+          (String.concat
+             ""
+             [ "variable @"; var; " was initialized but not found in ram" ])
       | Some value -> return { p_stat with loaded = value })
   ;;
 
-  let remove list name =
-    let rec helper list name acc =
-      match list with
-      | [] -> acc
-      | h :: tl ->
-        (match h with
-        | v_name, _ ->
-          if v_name = name then helper tl name acc else helper tl name (h :: acc))
-    in
-    helper list name []
-  ;;
+  let remove list name = List.filter (fun (v_name, _) -> v_name <> name) list
 
   let rec replace list name value =
     match
@@ -725,7 +725,7 @@ module TSO = struct
     >>= fun value ->
     match l with
     | VAR_NAME var -> store_to_var p_stat n var value
-    | REGISTER reg -> store_to_reg p_stat n reg value >>= fun p_stat -> return p_stat
+    | REGISTER reg -> store_to_reg p_stat n reg value
     | _ -> error "assignment allowed only to variable and register"
   ;;
 
@@ -970,9 +970,7 @@ module TSO = struct
       flush_st_buf p_stat n >>= fun p_stat -> prog_stat_inc p_stat n
   ;;
 
-  let thread_is_not_finished t_stat =
-    if List.hd t_stat.counters < t_stat.length then true else false
-  ;;
+  let thread_is_not_finished t_stat = List.hd t_stat.counters < t_stat.length
 
   let prog_is_not_finished p_stat =
     List.exists (fun x -> x = true) (List.map thread_is_not_finished p_stat.threads)
@@ -1033,7 +1031,7 @@ module TSO = struct
   let show_executions p_stats_results =
     List.iteri
       (fun i p_stat_res ->
-        print_endline ("\t" ^ "execution " ^ string_of_int (i + 1));
+        print_endline (String.concat "" [ "\t"; "execution "; string_of_int (i + 1) ]);
         match p_stat_res with
         | Error msg ->
           print_endline msg;
@@ -1071,12 +1069,20 @@ module TSO = struct
     print_endline (string_of_int errors ^ " executions crushed");
     let oks = List.nth stats 1 in
     print_endline
-      (string_of_int oks ^ " executions finished and have following behavior: " ^ descr);
+      (String.concat
+         ""
+         [ string_of_int oks
+         ; " executions finished and have following behavior: "
+         ; descr
+         ]);
     let not_oks = List.nth stats 2 in
     print_endline
-      (string_of_int not_oks
-      ^ " executions finished but don't have following behavior: "
-      ^ descr)
+      (String.concat
+         ""
+         [ string_of_int not_oks
+         ; " executions finished but don't have following behavior: "
+         ; descr
+         ])
   ;;
 
   let exec_prog_in_tso_monad_list p max_depth =
