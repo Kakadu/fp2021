@@ -459,7 +459,7 @@ module SequentialConsistency = struct
     print_endline "Code:";
     print_endline code;
     let rec helper results checker errors oks not_oks =
-      if results = []
+      if List.length results = 0
       then [ errors; oks; not_oks ]
       else (
         let res = List.hd results in
@@ -1054,7 +1054,7 @@ module TSO = struct
     print_endline "Code:";
     print_endline code;
     let rec helper results checker errors oks not_oks =
-      if results = []
+      if List.length results = 0
       then [ errors; oks; not_oks ]
       else (
         let res = List.hd results in
