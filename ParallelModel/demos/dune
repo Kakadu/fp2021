@@ -88,6 +88,12 @@
  (public_name compoundStmts)
  (libraries parallelmodel_lib))
 
+(executable
+ (name compoundStmtsTSO)
+ (modules compoundStmtsTSO)
+ (public_name compoundStmtsTSO)
+ (libraries parallelmodel_lib))
+
 (cram
  (deps
   ./storeBufferingNoBarsTSO.exe
@@ -104,4 +110,5 @@
   ./independentReadsOfIndependentWritesTSO.exe
   ./writeToReadCausalitySC.exe
   ./writeToReadCausalityTSO.exe
-  ./compoundStmts.exe))
+  ./compoundStmts.exe
+  ./compoundStmtsTSO.exe))

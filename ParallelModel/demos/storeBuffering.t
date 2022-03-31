@@ -1294,10 +1294,10 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
@@ -1307,7 +1307,7 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
@@ -1321,10 +1321,10 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
@@ -1334,7 +1334,7 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -1348,9 +1348,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -1361,9 +1361,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -1374,7 +1374,7 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
@@ -1388,7 +1388,7 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
@@ -1402,7 +1402,7 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
@@ -1416,10 +1416,10 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
@@ -1429,8 +1429,8 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, PUSH_STORE (("y", 1)))
@@ -1443,9 +1443,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -1456,9 +1456,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -1469,8 +1469,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, PUSH_STORE (("y", 1)))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -1483,8 +1483,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
@@ -1497,8 +1497,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
@@ -1511,9 +1511,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -1524,9 +1524,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -1537,10 +1537,10 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   <><><><><><><><><><><><><><><><><><>
@@ -1550,8 +1550,8 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, PUSH_STORE (("x", 1)))
@@ -1564,8 +1564,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
@@ -1578,8 +1578,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
@@ -1592,8 +1592,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, PUSH_STORE (("x", 1)))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -1606,9 +1606,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, FENCE ([]))
@@ -1620,9 +1620,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, FENCE ([]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -1634,9 +1634,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, FENCE ([]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -1648,10 +1648,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -1662,10 +1662,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -1676,11 +1676,11 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   <><><><><><><><><><><><><><><><><><>
@@ -1840,11 +1840,11 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
@@ -1869,10 +1869,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -1883,10 +1883,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -1942,9 +1942,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, FENCE ([]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -1956,9 +1956,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, FENCE ([]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -1970,9 +1970,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, FENCE ([]))
@@ -2074,11 +2074,11 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
@@ -2103,11 +2103,11 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
@@ -2132,10 +2132,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -2146,10 +2146,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -2205,11 +2205,11 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, FENCE ([]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
@@ -2234,10 +2234,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, FENCE ([]))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -2248,10 +2248,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, FENCE ([]))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -2307,9 +2307,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, FENCE ([]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -2321,9 +2321,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, FENCE ([]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -2335,9 +2335,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, FENCE ([]))
@@ -2439,10 +2439,10 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
@@ -2452,8 +2452,8 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, PUSH_STORE (("y", 1)))
@@ -2466,9 +2466,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -2479,9 +2479,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -2492,8 +2492,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, PUSH_STORE (("y", 1)))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -2506,8 +2506,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
@@ -2520,8 +2520,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
@@ -2534,9 +2534,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -2547,9 +2547,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -2560,10 +2560,10 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
-  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   <><><><><><><><><><><><><><><><><><>
@@ -2573,8 +2573,8 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, PUSH_STORE (("x", 1)))
@@ -2587,8 +2587,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
@@ -2601,8 +2601,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
@@ -2615,8 +2615,8 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, PUSH_STORE (("x", 1)))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -2629,9 +2629,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, FENCE ([]))
@@ -2643,9 +2643,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, FENCE ([]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -2657,9 +2657,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, FENCE ([]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -2671,10 +2671,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -2685,10 +2685,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -2699,11 +2699,11 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   <><><><><><><><><><><><><><><><><><>
@@ -2863,11 +2863,11 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
@@ -2892,10 +2892,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -2906,10 +2906,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
   	(0, FENCE ([]))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -2965,9 +2965,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, FENCE ([]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -2979,9 +2979,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, FENCE ([]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -2993,9 +2993,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, FENCE ([]))
@@ -3097,9 +3097,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -3110,9 +3110,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -3123,10 +3123,10 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   <><><><><><><><><><><><><><><><><><>
@@ -3136,7 +3136,7 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -3150,7 +3150,7 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
@@ -3164,7 +3164,7 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
@@ -3178,7 +3178,7 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, PUSH_STORE (("x", 1)))
@@ -3192,10 +3192,10 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   <><><><><><><><><><><><><><><><><><>
@@ -3205,7 +3205,7 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, FENCE ([]))
   	(1, FENCE ([("y", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
@@ -3219,9 +3219,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, FENCE ([]))
@@ -3233,9 +3233,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, FENCE ([]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -3247,9 +3247,9 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, FENCE ([]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -3261,10 +3261,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, FENCE ([]))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -3275,10 +3275,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, FENCE ([]))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -3289,11 +3289,11 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, FENCE ([]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   <><><><><><><><><><><><><><><><><><>
@@ -3453,10 +3453,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
@@ -3467,10 +3467,10 @@
   	[("r1", 1)]
   	[("r2", 1)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
@@ -3481,11 +3481,11 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   <><><><><><><><><><><><><><><><><><>
@@ -3555,11 +3555,11 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(1, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   	(1, PUSH_STORE (("y", 1)))
   	(1, FENCE ([]))
   	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, FENCE ([]))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("y"))))
   <><><><><><><><><><><><><><><><><><>

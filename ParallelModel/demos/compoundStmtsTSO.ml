@@ -1,10 +1,11 @@
 open Parallelmodel_lib.Ast
 open Parallelmodel_lib.Parser
-open Parallelmodel_lib.Interpret.SequentialConsistency
+open Parallelmodel_lib.Interpret.TSO
 
 let s =
   {|
-x<-1          
+x<-1
+smp_mb         
 if (x) {      
   r1<-1       
   if (y) {    
@@ -28,6 +29,6 @@ let check p_stat =
   r1 = 1 && r3 = 3 && r4 = 4
 ;;
 
-let executions = exec_prog_in_seq_cons_monad_list p1 max_depth
+let executions = exec_prog_in_tso_monad_list p1 max_depth
 let () = show_execution_statistics executions check "pass compound stmts test" s
 let () = show_executions executions

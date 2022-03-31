@@ -686,8 +686,8 @@ module TSO = struct
 
   let enter_block t_stat v =
     { t_stat with
-      counters = t_stat.counters @ [ 0 ]
-    ; branch_exprs = t_stat.branch_exprs @ [ v ]
+      counters = 0 :: t_stat.counters
+    ; branch_exprs = v :: t_stat.branch_exprs
     }
   ;;
 
@@ -703,6 +703,7 @@ module TSO = struct
   let get_stmt p_stat cur_t_num =
     get_thread p_stat cur_t_num
     >>= fun t_stat ->
+    let length = List.length t_stat.branch_exprs in
     let rec helper stmts counts lvl =
       stmts
       >>= fun stmts ->
@@ -712,17 +713,19 @@ module TSO = struct
         helper
           (match List.nth stmts n with
           | IF (_, stmt_list) ->
-            if List.nth t_stat.branch_exprs lvl <> 0
+            if List.nth t_stat.branch_exprs (length - 1 - lvl) <> 0
             then return stmt_list
             else error "try enter if-block when condition is false"
           | IF_ELSE (_, bk1, bk2) ->
-            if List.nth t_stat.branch_exprs lvl <> 0 then return bk1 else return bk2
+            if List.nth t_stat.branch_exprs (length - 1 - lvl) <> 0
+            then return bk1
+            else return bk2
           | _ -> error ("this stmt is not compound: " ^ show_stmt (List.nth stmts n)))
           tl
           (lvl + 1)
       | _ -> error "invalid list of counters"
     in
-    helper (return t_stat.stmts) t_stat.counters 0
+    helper (return t_stat.stmts) (List.rev t_stat.counters) 0
   ;;
 
   let check p_stat n =
@@ -733,8 +736,14 @@ module TSO = struct
     | Failure _ -> false
   ;;
 
-  let reduce ls = ls |> List.rev |> List.tl |> List.rev
-  let thread_stat_inc t_stat = { t_stat with counters = inc_last t_stat.counters }
+  (* let reduce ls = ls |> List.rev |> List.tl |> List.rev *)
+  let inc_fst = function
+    | [] -> []
+    | h :: tl -> (h + 1) :: tl
+  ;;
+
+  let thread_stat_inc t_stat = { t_stat with counters = inc_fst t_stat.counters }
+  let reduce = List.tl
 
   let prog_stat_inc p_stat n =
     let rec helper p_stat n =
