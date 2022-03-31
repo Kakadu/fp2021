@@ -222,17 +222,12 @@ module SequentialConsistency = struct
     { threads = t_stats; ram = []; trace = []; loaded = 0; depth = 0 }
   ;;
 
-  let inc_last ls =
-    let len = List.length ls in
-    List.mapi (fun i x -> if i = len - 1 then x + 1 else x) ls
-  ;;
-
   let last ls = List.nth ls (List.length ls - 1)
 
   let enter_block t_stat v =
     { t_stat with
-      counters = t_stat.counters @ [ 0 ]
-    ; branch_exprs = t_stat.branch_exprs @ [ v ]
+      counters = 0 :: t_stat.counters
+    ; branch_exprs = v :: t_stat.branch_exprs
     }
   ;;
 
@@ -248,6 +243,7 @@ module SequentialConsistency = struct
   let get_stmt p_stat cur_t_num =
     get_thread p_stat cur_t_num
     >>= fun t_stat ->
+    let length = List.length t_stat.branch_exprs in
     let rec helper stmts counts lvl =
       stmts
       >>= fun stmts ->
@@ -257,17 +253,19 @@ module SequentialConsistency = struct
         helper
           (match List.nth stmts n with
           | IF (_, stmt_list) ->
-            if List.nth t_stat.branch_exprs lvl <> 0
+            if List.nth t_stat.branch_exprs (length - 1 - lvl) <> 0
             then return stmt_list
             else error "try enter if-block when condition is false"
           | IF_ELSE (_, bk1, bk2) ->
-            if List.nth t_stat.branch_exprs lvl <> 0 then return bk1 else return bk2
+            if List.nth t_stat.branch_exprs (length - 1 - lvl) <> 0
+            then return bk1
+            else return bk2
           | _ -> error ("this stmt is not compound: " ^ show_stmt (List.nth stmts n)))
           tl
           (lvl + 1)
       | _ -> error "invalid list of counters"
     in
-    helper (return t_stat.stmts) t_stat.counters 0
+    helper (return t_stat.stmts) (List.rev t_stat.counters) 0
   ;;
 
   let check p_stat n =
@@ -278,8 +276,22 @@ module SequentialConsistency = struct
     | Failure _ -> false
   ;;
 
-  let reduce ls = ls |> List.rev |> List.tl |> List.rev
-  let thread_stat_inc t_stat = { t_stat with counters = inc_last t_stat.counters }
+  (* let reduce ls = ls |> List.rev |> List.tl |> List.rev *)
+  let reduce = List.tl
+
+  (* let inc_last ls =
+    let len = List.length ls in
+    List.mapi (fun i x -> if i = len - 1 then x + 1 else x) ls
+  ;; *)
+
+  let inc_fst = function
+    | [] -> []
+    | h :: tl -> (h + 1) :: tl
+  ;;
+
+  let thread_stat_inc t_stat =
+    { t_stat with counters = (* inc_last  *) inc_fst t_stat.counters }
+  ;;
 
   let prog_stat_inc p_stat n =
     let rec helper p_stat n =
@@ -332,7 +344,10 @@ module SequentialConsistency = struct
       prog_stat_inc p_stat n
   ;;
 
-  let thread_is_not_finished t_stat = List.hd t_stat.counters < t_stat.length
+  let thread_is_not_finished t_stat =
+    (* List.hd  *)
+    last t_stat.counters < t_stat.length
+  ;;
 
   let prog_is_not_finished p_stat =
     List.exists (fun x -> x = true) (List.map thread_is_not_finished p_stat.threads)
