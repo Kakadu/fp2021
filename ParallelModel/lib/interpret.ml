@@ -1,5 +1,4 @@
 open Ast
-open Angstrom
 
 module type MONAD = sig
   type 'a t
@@ -23,12 +22,73 @@ module Resultq = struct
   let error = Result.error
 end
 
-module Listq = struct
-  type 'a t = 'a list
+let show_execution_statistics results check_property descr code =
+  print_endline "Code:";
+  print_endline code;
+  let rec helper results checker errors oks not_oks =
+    match results with
+    | [] -> [ errors; oks; not_oks ]
+    | h :: tl ->
+      (match h with
+      | Error _ -> helper tl checker (errors + 1) oks not_oks
+      | Ok p_stat ->
+        if checker p_stat
+        then helper tl checker errors (oks + 1) not_oks
+        else helper tl checker errors oks (not_oks + 1))
+  in
+  let stats = helper results check_property 0 0 0 in
+  print_endline "\tEXECUTION STATISTICS";
+  let errors = List.nth stats 0 in
+  print_endline (string_of_int errors ^ " executions crushed");
+  let oks = List.nth stats 1 in
+  print_endline
+    (String.concat
+       ""
+       [ string_of_int oks; " executions finished and have following behavior: "; descr ]);
+  let not_oks = List.nth stats 2 in
+  print_endline
+    (String.concat
+       ""
+       [ string_of_int not_oks
+       ; " executions finished but don't have following behavior: "
+       ; descr
+       ])
+;;
 
-  let ( >>= ) xs f = List.concat_map f xs
-  let return x = [ x ]
-end
+let reduce = List.tl
+
+let inc_fst = function
+  | [] -> []
+  | h :: tl -> (h + 1) :: tl
+;;
+
+let set v' n = List.mapi (fun i v -> if i = n then v' else v)
+let last ls = List.nth ls (List.length ls - 1)
+
+let rec find (list : (string * int) list) (var : string) =
+  match list with
+  | [] -> None
+  | h :: tl ->
+    (match h with
+    | v_name, value -> if v_name = var then Some value else find tl var)
+;;
+
+let remove list name = List.filter (fun (v_name, _) -> v_name <> name) list
+
+let rec replace list name value =
+  match
+    List.find_opt
+      (function
+        | v_name, _ -> v_name = name)
+      list
+  with
+  | None -> (name, value) :: list
+  | Some x ->
+    (match x with
+    | v_name, _ ->
+      let list = remove list v_name in
+      (name, value) :: list)
+;;
 
 module SequentialConsistency = struct
   (* return для монады list *)
@@ -37,7 +97,6 @@ module SequentialConsistency = struct
   (* bind для монады list *)
   let ( >>== ) xs f = List.concat_map f xs
   let ( >>= ) = Result.bind
-  let ( >=> ) f g x = f x >>= fun y -> g y
   let return = Result.ok
   let error = Result.error
 
@@ -70,27 +129,12 @@ module SequentialConsistency = struct
     List.iter (fun step -> print_endline ("\t" ^ show_step step)) trace
   ;;
 
-  let set v' n = List.mapi (fun i v -> if i = n then v' else v)
-
-  let print_ht =
-    Hashtbl.iter (fun v_name value ->
-        print_endline (String.concat "" [ "\t"; v_name; " = "; string_of_int value ]))
-  ;;
-
   let get_thread p_stat n =
     let rec helper = function
       | [] -> error ("program doesn't have thread with num " ^ string_of_int n)
       | t_stat :: tl -> if t_stat.number = n then return t_stat else helper tl
     in
     helper p_stat.threads
-  ;;
-
-  let rec find (list : (string * int) list) (var : string) =
-    match list with
-    | [] -> None
-    | h :: tl ->
-      (match h with
-      | v_name, value -> if v_name = var then Some value else find tl var)
   ;;
 
   let init_var p_stat var =
@@ -111,23 +155,6 @@ module SequentialConsistency = struct
         error
           (String.concat "" [ "variable "; var; " was initialized but not found in ram" ])
       | Some value -> return { p_stat with loaded = value })
-  ;;
-
-  let remove list name = List.filter (fun (v_name, _) -> v_name <> name) list
-
-  let rec replace list name value =
-    match
-      List.find_opt
-        (function
-          | v_name, _ -> v_name = name)
-        list
-    with
-    | None -> (name, value) :: list
-    | Some x ->
-      (match x with
-      | v_name, _ ->
-        let list = remove list v_name in
-        (name, value) :: list)
   ;;
 
   let store_to_var p_stat v_name value =
@@ -222,8 +249,6 @@ module SequentialConsistency = struct
     { threads = t_stats; ram = []; trace = []; loaded = 0; depth = 0 }
   ;;
 
-  let last ls = List.nth ls (List.length ls - 1)
-
   let enter_block t_stat v =
     { t_stat with
       counters = 0 :: t_stat.counters
@@ -274,13 +299,6 @@ module SequentialConsistency = struct
       | _ -> true
     with
     | Failure _ -> false
-  ;;
-
-  let reduce = List.tl
-
-  let inc_fst = function
-    | [] -> []
-    | h :: tl -> (h + 1) :: tl
   ;;
 
   let thread_stat_inc t_stat =
@@ -382,42 +400,6 @@ module SequentialConsistency = struct
       p_stats_results
   ;;
 
-  let show_execution_statistics results check_property descr code =
-    print_endline "Code:";
-    print_endline code;
-    let rec helper results checker errors oks not_oks =
-      match results with
-      | [] -> [ errors; oks; not_oks ]
-      | h :: tl ->
-        (match h with
-        | Error _ -> helper tl checker (errors + 1) oks not_oks
-        | Ok p_stat ->
-          if checker p_stat
-          then helper tl checker errors (oks + 1) not_oks
-          else helper tl checker errors oks (not_oks + 1))
-    in
-    let stats = helper results check_property 0 0 0 in
-    print_endline "\tEXECUTION STATISTICS";
-    let errors = List.nth stats 0 in
-    print_endline (string_of_int errors ^ " executions crushed");
-    let oks = List.nth stats 1 in
-    print_endline
-      (String.concat
-         ""
-         [ string_of_int oks
-         ; " executions finished and have following behavior: "
-         ; descr
-         ]);
-    let not_oks = List.nth stats 2 in
-    print_endline
-      (String.concat
-         ""
-         [ string_of_int not_oks
-         ; " executions finished but don't have following behavior: "
-         ; descr
-         ])
-  ;;
-
   let exec_prog_in_seq_cons_monad_list p max_depth =
     let p_stat = init_prog_stat p in
     let rec helper p_stats_results =
@@ -491,27 +473,12 @@ module TSO = struct
     List.iter (fun step -> print_endline ("\t" ^ show_step step)) trace
   ;;
 
-  let set v' n = List.mapi (fun i v -> if i = n then v' else v)
-
-  let print_ht =
-    Hashtbl.iter (fun v_name value ->
-        print_endline (String.concat "" [ "\t"; v_name; " = "; string_of_int value ]))
-  ;;
-
   let get_thread p_stat n =
     let rec helper = function
       | [] -> error ("program doesn't have thread with num " ^ string_of_int n)
       | t_stat :: tl -> if t_stat.number = n then return t_stat else helper tl
     in
     helper p_stat.threads
-  ;;
-
-  let rec find (list : (string * int) list) (var : string) =
-    match list with
-    | [] -> None
-    | h :: tl ->
-      (match h with
-      | v_name, value -> if v_name = var then Some value else find tl var)
   ;;
 
   let init_var p_stat var =
@@ -534,23 +501,6 @@ module TSO = struct
              ""
              [ "variable @"; var; " was initialized but not found in ram" ])
       | Some value -> return { p_stat with loaded = value })
-  ;;
-
-  let remove list name = List.filter (fun (v_name, _) -> v_name <> name) list
-
-  let rec replace list name value =
-    match
-      List.find_opt
-        (function
-          | v_name, _ -> v_name = name)
-        list
-    with
-    | None -> (name, value) :: list
-    | Some x ->
-      (match x with
-      | v_name, _ ->
-        let list = remove list v_name in
-        (name, value) :: list)
   ;;
 
   let update_p_stat p_stat new_thread new_t_num =
@@ -671,13 +621,6 @@ module TSO = struct
     { threads = t_stats; ram = []; trace = []; loaded = 0; depth = 0 }
   ;;
 
-  let inc_last ls =
-    let len = List.length ls in
-    List.mapi (fun i x -> if i = len - 1 then x + 1 else x) ls
-  ;;
-
-  let last ls = List.nth ls (List.length ls - 1)
-
   let enter_block t_stat v =
     { t_stat with
       counters = 0 :: t_stat.counters
@@ -730,13 +673,7 @@ module TSO = struct
     | Failure _ -> false
   ;;
 
-  let inc_fst = function
-    | [] -> []
-    | h :: tl -> (h + 1) :: tl
-  ;;
-
   let thread_stat_inc t_stat = { t_stat with counters = inc_fst t_stat.counters }
-  let reduce = List.tl
 
   let prog_stat_inc p_stat n =
     let rec helper p_stat n =
@@ -899,42 +836,6 @@ module TSO = struct
           show_trace p_stat;
           print_endline "<><><><><><><><><><><><><><><><><><>")
       p_stats_results
-  ;;
-
-  let show_execution_statistics results check_property descr code =
-    print_endline "Code:";
-    print_endline code;
-    let rec helper results checker errors oks not_oks =
-      match results with
-      | [] -> [ errors; oks; not_oks ]
-      | h :: tl ->
-        (match h with
-        | Error _ -> helper tl checker (errors + 1) oks not_oks
-        | Ok p_stat ->
-          if checker p_stat
-          then helper tl checker errors (oks + 1) not_oks
-          else helper tl checker errors oks (not_oks + 1))
-    in
-    let stats = helper results check_property 0 0 0 in
-    print_endline "\tEXECUTION STATISTICS";
-    let errors = List.nth stats 0 in
-    print_endline (string_of_int errors ^ " executions crushed");
-    let oks = List.nth stats 1 in
-    print_endline
-      (String.concat
-         ""
-         [ string_of_int oks
-         ; " executions finished and have following behavior: "
-         ; descr
-         ]);
-    let not_oks = List.nth stats 2 in
-    print_endline
-      (String.concat
-         ""
-         [ string_of_int not_oks
-         ; " executions finished but don't have following behavior: "
-         ; descr
-         ])
   ;;
 
   let exec_prog_in_tso_monad_list p max_depth =
