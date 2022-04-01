@@ -13,6 +13,8 @@ module type MONADERROR = sig
   val error : 'a -> ('b, 'a) result
 end
 
+exception Impossible_case of string
+
 module ResultMonad = struct
   type ('a, 'b) t = ('a list, 'b) result
 
@@ -32,13 +34,15 @@ module ResultMonad = struct
       | Some err ->
         (match err with
         | Error e -> error e
-        | _ -> failwith "impossible1")
+        | _ -> raise (Impossible_case "variable could be only Error, not Ok"))
       | None ->
         let concat_list =
           List.concat_map
             (function
               | Ok list -> list
-              | _ -> failwith "impossible2")
+              | _ ->
+                raise
+                  (Impossible_case "Allready checked that all elements of lists are Ok-s"))
             llist
         in
         Result.ok concat_list)
@@ -389,25 +393,7 @@ module SequentialConsistency (M : MONADERROR) = struct
     then (
       let p_stat = { p_stat with depth = p_stat.depth + 1 } in
       let nums = not_finished_threads p_stat in
-      let r_list = List.map (fun t_num -> exec_single_stmt_in_thread t_num p_stat) nums in
-      let is_error = function
-        | Error _ -> true
-        | Ok _ -> false
-      in
-      match List.find_opt is_error r_list with
-      | Some err ->
-        (match err with
-        | Error e -> error e
-        | _ -> failwith "impossible1")
-      | None ->
-        let concat_list =
-          List.concat_map
-            (function
-              | Ok list -> list
-              | _ -> failwith "impossible2")
-            r_list
-        in
-        Result.ok concat_list)
+      Result.ok nums >>= fun num -> exec_single_stmt_in_thread num p_stat)
     else error "execution is too long"
   ;;
 
@@ -769,7 +755,7 @@ module TSO (M : MONADERROR) = struct
         | FENCE list ->
           let store = List.hd t.st_buf in
           list @ [ store ]
-        | _ -> failwith "impossible case in flush_st_buf"
+        | _ -> raise @@ Impossible_case "impossible case in flush_st_buf"
       in
       let p_stat = update_last_in_trace p_stat n (FENCE step) in
       flush_st_buf p_stat n
@@ -825,27 +811,14 @@ module TSO (M : MONADERROR) = struct
       let p_stat = { p_stat with depth = p_stat.depth + 1 } in
       let nums1 = not_finished_threads p_stat in
       let nums2 = threads_with_not_empty_st_buf p_stat in
-      let l1 = List.map (fun t_num -> exec_single_stmt_in_thread t_num p_stat) nums1 in
-      let l2 = List.map (fun t_num -> push_store_to_ram p_stat t_num) nums2 in
-      let r_list = List.concat [ l1; l2 ] in
-      let is_error = function
-        | Error _ -> true
-        | Ok _ -> false
-      in
-      match List.find_opt is_error r_list with
-      | Some err ->
-        (match err with
+      let res1 = Result.ok nums1 >>= fun num -> exec_single_stmt_in_thread num p_stat in
+      let res2 = Result.ok nums2 >>= fun num -> push_store_to_ram p_stat num in
+      match res1 with
+      | Error e -> error e
+      | Ok list1 ->
+        (match res2 with
         | Error e -> error e
-        | _ -> failwith "impossible1 tso")
-      | None ->
-        let concat_list =
-          List.concat_map
-            (function
-              | Ok list -> list
-              | _ -> failwith "impossible2 tso")
-            r_list
-        in
-        Result.ok concat_list)
+        | Ok list2 -> Result.ok (list1 @ list2)))
     else error "execution is too long"
   ;;
 
