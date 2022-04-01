@@ -6,7 +6,6 @@
   r2<-x ||| r4 <-x 
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: fails Coherence of Read-Read litmus test
   20 executions finished but don't have following behavior: fails Coherence of Read-Read litmus test
   	execution 1
@@ -277,7 +276,6 @@
   r2<-x ||| r4 <-x 
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: fails Coherence of Read-Read litmus test
   610 executions finished but don't have following behavior: fails Coherence of Read-Read litmus test
   	execution 1

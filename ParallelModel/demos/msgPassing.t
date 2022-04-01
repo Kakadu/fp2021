@@ -5,7 +5,6 @@
   f<-1   ||| r2<-x
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: r1 = 1 and r2 = 0
   6 executions finished but don't have following behavior: r1 = 1 and r2 = 0
   	execution 1
@@ -81,7 +80,6 @@
   f<-1   ||| r2<-x
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: r1 = 1 and r2 = 0
   30 executions finished but don't have following behavior: r1 = 1 and r2 = 0
   	execution 1

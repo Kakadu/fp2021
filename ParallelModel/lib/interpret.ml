@@ -1,58 +1,78 @@
 open Ast
 
 module type MONAD = sig
-  type 'a t
+  type ('a, 'b) t = ('a list, 'b) result
 
-  val return : 'a -> 'a t
-  val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
-  val ( >> ) : 'a t -> 'b t -> 'b t
+  val return : 'a -> ('a, 'b) t
+  val ( >>= ) : ('a, 'b) t -> ('a -> ('c, 'b) t) -> ('c, 'b) t
 end
 
 module type MONADERROR = sig
   include MONAD
 
-  val error : string -> 'a t
+  val error : 'a -> ('b, 'a) result
 end
 
-module Resultq = struct
-  type 'a t = ('a, string) Result.t
+module ResultMonad = struct
+  type ('a, 'b) t = ('a list, 'b) result
 
-  let ( >>= ) = Result.bind
-  let return = Result.ok
+  let return x = Result.ok [ x ]
   let error = Result.error
+
+  let ( >>= ) xs f =
+    match xs with
+    | Error e -> error e
+    | Ok list ->
+      let llist = List.map f list in
+      let is_error = function
+        | Error _ -> true
+        | Ok _ -> false
+      in
+      (match List.find_opt is_error llist with
+      | Some err ->
+        (match err with
+        | Error e -> error e
+        | _ -> failwith "impossible1")
+      | None ->
+        let concat_list =
+          List.concat_map
+            (function
+              | Ok list -> list
+              | _ -> failwith "impossible2")
+            llist
+        in
+        Result.ok concat_list)
+  ;;
 end
 
-let show_execution_statistics results check_property descr code =
-  print_endline "Code:";
-  print_endline code;
-  let rec helper results checker errors oks not_oks =
-    match results with
-    | [] -> [ errors; oks; not_oks ]
-    | h :: tl ->
-      (match h with
-      | Error _ -> helper tl checker (errors + 1) oks not_oks
-      | Ok p_stat ->
-        if checker p_stat
-        then helper tl checker errors (oks + 1) not_oks
-        else helper tl checker errors oks (not_oks + 1))
-  in
-  let stats = helper results check_property 0 0 0 in
-  print_endline "\tEXECUTION STATISTICS";
-  let errors = List.nth stats 0 in
-  print_endline (string_of_int errors ^ " executions crushed");
-  let oks = List.nth stats 1 in
-  print_endline
-    (String.concat
-       ""
-       [ string_of_int oks; " executions finished and have following behavior: "; descr ]);
-  let not_oks = List.nth stats 2 in
-  print_endline
-    (String.concat
-       ""
-       [ string_of_int not_oks
-       ; " executions finished but don't have following behavior: "
-       ; descr
-       ])
+let show_execution_statistics result check_property descr code =
+  match result with
+  | Error e -> print_endline ("Execution crushed with error: " ^ e)
+  | Ok p_stat_list ->
+    let good_execs =
+      List.fold_left
+        (fun cnt p_stat -> if check_property p_stat then cnt + 1 else cnt)
+        0
+        p_stat_list
+    in
+    let bad_execs = List.length p_stat_list - good_execs in
+    print_endline "Code:";
+    print_endline code;
+    print_endline "\tEXECUTION STATISTICS";
+    print_endline
+      (String.concat
+         ""
+         [ string_of_int good_execs
+         ; " executions finished and have following behavior: "
+         ; descr
+         ]);
+    print_endline
+      (String.concat
+         ""
+         [ string_of_int bad_execs
+         ; " executions finished but don't have following behavior: "
+         ; descr
+         ])
 ;;
 
 let reduce = List.tl
@@ -90,15 +110,8 @@ let rec replace list name value =
       (name, value) :: list)
 ;;
 
-module SequentialConsistency = struct
-  (* return для монады list *)
-  let l_return x = [ x ]
-
-  (* bind для монады list *)
-  let ( >>== ) xs f = List.concat_map f xs
-  let ( >>= ) = Result.bind
-  let return = Result.ok
-  let error = Result.error
+module SequentialConsistency (M : MONADERROR) = struct
+  open M
 
   type ram = (string * int) list [@@deriving show { with_path = false }]
   type regs = ram [@@deriving show { with_path = false }]
@@ -376,19 +389,34 @@ module SequentialConsistency = struct
     then (
       let p_stat = { p_stat with depth = p_stat.depth + 1 } in
       let nums = not_finished_threads p_stat in
-      List.map (fun t_num -> exec_single_stmt_in_thread t_num p_stat) nums)
-    else l_return (error "execution is too long")
+      let r_list = List.map (fun t_num -> exec_single_stmt_in_thread t_num p_stat) nums in
+      let is_error = function
+        | Error _ -> true
+        | Ok _ -> false
+      in
+      match List.find_opt is_error r_list with
+      | Some err ->
+        (match err with
+        | Error e -> error e
+        | _ -> failwith "impossible1")
+      | None ->
+        let concat_list =
+          List.concat_map
+            (function
+              | Ok list -> list
+              | _ -> failwith "impossible2")
+            r_list
+        in
+        Result.ok concat_list)
+    else error "execution is too long"
   ;;
 
-  let show_executions p_stats_results =
-    List.iteri
-      (fun i p_stat_res ->
-        print_endline (String.concat "" [ "\t"; "execution "; string_of_int (i + 1) ]);
-        match p_stat_res with
-        | Error msg ->
-          print_endline msg;
-          print_endline "<><><><><><><><><><><><><><><><><><>"
-        | Ok p_stat ->
+  let show_executions = function
+    | Error e -> print_endline e
+    | Ok p_stat_list ->
+      List.iteri
+        (fun i p_stat ->
+          print_endline (String.concat "" [ "\t"; "execution "; string_of_int (i + 1) ]);
           let ram = show_ram p_stat.ram in
           let reg_sets = List.map (fun t -> show_regs t.registers) p_stat.threads in
           print_endline ("ram: " ^ ram);
@@ -397,28 +425,19 @@ module SequentialConsistency = struct
           print_endline "trace:";
           show_trace p_stat;
           print_endline "<><><><><><><><><><><><><><><><><><>")
-      p_stats_results
+        p_stat_list
   ;;
 
   let exec_prog_in_seq_cons_monad_list p max_depth =
     let p_stat = init_prog_stat p in
-    let rec helper p_stats_results =
-      if List.exists
-           (function
-             | Error _ -> false
-             | Ok p_stat -> prog_is_not_finished p_stat)
-           p_stats_results
-      then
-        helper
-          (p_stats_results
-          >>== fun p_stat_res ->
-          match p_stat_res with
-          | Error _ -> [ p_stat_res ]
-          | Ok p_stat when prog_is_not_finished p_stat -> exec_next_instr p_stat max_depth
-          | Ok p_stat -> [ return p_stat ])
-      else p_stats_results
+    let rec helper (res : (prog_stat list, 'b) result) =
+      res
+      >>= fun p_stat ->
+      if prog_is_not_finished p_stat
+      then helper (exec_next_instr p_stat max_depth)
+      else return p_stat
     in
-    helper [ return p_stat ]
+    helper (return p_stat)
   ;;
 
   let get_reg_val p_stat n r_name =
@@ -426,15 +445,8 @@ module SequentialConsistency = struct
   ;;
 end
 
-module TSO = struct
-  (* return для монады list *)
-  let l_return x = [ x ]
-
-  (* bind для монады list *)
-  let ( >>== ) xs f = List.concat_map f xs
-  let ( >>= ) = Result.bind
-  let return = Result.ok
-  let error = Result.error
+module TSO (M : MONADERROR) = struct
+  open M
 
   type memory = (string * int) list [@@deriving show { with_path = false }]
   type ram = memory [@@deriving show { with_path = false }]
@@ -757,6 +769,7 @@ module TSO = struct
         | FENCE list ->
           let store = List.hd t.st_buf in
           list @ [ store ]
+        | _ -> failwith "impossible case in flush_st_buf"
       in
       let p_stat = update_last_in_trace p_stat n (FENCE step) in
       flush_st_buf p_stat n
@@ -814,19 +827,34 @@ module TSO = struct
       let nums2 = threads_with_not_empty_st_buf p_stat in
       let l1 = List.map (fun t_num -> exec_single_stmt_in_thread t_num p_stat) nums1 in
       let l2 = List.map (fun t_num -> push_store_to_ram p_stat t_num) nums2 in
-      List.concat [ l1; l2 ])
-    else l_return (error "execution is too long")
+      let r_list = List.concat [ l1; l2 ] in
+      let is_error = function
+        | Error _ -> true
+        | Ok _ -> false
+      in
+      match List.find_opt is_error r_list with
+      | Some err ->
+        (match err with
+        | Error e -> error e
+        | _ -> failwith "impossible1 tso")
+      | None ->
+        let concat_list =
+          List.concat_map
+            (function
+              | Ok list -> list
+              | _ -> failwith "impossible2 tso")
+            r_list
+        in
+        Result.ok concat_list)
+    else error "execution is too long"
   ;;
 
-  let show_executions p_stats_results =
-    List.iteri
-      (fun i p_stat_res ->
-        print_endline (String.concat "" [ "\t"; "execution "; string_of_int (i + 1) ]);
-        match p_stat_res with
-        | Error msg ->
-          print_endline msg;
-          print_endline "<><><><><><><><><><><><><><><><><><>"
-        | Ok p_stat ->
+  let show_executions = function
+    | Error e -> print_endline e
+    | Ok p_stat_list ->
+      List.iteri
+        (fun i p_stat ->
+          print_endline (String.concat "" [ "\t"; "execution "; string_of_int (i + 1) ]);
           let ram = show_ram p_stat.ram in
           let reg_sets = List.map (fun t -> show_regs t.registers) p_stat.threads in
           print_endline ("ram: " ^ ram);
@@ -835,28 +863,19 @@ module TSO = struct
           print_endline "trace:";
           show_trace p_stat;
           print_endline "<><><><><><><><><><><><><><><><><><>")
-      p_stats_results
+        p_stat_list
   ;;
 
   let exec_prog_in_tso_monad_list p max_depth =
     let p_stat = init_prog_stat p in
-    let rec helper p_stats_results =
-      if List.exists
-           (function
-             | Error _ -> false
-             | Ok p_stat -> prog_is_not_finished p_stat)
-           p_stats_results
-      then
-        helper
-          (p_stats_results
-          >>== fun p_stat_res ->
-          match p_stat_res with
-          | Error _ -> [ p_stat_res ]
-          | Ok p_stat when prog_is_not_finished p_stat -> exec_next_instr p_stat max_depth
-          | Ok p_stat -> [ return p_stat ])
-      else p_stats_results
+    let rec helper (res : (prog_stat list, 'b) result) =
+      res
+      >>= fun p_stat ->
+      if prog_is_not_finished p_stat
+      then helper (exec_next_instr p_stat max_depth)
+      else return p_stat
     in
-    helper [ return p_stat ]
+    helper (return p_stat)
   ;;
 
   let get_reg_val p_stat n r_name =

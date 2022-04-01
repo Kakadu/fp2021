@@ -14,7 +14,6 @@
   }             
   
   	EXECUTION STATISTICS
-  0 executions crushed
   1 executions finished and have following behavior: pass compound stmts test
   0 executions finished but don't have following behavior: pass compound stmts test
   	execution 1

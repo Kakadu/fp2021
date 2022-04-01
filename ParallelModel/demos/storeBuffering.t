@@ -5,7 +5,6 @@
   r1<-y  ||| r2<-x
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: r1 = 0 and r2 = 0
   6 executions finished but don't have following behavior: r1 = 0 and r2 = 0
   	execution 1
@@ -82,7 +81,6 @@
   r1<-y  ||| r2<-x
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: r1 = 0 and r2 = 0
   20 executions finished but don't have following behavior: r1 = 0 and r2 = 0
   	execution 1
@@ -352,7 +350,6 @@
   r1<-y  ||| r2<-x
   
   	EXECUTION STATISTICS
-  0 executions crushed
   12 executions finished and have following behavior: r1 = 0 and r2 = 0
   62 executions finished but don't have following behavior: r1 = 0 and r2 = 0
   	execution 1
@@ -1285,7 +1282,6 @@
   r1<-y  ||| r2<-x
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: r1 = 0 and r2 = 0
   160 executions finished but don't have following behavior: r1 = 0 and r2 = 0
   	execution 1

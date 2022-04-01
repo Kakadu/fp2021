@@ -5,7 +5,6 @@
          ||| y <- r1 ||| r3 <- x
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: fails Write-to-Read Causality litmus test
   90 executions finished but don't have following behavior: fails Write-to-Read Causality litmus test
   	execution 1
@@ -1275,7 +1274,6 @@
          ||| y <- r1 ||| r3 <- x
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: fails Write-to-Read Causality litmus test
   1030 executions finished but don't have following behavior: fails Write-to-Read Causality litmus test
   	execution 1

@@ -1,6 +1,10 @@
 open Parallelmodel_lib.Ast
 open Parallelmodel_lib.Parser
-open Parallelmodel_lib.Interpret.SequentialConsistency
+
+open
+  Parallelmodel_lib.Interpret.SequentialConsistency
+    (Parallelmodel_lib.Interpret.ResultMonad)
+
 open Parallelmodel_lib.Interpret
 
 let s2 = {|

@@ -5,7 +5,6 @@
   y<-1   ||| x<-1
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: r1 = 1 and r2 = 1
   6 executions finished but don't have following behavior: r1 = 1 and r2 = 1
   	execution 1
@@ -81,7 +80,6 @@
   y<-1   ||| x<-1
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: r1 = 1 and r2 = 1
   14 executions finished but don't have following behavior: r1 = 1 and r2 = 1
   	execution 1

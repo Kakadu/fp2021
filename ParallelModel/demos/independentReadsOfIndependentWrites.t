@@ -6,7 +6,6 @@
   r2<-y ||| r4 <-x 
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: fails Independent Reads of Independent Writes litmus test
   20 executions finished but don't have following behavior: fails Independent Reads of Independent Writes litmus test
   	execution 1
@@ -276,6 +275,5 @@
          |||      ||| r2<-y  ||| r4 <-x 
   
   	EXECUTION STATISTICS
-  0 executions crushed
   0 executions finished and have following behavior: fails Independent Reads of Independent Writes litmus test
   98280 executions finished but don't have following behavior: fails Independent Reads of Independent Writes litmus test
