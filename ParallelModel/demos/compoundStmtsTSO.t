@@ -14,11 +14,34 @@
     r4<-4       
   }             
   
-  Fatal error: exception Not_found
-  Raised at Stdlib__List.find in file "list.ml", line 224, characters 10-25
-  Called from Parallelmodel_lib__Interpret.TSO.get_reg_val in file "lib/interpret.ml", line 969, characters 8-84
-  Called from Dune__exe__CompoundStmtsTSO.check in file "demos/compoundStmtsTSO.ml", line 27, characters 11-36
-  Called from Parallelmodel_lib__Interpret.TSO.show_execution_statistics.helper in file "lib/interpret.ml", line 921, characters 13-27
-  Called from Parallelmodel_lib__Interpret.TSO.show_execution_statistics in file "lib/interpret.ml", line 925, characters 16-51
-  Called from Dune__exe__CompoundStmtsTSO in file "demos/compoundStmtsTSO.ml", line 33, characters 9-80
-  [2]
+  	EXECUTION STATISTICS
+  0 executions crushed
+  2 executions finished and have following behavior: pass compound stmts test
+  0 executions finished but don't have following behavior: pass compound stmts test
+  	execution 1
+  ram: [("x", 1)]
+  regs:
+  	[("r4", 4); ("r3", 3); ("r1", 1)]
+  trace:
+  	(0, FENCE ([]))
+  	(0, FENCE ([("x", 1)]))
+  	(0, STMT (IF (VAR_NAME ("x"), [])))
+  	(0, STMT (ASSIGN (REGISTER ("r1"), INT (1))))
+  	(0, STMT (IF_ELSE (VAR_NAME ("y"), [], [])))
+  	(0, STMT (ASSIGN (REGISTER ("r3"), INT (3))))
+  	(0, STMT (ASSIGN (REGISTER ("r4"), INT (4))))
+  <><><><><><><><><><><><><><><><><><>
+  	execution 2
+  ram: [("x", 1)]
+  regs:
+  	[("r4", 4); ("r3", 3); ("r1", 1)]
+  trace:
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, PUSH_STORE (("x", 1)))
+  	(0, FENCE ([]))
+  	(0, STMT (IF (VAR_NAME ("x"), [])))
+  	(0, STMT (ASSIGN (REGISTER ("r1"), INT (1))))
+  	(0, STMT (IF_ELSE (VAR_NAME ("y"), [], [])))
+  	(0, STMT (ASSIGN (REGISTER ("r3"), INT (3))))
+  	(0, STMT (ASSIGN (REGISTER ("r4"), INT (4))))
+  <><><><><><><><><><><><><><><><><><>

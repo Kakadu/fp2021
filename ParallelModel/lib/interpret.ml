@@ -276,13 +276,7 @@ module SequentialConsistency = struct
     | Failure _ -> false
   ;;
 
-  (* let reduce ls = ls |> List.rev |> List.tl |> List.rev *)
   let reduce = List.tl
-
-  (* let inc_last ls =
-    let len = List.length ls in
-    List.mapi (fun i x -> if i = len - 1 then x + 1 else x) ls
-  ;; *)
 
   let inc_fst = function
     | [] -> []
@@ -736,7 +730,6 @@ module TSO = struct
     | Failure _ -> false
   ;;
 
-  (* let reduce ls = ls |> List.rev |> List.tl |> List.rev *)
   let inc_fst = function
     | [] -> []
     | h :: tl -> (h + 1) :: tl
