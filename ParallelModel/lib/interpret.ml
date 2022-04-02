@@ -381,6 +381,12 @@ module COPYPASTE = struct
     in
     helper (return p_stat)
   ;;
+
+  let exec_if evaled_expr p_stat n =
+    if evaled_expr = 0
+    then prog_stat_inc p_stat n
+    else return (enter_block_in_thread n p_stat evaled_expr)
+  ;;
 end
 
 module SequentialConsistency = struct
@@ -412,9 +418,7 @@ module SequentialConsistency = struct
     >>= function
     | IF (e, _) ->
       let p_stat = set_updated_trace p_stat (n, STMT (IF (e, []))) in
-      eval_expr_sc n p_stat e
-      >>= fun e ->
-      if e = 0 then prog_stat_inc p_stat n else return (enter_block_in_thread n p_stat e)
+      eval_expr_sc n p_stat e >>= fun e -> exec_if e p_stat n
     | IF_ELSE (e, _, _) ->
       let p_stat = set_updated_trace p_stat (n, STMT (IF_ELSE (e, [], []))) in
       eval_expr_sc n p_stat e >>= fun e -> return @@ enter_block_in_thread n p_stat e
@@ -541,9 +545,7 @@ module TSO = struct
         let trace = update_trace p_stat.trace (n, STMT (IF (e, []))) in
         set_updated_trace p_stat trace
       in
-      eval_expr_tso n p_stat e
-      >>= fun e ->
-      if e = 0 then prog_stat_inc p_stat n else return (enter_block_in_thread n p_stat e)
+      eval_expr_tso n p_stat e >>= fun e -> exec_if e p_stat n
     | IF_ELSE (e, _, _) ->
       let p_stat =
         let trace = update_trace p_stat.trace (n, STMT (IF_ELSE (e, [], []))) in
