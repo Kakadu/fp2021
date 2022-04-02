@@ -129,3 +129,16 @@ $ ./demoHaskellADT.exe <<-EOF
 strangeFunc = <fun>
 x = 22
 ============================
+$ ./demoHaskellADT.exe <<-EOF
+> minFromList xs = let helper l = case l of
+>                          [] -> undefined
+>                          x:[] -> x
+>                          (h:tl) -> (let m2 = helper tl in (if h < m2 then h else m2))
+>                      m = helper xs
+>                          in
+>                 m
+> 
+> res = minFromList [0, 9, 19, 10]
+minFromList = <fun>
+res = 0
+============================

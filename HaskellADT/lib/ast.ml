@@ -1,6 +1,8 @@
+open Containers
+
 type id = string [@@deriving eq, show { with_path = false }]
 
-module BindsMap = Map.Make (String)
+module BindsMap = CCMap.Make (String)
 
 type bin_op =
   | Add (**  +   *)
@@ -17,6 +19,15 @@ type bin_op =
   | Or (**  ||  *)
 [@@deriving eq]
 
+and un_op =
+  | Minus
+  | Not
+  | Fst
+  | Snd
+  | Head
+  | Tail
+[@@deriving eq]
+
 and const =
   | CBool of bool (** True    *)
   | CInt of int (** 201     *)
@@ -26,6 +37,7 @@ and const =
 and expr =
   | EConst of const (**  1  *)
   | EBinOp of bin_op * expr * expr (**  201 - 1  *)
+  | EUnOp of un_op * expr (** -1 *)
   | EVar of id (**  a  *)
   | ETuple of expr list (**  ("Tom", "Hardy", 44)  *)
   | ECons of expr * expr (**  h : tl  *)
@@ -58,6 +70,7 @@ and pat =
   | PNull (**  []  *)
   | PTuple of pat list (**  (_, 1, "A")  *)
   | PAdt of id * pat (**  Point 3 0  *)
+  | PUnit
 [@@deriving eq]
 
 and tyexpr =

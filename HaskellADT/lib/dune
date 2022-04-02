@@ -1,8 +1,8 @@
 (library
  (name HaskellADT_lib)
  (public_name HaskellADT.Lib)
- (modules Ast Parser Interpreter)
- (libraries base angstrom)
+ (modules Ast Parser Interpreter Stdlib Printast)
+ (libraries base angstrom containers)
  (preprocess
   (pps ppx_expect ppx_deriving.show ppx_deriving.eq))
  (inline_tests))
