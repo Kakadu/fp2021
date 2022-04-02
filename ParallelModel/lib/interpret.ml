@@ -427,7 +427,7 @@ module SequentialConsistency = struct
 
   let exec_prog_in_seq_cons_monad_list p max_depth =
     let p_stat = init_prog_stat p in
-    let rec helper (res : (prog_stat list, 'b) result) =
+    let rec helper res =
       res
       >>= fun p_stat ->
       if prog_is_not_finished p_stat
@@ -472,9 +472,7 @@ module TSO = struct
   (* n - is a thread number where expression is evaluated *)
   let rec eval_expr n p_stat = function
     | INT c -> return c
-    | VAR_NAME var ->
-      (* load_from_ram p_stat var  *)
-      load_var p_stat n var >>= fun p_stat -> return p_stat.loaded
+    | VAR_NAME var -> load_var p_stat n var >>= fun p_stat -> return p_stat.loaded
     | REGISTER r_name ->
       load_from_regs p_stat n r_name >>= fun p_stat -> return p_stat.loaded
     | PLUS (l, r) ->
@@ -505,30 +503,17 @@ module TSO = struct
 
   let set_updated_trace p_stat trace = { p_stat with trace }
 
-  let push_store_to_ram p_stat n =
+  let push_store_to_ram p_stat n is_traiced =
     get_thread p_stat n
     >>= fun t ->
     match List.nth_opt t.st_buf 0 with
     | None -> error "trying to pop store from empty st_buf"
     | Some (v_name, value) ->
       let p_stat =
-        set_updated_trace p_stat ((n, PUSH_STORE (v_name, value)) :: p_stat.trace)
+        if is_traiced
+        then set_updated_trace p_stat ((n, PUSH_STORE (v_name, value)) :: p_stat.trace)
+        else p_stat
       in
-      (* remove store from buffer *)
-      let st_buf = List.tl t.st_buf in
-      let t = { t with st_buf } in
-      let p_stat = update_p_stat p_stat t n in
-      (* put store to ram *)
-      let ram = replace p_stat.ram v_name value in
-      return { p_stat with ram }
-  ;;
-
-  let push_store_to_ram_trace_disabled p_stat n =
-    get_thread p_stat n
-    >>= fun t ->
-    match List.nth_opt t.st_buf 0 with
-    | None -> error "trying to pop store from empty st_buf"
-    | Some (v_name, value) ->
       (* remove store from buffer *)
       let st_buf = List.tl t.st_buf in
       let t = { t with st_buf } in
@@ -546,7 +531,7 @@ module TSO = struct
     if st_buf_is_empty t
     then return p_stat
     else
-      push_store_to_ram_trace_disabled p_stat n
+      push_store_to_ram p_stat n false
       >>= fun p_stat ->
       (* show_trace p_stat; *)
       let step = snd (List.hd p_stat.trace) in
@@ -615,7 +600,7 @@ module TSO = struct
       let nums1 = not_finished_threads p_stat in
       let nums2 = threads_with_not_empty_st_buf p_stat in
       let res1 = Result.ok nums1 >>= fun num -> exec_single_stmt_in_thread num p_stat in
-      let res2 = Result.ok nums2 >>= fun num -> push_store_to_ram p_stat num in
+      let res2 = Result.ok nums2 >>= fun num -> push_store_to_ram p_stat num true in
       match res1 with
       | Error e -> error e
       | Ok list1 ->
@@ -627,7 +612,7 @@ module TSO = struct
 
   let exec_prog_in_tso_monad_list p max_depth =
     let p_stat = init_prog_stat p in
-    let rec helper (res : (prog_stat list, 'b) result) =
+    let rec helper res =
       res
       >>= fun p_stat ->
       if prog_is_not_finished p_stat
