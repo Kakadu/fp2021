@@ -369,6 +369,18 @@ module COPYPASTE = struct
       else eval_expr f n p_stat l >>= fun e1 -> return (e1 / e2)
     | VAR_NAME var -> f n p_stat var >>= fun p_stat -> return p_stat.loaded
   ;;
+
+  let exec_prog exec_next_instr_f p max_depth =
+    let p_stat = init_prog_stat p in
+    let rec helper res =
+      res
+      >>= fun p_stat ->
+      if prog_is_not_finished p_stat
+      then helper (exec_next_instr_f p_stat max_depth)
+      else return p_stat
+    in
+    helper (return p_stat)
+  ;;
 end
 
 module SequentialConsistency = struct
@@ -426,17 +438,7 @@ module SequentialConsistency = struct
     else error "execution is too long"
   ;;
 
-  let exec_prog_in_seq_cons_monad_list p max_depth =
-    let p_stat = init_prog_stat p in
-    let rec helper res =
-      res
-      >>= fun p_stat ->
-      if prog_is_not_finished p_stat
-      then helper (exec_next_instr p_stat max_depth)
-      else return p_stat
-    in
-    helper (return p_stat)
-  ;;
+  let exec_prog_in_seq_cons_monad_list p max_depth = exec_prog exec_next_instr p max_depth
 end
 
 module TSO = struct
@@ -592,15 +594,5 @@ module TSO = struct
     else error "execution is too long"
   ;;
 
-  let exec_prog_in_tso_monad_list p max_depth =
-    let p_stat = init_prog_stat p in
-    let rec helper res =
-      res
-      >>= fun p_stat ->
-      if prog_is_not_finished p_stat
-      then helper (exec_next_instr p_stat max_depth)
-      else return p_stat
-    in
-    helper (return p_stat)
-  ;;
+  let exec_prog_in_tso_monad_list p max_depth = exec_prog exec_next_instr p max_depth
 end
