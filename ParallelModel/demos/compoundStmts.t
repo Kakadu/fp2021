@@ -21,10 +21,10 @@
   regs:
   	[("r4", 4); ("r3", 3); ("r1", 1)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, IF (VAR_NAME ("x"), []))
-  	(0, ASSIGN (REGISTER ("r1"), INT (1)))
-  	(0, IF_ELSE (VAR_NAME ("y"), [], []))
-  	(0, ASSIGN (REGISTER ("r3"), INT (3)))
-  	(0, ASSIGN (REGISTER ("r4"), INT (4)))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (IF (VAR_NAME ("x"), [])))
+  	(0, STMT (ASSIGN (REGISTER ("r1"), INT (1))))
+  	(0, STMT (IF_ELSE (VAR_NAME ("y"), [], [])))
+  	(0, STMT (ASSIGN (REGISTER ("r3"), INT (3))))
+  	(0, STMT (ASSIGN (REGISTER ("r4"), INT (4))))
   <><><><><><><><><><><><><><><><><><>

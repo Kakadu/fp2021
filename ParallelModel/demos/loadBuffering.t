@@ -13,10 +13,10 @@
   	[("r1", 0)]
   	[("r2", 1)]
   trace:
-  	(0, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("y"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("x"), INT (1)))
+  	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   <><><><><><><><><><><><><><><><><><>
   	execution 2
   ram: [("x", 1); ("y", 1)]
@@ -24,10 +24,10 @@
   	[("r1", 0)]
   	[("r2", 0)]
   trace:
-  	(0, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("y"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("x"), INT (1)))
+  	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   <><><><><><><><><><><><><><><><><><>
   	execution 3
   ram: [("y", 1); ("x", 1)]
@@ -35,10 +35,10 @@
   	[("r1", 0)]
   	[("r2", 0)]
   trace:
-  	(0, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, ASSIGN (VAR_NAME ("y"), INT (1)))
+  	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   <><><><><><><><><><><><><><><><><><>
   	execution 4
   ram: [("x", 1); ("y", 1)]
@@ -46,10 +46,10 @@
   	[("r1", 0)]
   	[("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("y"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("x"), INT (1)))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   <><><><><><><><><><><><><><><><><><>
   	execution 5
   ram: [("y", 1); ("x", 1)]
@@ -57,10 +57,10 @@
   	[("r1", 0)]
   	[("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, ASSIGN (VAR_NAME ("y"), INT (1)))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   <><><><><><><><><><><><><><><><><><>
   	execution 6
   ram: [("y", 1); ("x", 1)]
@@ -68,10 +68,10 @@
   	[("r1", 1)]
   	[("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("y"), INT (1)))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("y"), INT (1))))
   <><><><><><><><><><><><><><><><><><>
   $ (./loadBufferingTSO.exe)
   Code:

@@ -13,10 +13,10 @@
   	[]
   	[("r2", 1); ("r1", 1)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, ASSIGN (VAR_NAME ("f"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("f")))
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (ASSIGN (VAR_NAME ("f"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("f"))))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 2
   ram: [("f", 1); ("x", 1)]
@@ -24,10 +24,10 @@
   	[]
   	[("r2", 1); ("r1", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("f")))
-  	(0, ASSIGN (VAR_NAME ("f"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("f"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("f"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 3
   ram: [("f", 1); ("x", 1)]
@@ -35,10 +35,10 @@
   	[]
   	[("r2", 1); ("r1", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("f")))
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("f"), INT (1)))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("f"))))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("f"), INT (1))))
   <><><><><><><><><><><><><><><><><><>
   	execution 4
   ram: [("f", 1); ("x", 1)]
@@ -46,10 +46,10 @@
   	[]
   	[("r2", 1); ("r1", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("f")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, ASSIGN (VAR_NAME ("f"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("f"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (ASSIGN (VAR_NAME ("f"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 5
   ram: [("f", 1); ("x", 1)]
@@ -57,10 +57,10 @@
   	[]
   	[("r2", 1); ("r1", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("f")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("f"), INT (1)))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("f"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("f"), INT (1))))
   <><><><><><><><><><><><><><><><><><>
   	execution 6
   ram: [("f", 1); ("x", 1)]
@@ -68,10 +68,10 @@
   	[]
   	[("r2", 0); ("r1", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("f")))
-  	(1, ASSIGN (REGISTER ("r2"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, ASSIGN (VAR_NAME ("f"), INT (1)))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("f"))))
+  	(1, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (ASSIGN (VAR_NAME ("f"), INT (1))))
   <><><><><><><><><><><><><><><><><><>
   $ (./msgPassingTSO.exe)
   Code:

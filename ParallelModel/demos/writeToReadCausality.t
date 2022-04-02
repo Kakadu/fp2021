@@ -14,12 +14,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 1)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 2
   ram: [("y", 1); ("x", 1)]
@@ -28,12 +28,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 3
   ram: [("y", 1); ("x", 1)]
@@ -42,12 +42,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 4
   ram: [("y", 1); ("x", 1)]
@@ -56,12 +56,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 5
   ram: [("y", 1); ("x", 1)]
@@ -70,12 +70,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 6
   ram: [("y", 1); ("x", 1)]
@@ -84,12 +84,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 7
   ram: [("y", 1); ("x", 1)]
@@ -98,12 +98,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 1)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 8
   ram: [("y", 1); ("x", 1)]
@@ -112,12 +112,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 9
   ram: [("y", 1); ("x", 1)]
@@ -126,12 +126,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 10
   ram: [("y", 1); ("x", 1)]
@@ -140,12 +140,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 1)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 11
   ram: [("y", 1); ("x", 1)]
@@ -154,12 +154,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 1)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 12
   ram: [("y", 1); ("x", 1)]
@@ -168,12 +168,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 1)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 13
   ram: [("y", 1); ("x", 1)]
@@ -182,12 +182,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 14
   ram: [("y", 1); ("x", 1)]
@@ -196,12 +196,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 15
   ram: [("y", 1); ("x", 1)]
@@ -210,12 +210,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 16
   ram: [("y", 1); ("x", 1)]
@@ -224,12 +224,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 17
   ram: [("y", 1); ("x", 1)]
@@ -238,12 +238,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 18
   ram: [("y", 1); ("x", 1)]
@@ -252,12 +252,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 19
   ram: [("y", 1); ("x", 1)]
@@ -266,12 +266,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, NO_OP)
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 20
   ram: [("y", 1); ("x", 1)]
@@ -280,12 +280,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, NO_OP)
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 21
   ram: [("y", 1); ("x", 1)]
@@ -294,12 +294,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 22
   ram: [("y", 1); ("x", 1)]
@@ -308,12 +308,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 23
   ram: [("y", 1); ("x", 1)]
@@ -322,12 +322,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 24
   ram: [("y", 1); ("x", 1)]
@@ -336,12 +336,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 25
   ram: [("y", 1); ("x", 1)]
@@ -350,12 +350,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 26
   ram: [("y", 1); ("x", 1)]
@@ -364,12 +364,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 27
   ram: [("y", 1); ("x", 1)]
@@ -378,12 +378,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 28
   ram: [("y", 1); ("x", 1)]
@@ -392,12 +392,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 29
   ram: [("y", 1); ("x", 1)]
@@ -406,12 +406,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 30
   ram: [("y", 1); ("x", 1)]
@@ -420,12 +420,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 31
   ram: [("y", 0); ("x", 1)]
@@ -434,12 +434,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 32
   ram: [("y", 0); ("x", 1)]
@@ -448,12 +448,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 33
   ram: [("y", 0); ("x", 1)]
@@ -462,12 +462,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 34
   ram: [("y", 0); ("x", 1)]
@@ -476,12 +476,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 35
   ram: [("y", 0); ("x", 1)]
@@ -490,12 +490,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 36
   ram: [("y", 0); ("x", 1)]
@@ -504,12 +504,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 37
   ram: [("y", 0); ("x", 1)]
@@ -518,12 +518,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 38
   ram: [("y", 0); ("x", 1)]
@@ -532,12 +532,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 39
   ram: [("y", 0); ("x", 1)]
@@ -546,12 +546,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 40
   ram: [("y", 0); ("x", 1)]
@@ -560,12 +560,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 41
   ram: [("y", 0); ("x", 1)]
@@ -574,12 +574,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 42
   ram: [("y", 0); ("x", 1)]
@@ -588,12 +588,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 43
   ram: [("x", 1); ("y", 0)]
@@ -602,12 +602,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 44
   ram: [("x", 1); ("y", 0)]
@@ -616,12 +616,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 45
   ram: [("x", 1); ("y", 0)]
@@ -630,12 +630,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 46
   ram: [("x", 1); ("y", 0)]
@@ -644,12 +644,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 47
   ram: [("x", 1); ("y", 0)]
@@ -658,12 +658,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 48
   ram: [("x", 1); ("y", 0)]
@@ -672,12 +672,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 49
   ram: [("y", 0); ("x", 1)]
@@ -686,12 +686,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 50
   ram: [("y", 0); ("x", 1)]
@@ -700,12 +700,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 51
   ram: [("y", 0); ("x", 1)]
@@ -714,12 +714,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 52
   ram: [("y", 0); ("x", 1)]
@@ -728,12 +728,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 53
   ram: [("y", 0); ("x", 1)]
@@ -742,12 +742,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 54
   ram: [("y", 0); ("x", 1)]
@@ -756,12 +756,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 55
   ram: [("x", 1); ("y", 0)]
@@ -770,12 +770,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 56
   ram: [("x", 1); ("y", 0)]
@@ -784,12 +784,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 57
   ram: [("x", 1); ("y", 0)]
@@ -798,12 +798,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 58
   ram: [("y", 0); ("x", 1)]
@@ -812,12 +812,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 59
   ram: [("y", 0); ("x", 1)]
@@ -826,12 +826,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 60
   ram: [("x", 1); ("y", 0)]
@@ -840,12 +840,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 61
   ram: [("y", 1); ("x", 1)]
@@ -854,12 +854,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 62
   ram: [("y", 1); ("x", 1)]
@@ -868,12 +868,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 63
   ram: [("y", 1); ("x", 1)]
@@ -882,12 +882,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 64
   ram: [("y", 1); ("x", 1)]
@@ -896,12 +896,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 65
   ram: [("y", 1); ("x", 1)]
@@ -910,12 +910,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 66
   ram: [("y", 1); ("x", 1)]
@@ -924,12 +924,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 67
   ram: [("y", 1); ("x", 1)]
@@ -938,12 +938,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 68
   ram: [("y", 1); ("x", 1)]
@@ -952,12 +952,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 69
   ram: [("y", 1); ("x", 1)]
@@ -966,12 +966,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 70
   ram: [("y", 1); ("x", 1)]
@@ -980,12 +980,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 71
   ram: [("y", 1); ("x", 1)]
@@ -994,12 +994,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 72
   ram: [("y", 1); ("x", 1)]
@@ -1008,12 +1008,12 @@
   	[("r1", 1)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 73
   ram: [("y", 0); ("x", 1)]
@@ -1022,12 +1022,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 74
   ram: [("y", 0); ("x", 1)]
@@ -1036,12 +1036,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 75
   ram: [("y", 0); ("x", 1)]
@@ -1050,12 +1050,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 76
   ram: [("y", 0); ("x", 1)]
@@ -1064,12 +1064,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 77
   ram: [("y", 0); ("x", 1)]
@@ -1078,12 +1078,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 78
   ram: [("y", 0); ("x", 1)]
@@ -1092,12 +1092,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 79
   ram: [("x", 1); ("y", 0)]
@@ -1106,12 +1106,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 80
   ram: [("x", 1); ("y", 0)]
@@ -1120,12 +1120,12 @@
   	[("r1", 0)]
   	[("r3", 1); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 81
   ram: [("x", 1); ("y", 0)]
@@ -1134,12 +1134,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 82
   ram: [("y", 0); ("x", 1)]
@@ -1148,12 +1148,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 83
   ram: [("y", 0); ("x", 1)]
@@ -1162,12 +1162,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 84
   ram: [("x", 1); ("y", 0)]
@@ -1176,12 +1176,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 85
   ram: [("y", 1); ("x", 1)]
@@ -1190,12 +1190,12 @@
   	[("r1", 1)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 86
   ram: [("y", 1); ("x", 1)]
@@ -1204,12 +1204,12 @@
   	[("r1", 1)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 87
   ram: [("y", 1); ("x", 1)]
@@ -1218,12 +1218,12 @@
   	[("r1", 1)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 88
   ram: [("y", 0); ("x", 1)]
@@ -1232,12 +1232,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
   <><><><><><><><><><><><><><><><><><>
   	execution 89
   ram: [("y", 0); ("x", 1)]
@@ -1246,12 +1246,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   	execution 90
   ram: [("x", 1); ("y", 0)]
@@ -1260,12 +1260,12 @@
   	[("r1", 0)]
   	[("r3", 0); ("r2", 0)]
   trace:
-  	(2, ASSIGN (REGISTER ("r2"), VAR_NAME ("y")))
-  	(2, ASSIGN (REGISTER ("r3"), VAR_NAME ("x")))
-  	(1, ASSIGN (REGISTER ("r1"), VAR_NAME ("x")))
-  	(1, ASSIGN (VAR_NAME ("y"), REGISTER ("r1")))
-  	(0, ASSIGN (VAR_NAME ("x"), INT (1)))
-  	(0, NO_OP)
+  	(2, STMT (ASSIGN (REGISTER ("r2"), VAR_NAME ("y"))))
+  	(2, STMT (ASSIGN (REGISTER ("r3"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (REGISTER ("r1"), VAR_NAME ("x"))))
+  	(1, STMT (ASSIGN (VAR_NAME ("y"), REGISTER ("r1"))))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
+  	(0, STMT (NO_OP))
   <><><><><><><><><><><><><><><><><><>
   $ (./writeToReadCausalityTSO.exe)
   Code:
