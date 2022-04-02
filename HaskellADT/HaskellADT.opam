@@ -12,6 +12,7 @@ bug-reports: "st076357@student.spbu.ru"
 depends: [
   "dune" {>= "2.8"}
   "angstrom"
+  "containers"
   "ppx_inline_test" {with-test}
   "qcheck-core"
   "ppx_expect"

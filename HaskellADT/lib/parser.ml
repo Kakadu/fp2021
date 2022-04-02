@@ -2,6 +2,7 @@ open Ast
 open Angstrom
 open Base
 open Format
+open Printast
 
 let chainl1 e op =
   let rec go acc = lift2 (fun f x -> f acc x) op e >>= go <|> return acc in
@@ -67,6 +68,7 @@ let cint n = CInt n
 let cstring s = CString s
 let econst c = EConst c
 let ebinop o e1 e2 = EBinOp (o, e1, e2)
+let eunop o e = EUnOp (o, e)
 let evar id = EVar id
 let etuple e = ETuple e
 let econs e1 e2 = ECons (e1, e2)
@@ -88,6 +90,7 @@ let pp_adt id p = PAdt (id, p)
 let actor id ty = id, ty
 let bbind p e = p, e
 let pwild _ = PWild
+let punit _ = PUnit
 let pvar id = PVar id
 let pconst c = PConst c
 let ptuple l = PTuple l
@@ -115,6 +118,11 @@ let eq_uneq = choice_op [ "==", EQ; "<>", NE ]
 let conj = choice_op [ "&&", And ]
 let disj = choice_op [ "||", Or ]
 let cons = token ":" *> return econs
+
+let app_unop p =
+  choice
+    [ token "-" *> p >>| eunop Minus; kwd "not" *> p >>| eunop Not; token "+" *> p; p ]
+;;
 
 let is_idchar = function
   | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '\'' -> true
@@ -171,6 +179,7 @@ let const = trim (choice [ cint; cbool; cstring ])
 let uconst = trim (choice [ cuint; cbool; cstring ])
 let pvar = ident >>| pvar
 let pwild = token "_" >>| pwild
+let punit = token "()" >>| punit
 let pconst = const >>| pconst
 
 type pdispatch =
@@ -206,7 +215,7 @@ let pack =
     fix
     @@ fun _self ->
     let plist = trim @@ between lsb rsb @@ sep_by semi @@ d.pat d >>| plist in
-    let prim = trim @@ choice [ pconst; pvar; pwild; plist; parens @@ d.pat d ] in
+    let prim = trim @@ choice [ punit; pconst; pvar; pwild; plist; parens @@ d.pat d ] in
     trim @@ chainr1 prim popcons
   in
   { tuple; adt; other; pat }
@@ -249,12 +258,12 @@ let pack =
     let efun = trim (lift2 efun (kwd "\\" *> many pattern <* arrow) (d.expr d)) in
     let ecase =
       let indent = take_while is_ws >>= fun s -> return @@ String.length s in
-      let fst_case = lift2 ccase (pattern <* arrow) (d.expr d) <* eol in
+      let fst_case = lift2 ccase (pattern <* arrow) (d.expr d) <* empty <* eol in
       let case n =
         indent
         >>= fun i ->
         if i = n
-        then lift2 ccase (empty *> pattern <* arrow) (d.expr d) <* eol
+        then lift2 ccase (pattern <* arrow) (d.expr d) <* empty <* eol
         else fail "Indent\n"
       in
       let cases =
@@ -293,6 +302,12 @@ let pack =
       in
       pl >>= go
     in
+    let procr op pl pr =
+      let p =
+        fix @@ fun p -> pl >>= fun l -> op >>= (fun op -> p <|> pr >>| op l) <|> return l
+      in
+      p
+    in
     let app_op =
       let help =
         lift2
@@ -307,11 +322,13 @@ let pack =
       in
       trim @@ help <|> chainl1 prim eapp
     in
-    trim
-    @@ List.fold_right
-         [ add_sub; mult_div; cons; cmp; eq_uneq; conj; disj ]
-         ~f:(fun x y -> procl x y @@ d.key d)
-         ~init:app_op
+    let mul_op = procl mult_div app_op @@ d.key d in
+    let add_op = procl add_sub (app_unop mul_op) (app_unop @@ d.key d) in
+    let cons_op = procr cons add_op @@ d.key d in
+    let cmp_op = procl cmp cons_op @@ d.key d in
+    let eq_op = procl eq_uneq cmp_op @@ d.key d in
+    let conj_op = procl conj eq_op @@ d.key d in
+    trim @@ procl disj conj_op @@ d.key d
   in
   { key; tuple; expr; op }
 ;;
@@ -347,7 +364,6 @@ let decl =
       dlet
       (empty' *> pattern)
       (lift2 efun (empty1 *> many pattern <* token "=") (empty' *> expr))
-    <* take_while is_eol
     <* empty'
   in
   let dadt =
@@ -359,7 +375,6 @@ let decl =
       dadt
       (empty' *> kwd "data" *> empty1 *> constr_ident <* token "=")
       (lift2 (fun fst other -> fst :: other) actor_fst (many actor_other))
-    <* take_while is_eol
     <* empty'
   in
   trim @@ dlet <|> dadt
@@ -426,15 +441,13 @@ let parse_test code expected =
     false
 ;;
 
-(* let () =
+let () =
   let code = {|
-  let f x = x + 1 
-    g x = 10 * x
-    in f 5 |} in
-  match parse_with expr code with
-  | Ok ok -> Format.printf "%a\n" pp_expr ok
+  fst (x, y) = x|} in
+  match parse_with prog code with
+  | Ok ok -> Format.printf "%a\n" pp_prog ok
   | Error err -> Format.printf "%s\n" err
-;; *)
+;;
 
 let%test _ =
   parse_test
