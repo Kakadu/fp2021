@@ -1,7 +1,7 @@
 open Parallelmodel_lib.Ast
 open Parallelmodel_lib.Parser
-open Parallelmodel_lib.Interpret.TSO (Parallelmodel_lib.Interpret.ResultMonad)
 open Parallelmodel_lib.Interpret
+open Parallelmodel_lib.Interpret.TSO
 
 let s1 = {|
 x<-1   ||| y<-1

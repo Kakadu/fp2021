@@ -1,6 +1,6 @@
 open Parallelmodel_lib.Parser
-open Parallelmodel_lib.Interpret.TSO (Parallelmodel_lib.Interpret.ResultMonad)
 open Parallelmodel_lib.Interpret
+open Parallelmodel_lib.Interpret.TSO
 
 (* Если брать тест, как он описан в магистрской работе Евгения Моисеенко, то в нем у меня
    существует некоторое количество поведений, которые мы запрещаем. Если же взять этот тест так, как

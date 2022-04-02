@@ -49,76 +49,77 @@ module ResultMonad = struct
   ;;
 end
 
-let show_execution_statistics result check_property descr code =
-  match result with
-  | Error e -> print_endline ("Execution crushed with error: " ^ e)
-  | Ok p_stat_list ->
-    let good_execs =
-      List.fold_left
-        (fun cnt p_stat -> if check_property p_stat then cnt + 1 else cnt)
-        0
-        p_stat_list
-    in
-    let bad_execs = List.length p_stat_list - good_execs in
-    print_endline "Code:";
-    print_endline code;
-    print_endline "\tEXECUTION STATISTICS";
-    print_endline
-      (String.concat
-         ""
-         [ string_of_int good_execs
-         ; " executions finished and have following behavior: "
-         ; descr
-         ]);
-    print_endline
-      (String.concat
-         ""
-         [ string_of_int bad_execs
-         ; " executions finished but don't have following behavior: "
-         ; descr
-         ])
-;;
+module BasicFunctions = struct
+  let show_execution_statistics result check_property descr code =
+    match result with
+    | Error e -> print_endline ("Execution crushed with error: " ^ e)
+    | Ok p_stat_list ->
+      let good_execs =
+        List.fold_left
+          (fun cnt p_stat -> if check_property p_stat then cnt + 1 else cnt)
+          0
+          p_stat_list
+      in
+      let bad_execs = List.length p_stat_list - good_execs in
+      print_endline "Code:";
+      print_endline code;
+      print_endline "\tEXECUTION STATISTICS";
+      print_endline
+        (String.concat
+           ""
+           [ string_of_int good_execs
+           ; " executions finished and have following behavior: "
+           ; descr
+           ]);
+      print_endline
+        (String.concat
+           ""
+           [ string_of_int bad_execs
+           ; " executions finished but don't have following behavior: "
+           ; descr
+           ])
+  ;;
 
-let reduce = List.tl
+  let reduce = List.tl
 
-let inc_fst = function
-  | [] -> []
-  | h :: tl -> (h + 1) :: tl
-;;
+  let inc_fst = function
+    | [] -> []
+    | h :: tl -> (h + 1) :: tl
+  ;;
 
-let set v' n = List.mapi (fun i v -> if i = n then v' else v)
-let last ls = List.nth ls (List.length ls - 1)
+  let set v' n = List.mapi (fun i v -> if i = n then v' else v)
+  let last ls = List.nth ls (List.length ls - 1)
 
-let rec find (list : (string * int) list) (var : string) =
-  match list with
-  | [] -> None
-  | h :: tl ->
-    (match h with
-    | v_name, value -> if v_name = var then Some value else find tl var)
-;;
+  let rec find (list : (string * int) list) (var : string) =
+    match list with
+    | [] -> None
+    | h :: tl ->
+      (match h with
+      | v_name, value -> if v_name = var then Some value else find tl var)
+  ;;
 
-let remove list name = List.filter (fun (v_name, _) -> v_name <> name) list
+  let remove list name = List.filter (fun (v_name, _) -> v_name <> name) list
 
-let rec replace list name value =
-  match
-    List.find_opt
-      (function
-        | v_name, _ -> v_name = name)
-      list
-  with
-  | None -> (name, value) :: list
-  | Some x ->
-    (match x with
-    | v_name, _ ->
-      let list = remove list v_name in
-      (name, value) :: list)
-;;
+  let rec replace list name value =
+    match
+      List.find_opt
+        (function
+          | v_name, _ -> v_name = name)
+        list
+    with
+    | None -> (name, value) :: list
+    | Some x ->
+      (match x with
+      | v_name, _ ->
+        let list = remove list v_name in
+        (name, value) :: list)
+  ;;
+end
 
-module SequentialConsistency (M : MONADERROR) = struct
-  open M
+module BaseDefs = struct
+  include BasicFunctions
 
-  type ram = (string * int) list [@@deriving show { with_path = false }]
-  type regs = ram [@@deriving show { with_path = false }]
+  type memory = (string * int) list [@@deriving show { with_path = false }]
 
   type thread_stat =
     { stmts : stmt list
@@ -126,25 +127,86 @@ module SequentialConsistency (M : MONADERROR) = struct
     ; length : int
     ; branch_exprs : int list
     ; number : int
-    ; registers : regs
+    ; registers : memory
+    ; st_buf : memory
     }
   [@@deriving show { with_path = false }]
 
-  type step = int * stmt [@@deriving show { with_path = false }]
+  let init_thread_stat t =
+    let t_info =
+      match t with
+      | THREAD (n, stmt_list) -> n, stmt_list
+    in
+    { stmts = snd t_info
+    ; counters = [ 0 ]
+    ; length = List.length (snd t_info)
+    ; branch_exprs = []
+    ; number = fst t_info
+    ; registers = []
+    ; st_buf = []
+    }
+  ;;
+
+  let enter_block t_stat v =
+    { t_stat with
+      counters = 0 :: t_stat.counters
+    ; branch_exprs = v :: t_stat.branch_exprs
+    }
+  ;;
+
+  let thread_stat_inc t_stat = { t_stat with counters = inc_fst t_stat.counters }
+  let thread_is_not_finished t_stat = last t_stat.counters < t_stat.length
+end
+
+module type TRACE_MODULE = sig
+  type trace_step [@@deriving show]
+
+  val print_trace : trace_step list -> unit
+  val update_trace : trace_step list -> trace_step -> trace_step list
+  val update_last_in_trace : trace_step list -> trace_step -> trace_step list
+end
+
+module TRACE_SC : TRACE_MODULE with type trace_step = int * stmt = struct
+  type trace_step = int * stmt [@@deriving show]
+
+  let print_trace trace =
+    List.iter (fun step -> print_endline ("\t" ^ show_trace_step step)) (List.rev trace)
+  ;;
+
+  let update_trace trace step = step :: trace
+  let update_last_in_trace trace step' = step' :: List.tl trace
+end
+
+type step' =
+  | STMT of stmt
+  | PUSH_STORE of (string * int)
+  | FENCE of (string * int) list
+[@@deriving show { with_path = false }]
+
+module TRACE_TSO : TRACE_MODULE with type trace_step = int * step' = struct
+  type trace_step = int * step' [@@deriving show { with_path = false }]
+
+  let print_trace trace =
+    List.iter (fun step -> print_endline ("\t" ^ show_trace_step step)) (List.rev trace)
+  ;;
+
+  let update_trace trace step = step :: trace
+  let update_last_in_trace trace step' = step' :: List.tl trace
+end
+
+module SequentialConsistency = struct
+  include ResultMonad
+  include BaseDefs
+  include TRACE_SC
 
   type prog_stat =
     { threads : thread_stat list
-    ; ram : ram
-    ; trace : step list
+    ; ram : memory
+    ; trace : trace_step list
     ; loaded : int
     ; depth : int
     }
   [@@deriving show { with_path = false }]
-
-  let show_trace p_stat =
-    let trace = p_stat.trace in
-    List.iter (fun step -> print_endline ("\t" ^ show_step step)) trace
-  ;;
 
   let get_thread p_stat n =
     let rec helper = function
@@ -229,12 +291,6 @@ module SequentialConsistency (M : MONADERROR) = struct
       else eval_expr n p_stat l >>= fun e1 -> return (e1 / e2)
   ;;
 
-  let eval_assert n p_stat e =
-    eval_expr n p_stat e
-    >>= fun value ->
-    if value = 0 then error ("assertation failed: " ^ show_expr e) else return p_stat
-  ;;
-
   let eval_assign n p_stat l r =
     eval_expr n p_stat r
     >>= fun value ->
@@ -244,33 +300,12 @@ module SequentialConsistency (M : MONADERROR) = struct
     | _ -> error "assignment allowed only to variable and register"
   ;;
 
-  let init_thread_stat t =
-    let t_info =
-      match t with
-      | THREAD (n, stmt_list) -> n, stmt_list
-    in
-    { stmts = snd t_info
-    ; counters = [ 0 ]
-    ; length = List.length (snd t_info)
-    ; branch_exprs = []
-    ; number = fst t_info
-    ; registers = []
-    }
-  ;;
-
   let init_prog_stat p =
     let t_stats =
       match p with
       | PROG threads -> List.map init_thread_stat threads
     in
     { threads = t_stats; ram = []; trace = []; loaded = 0; depth = 0 }
-  ;;
-
-  let enter_block t_stat v =
-    { t_stat with
-      counters = 0 :: t_stat.counters
-    ; branch_exprs = v :: t_stat.branch_exprs
-    }
   ;;
 
   let enter_block_in_thread n p_stat v =
@@ -318,10 +353,6 @@ module SequentialConsistency (M : MONADERROR) = struct
     | Failure _ -> false
   ;;
 
-  let thread_stat_inc t_stat =
-    { t_stat with counters = (* inc_last  *) inc_fst t_stat.counters }
-  ;;
-
   let prog_stat_inc p_stat n =
     let rec helper p_stat n =
       get_thread p_stat n
@@ -346,36 +377,31 @@ module SequentialConsistency (M : MONADERROR) = struct
     helper p_stat n
   ;;
 
-  let update_trace p_stat n stmt =
-    let step = n, stmt in
-    { p_stat with trace = p_stat.trace @ [ step ] }
+  let set_updated_trace p_stat trace_step =
+    let trace = update_trace p_stat.trace trace_step in
+    { p_stat with trace }
   ;;
 
   let exec_single_stmt_in_thread n p_stat =
     get_stmt p_stat n
     >>= function
     | IF (e, _) ->
-      let p_stat = update_trace p_stat n (IF (e, [])) in
+      let p_stat = set_updated_trace p_stat (n, IF (e, [])) in
       eval_expr n p_stat e
       >>= fun e ->
       if e = 0 then prog_stat_inc p_stat n else return (enter_block_in_thread n p_stat e)
     | IF_ELSE (e, _, _) ->
-      let p_stat = update_trace p_stat n (IF_ELSE (e, [], [])) in
+      let p_stat = set_updated_trace p_stat (n, IF_ELSE (e, [], [])) in
       eval_expr n p_stat e >>= fun e -> return @@ enter_block_in_thread n p_stat e
     | NO_OP ->
-      let p_stat = update_trace p_stat n NO_OP in
+      let p_stat = set_updated_trace p_stat (n, NO_OP) in
       prog_stat_inc p_stat n
     | ASSIGN (l, r) ->
-      let p_stat = update_trace p_stat n (ASSIGN (l, r)) in
+      let p_stat = set_updated_trace p_stat (n, ASSIGN (l, r)) in
       eval_assign n p_stat l r >>= fun p_stat -> prog_stat_inc p_stat n
     | SMP_MB ->
-      let p_stat = update_trace p_stat n SMP_MB in
+      let p_stat = set_updated_trace p_stat (n, SMP_MB) in
       prog_stat_inc p_stat n
-  ;;
-
-  let thread_is_not_finished t_stat =
-    (* List.hd  *)
-    last t_stat.counters < t_stat.length
   ;;
 
   let prog_is_not_finished p_stat =
@@ -403,13 +429,13 @@ module SequentialConsistency (M : MONADERROR) = struct
       List.iteri
         (fun i p_stat ->
           print_endline (String.concat "" [ "\t"; "execution "; string_of_int (i + 1) ]);
-          let ram = show_ram p_stat.ram in
-          let reg_sets = List.map (fun t -> show_regs t.registers) p_stat.threads in
+          let ram = show_memory p_stat.ram in
+          let reg_sets = List.map (fun t -> show_memory t.registers) p_stat.threads in
           print_endline ("ram: " ^ ram);
           print_endline "regs:";
           List.iter (fun s -> print_endline ("\t" ^ s)) reg_sets;
           print_endline "trace:";
-          show_trace p_stat;
+          print_trace p_stat.trace;
           print_endline "<><><><><><><><><><><><><><><><><><>")
         p_stat_list
   ;;
@@ -431,45 +457,19 @@ module SequentialConsistency (M : MONADERROR) = struct
   ;;
 end
 
-module TSO (M : MONADERROR) = struct
-  open M
-
-  type memory = (string * int) list [@@deriving show { with_path = false }]
-  type ram = memory [@@deriving show { with_path = false }]
-  type regs = memory [@@deriving show { with_path = false }]
-
-  type thread_stat =
-    { stmts : stmt list
-    ; counters : int list
-    ; length : int
-    ; branch_exprs : int list
-    ; number : int
-    ; registers : regs
-    ; st_buf : memory
-    }
-  [@@deriving show { with_path = false }]
-
-  type step' =
-    | STMT of stmt
-    | PUSH_STORE of (string * int)
-    | FENCE of (string * int) list
-  [@@deriving show { with_path = false }]
-
-  type step = int * step' [@@deriving show { with_path = false }]
+module TSO = struct
+  include ResultMonad
+  include BaseDefs
+  include TRACE_TSO
 
   type prog_stat =
     { threads : thread_stat list
-    ; ram : ram
-    ; trace : step list
+    ; ram : memory
+    ; trace : trace_step list
     ; loaded : int
     ; depth : int
     }
   [@@deriving show { with_path = false }]
-
-  let show_trace p_stat =
-    let trace = p_stat.trace in
-    List.iter (fun step -> print_endline ("\t" ^ show_step step)) trace
-  ;;
 
   let get_thread p_stat n =
     let rec helper = function
@@ -581,12 +581,6 @@ module TSO (M : MONADERROR) = struct
       else eval_expr n p_stat l >>= fun e1 -> return (e1 / e2)
   ;;
 
-  let eval_assert n p_stat e =
-    eval_expr n p_stat e
-    >>= fun value ->
-    if value = 0 then error ("assertation failed: " ^ show_expr e) else return p_stat
-  ;;
-
   let eval_assign n p_stat l r =
     eval_expr n p_stat r
     >>= fun value ->
@@ -596,34 +590,12 @@ module TSO (M : MONADERROR) = struct
     | _ -> error "assignment allowed only to variable and register"
   ;;
 
-  let init_thread_stat t =
-    let t_info =
-      match t with
-      | THREAD (n, stmt_list) -> n, stmt_list
-    in
-    { stmts = snd t_info
-    ; counters = [ 0 ]
-    ; length = List.length (snd t_info)
-    ; branch_exprs = []
-    ; number = fst t_info
-    ; registers = []
-    ; st_buf = []
-    }
-  ;;
-
   let init_prog_stat p =
     let t_stats =
       match p with
       | PROG threads -> List.map init_thread_stat threads
     in
     { threads = t_stats; ram = []; trace = []; loaded = 0; depth = 0 }
-  ;;
-
-  let enter_block t_stat v =
-    { t_stat with
-      counters = 0 :: t_stat.counters
-    ; branch_exprs = v :: t_stat.branch_exprs
-    }
   ;;
 
   let enter_block_in_thread n p_stat v =
@@ -671,8 +643,6 @@ module TSO (M : MONADERROR) = struct
     | Failure _ -> false
   ;;
 
-  let thread_stat_inc t_stat = { t_stat with counters = inc_fst t_stat.counters }
-
   let prog_stat_inc p_stat n =
     let rec helper p_stat n =
       get_thread p_stat n
@@ -697,15 +667,7 @@ module TSO (M : MONADERROR) = struct
     helper p_stat n
   ;;
 
-  let update_trace p_stat n step' =
-    let step = n, step' in
-    { p_stat with trace = p_stat.trace @ [ step ] }
-  ;;
-
-  let update_last_in_trace p_stat n step' =
-    let step = n, step' in
-    { p_stat with trace = reduce p_stat.trace @ [ step ] }
-  ;;
+  let set_updated_trace p_stat trace = { p_stat with trace }
 
   let push_store_to_ram p_stat n =
     get_thread p_stat n
@@ -713,7 +675,9 @@ module TSO (M : MONADERROR) = struct
     match List.nth_opt t.st_buf 0 with
     | None -> error "trying to pop store from empty st_buf"
     | Some (v_name, value) ->
-      let p_stat = update_trace p_stat n (PUSH_STORE (v_name, value)) in
+      let p_stat =
+        set_updated_trace p_stat ((n, PUSH_STORE (v_name, value)) :: p_stat.trace)
+      in
       (* remove store from buffer *)
       let st_buf = List.tl t.st_buf in
       let t = { t with st_buf } in
@@ -749,7 +713,7 @@ module TSO (M : MONADERROR) = struct
       push_store_to_ram_trace_disabled p_stat n
       >>= fun p_stat ->
       (* show_trace p_stat; *)
-      let step = snd (last p_stat.trace) in
+      let step = snd (List.hd p_stat.trace) in
       let step =
         match step with
         | FENCE list ->
@@ -757,7 +721,10 @@ module TSO (M : MONADERROR) = struct
           list @ [ store ]
         | _ -> raise @@ Impossible_case "impossible case in flush_st_buf"
       in
-      let p_stat = update_last_in_trace p_stat n (FENCE step) in
+      let p_stat =
+        let trace = update_last_in_trace p_stat.trace (n, FENCE step) in
+        set_updated_trace p_stat trace
+      in
       flush_st_buf p_stat n
   ;;
 
@@ -765,25 +732,35 @@ module TSO (M : MONADERROR) = struct
     get_stmt p_stat n
     >>= function
     | IF (e, _) ->
-      let p_stat = update_trace p_stat n (STMT (IF (e, []))) in
+      let p_stat =
+        let trace = update_trace p_stat.trace (n, STMT (IF (e, []))) in
+        set_updated_trace p_stat trace
+      in
       eval_expr n p_stat e
       >>= fun e ->
       if e = 0 then prog_stat_inc p_stat n else return (enter_block_in_thread n p_stat e)
     | IF_ELSE (e, _, _) ->
-      let p_stat = update_trace p_stat n (STMT (IF_ELSE (e, [], []))) in
+      let p_stat =
+        let trace = update_trace p_stat.trace (n, STMT (IF_ELSE (e, [], []))) in
+        set_updated_trace p_stat trace
+      in
       eval_expr n p_stat e >>= fun e -> return @@ enter_block_in_thread n p_stat e
     | NO_OP ->
-      let p_stat = update_trace p_stat n (STMT NO_OP) in
+      let p_stat =
+        let trace = update_trace p_stat.trace (n, STMT NO_OP) in
+        set_updated_trace p_stat trace
+      in
       prog_stat_inc p_stat n
     | ASSIGN (l, r) ->
-      let p_stat = update_trace p_stat n (STMT (ASSIGN (l, r))) in
+      let p_stat =
+        let trace = update_trace p_stat.trace (n, STMT (ASSIGN (l, r))) in
+        set_updated_trace p_stat trace
+      in
       eval_assign n p_stat l r >>= fun p_stat -> prog_stat_inc p_stat n
     | SMP_MB ->
-      let p_stat = update_trace p_stat n (FENCE []) in
+      let p_stat = set_updated_trace p_stat ((n, FENCE []) :: p_stat.trace) in
       flush_st_buf p_stat n >>= fun p_stat -> prog_stat_inc p_stat n
   ;;
-
-  let thread_is_not_finished t_stat = List.hd t_stat.counters < t_stat.length
 
   let prog_is_not_finished p_stat =
     List.exists (fun x -> x = true) (List.map thread_is_not_finished p_stat.threads)
@@ -828,13 +805,13 @@ module TSO (M : MONADERROR) = struct
       List.iteri
         (fun i p_stat ->
           print_endline (String.concat "" [ "\t"; "execution "; string_of_int (i + 1) ]);
-          let ram = show_ram p_stat.ram in
-          let reg_sets = List.map (fun t -> show_regs t.registers) p_stat.threads in
+          let ram = show_memory p_stat.ram in
+          let reg_sets = List.map (fun t -> show_memory t.registers) p_stat.threads in
           print_endline ("ram: " ^ ram);
           print_endline "regs:";
           List.iter (fun s -> print_endline ("\t" ^ s)) reg_sets;
           print_endline "trace:";
-          show_trace p_stat;
+          print_trace p_stat.trace;
           print_endline "<><><><><><><><><><><><><><><><><><>")
         p_stat_list
   ;;

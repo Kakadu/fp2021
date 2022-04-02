@@ -22,7 +22,7 @@
   regs:
   	[("r4", 4); ("r3", 3); ("r1", 1)]
   trace:
-  	(0, FENCE ([]))
+  	(0, STMT (ASSIGN (VAR_NAME ("x"), INT (1))))
   	(0, FENCE ([("x", 1)]))
   	(0, STMT (IF (VAR_NAME ("x"), [])))
   	(0, STMT (ASSIGN (REGISTER ("r1"), INT (1))))

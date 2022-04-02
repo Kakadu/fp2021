@@ -1,11 +1,7 @@
 open Parallelmodel_lib.Ast
 open Parallelmodel_lib.Parser
-
-open
-  Parallelmodel_lib.Interpret.SequentialConsistency
-    (Parallelmodel_lib.Interpret.ResultMonad)
-
 open Parallelmodel_lib.Interpret
+open Parallelmodel_lib.Interpret.SequentialConsistency
 
 let s2 = {|
 x<-1   ||| y<-1
