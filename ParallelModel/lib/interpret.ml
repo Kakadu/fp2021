@@ -347,6 +347,28 @@ module COPYPASTE = struct
   let get_reg_val p_stat n r_name =
     snd (List.find (fun (s, _) -> s = r_name) (List.nth p_stat.threads n).registers)
   ;;
+
+  let rec eval_expr f n p_stat = function
+    | INT c -> return c
+    | REGISTER r_name ->
+      load_from_regs p_stat n r_name >>= fun p_stat -> return p_stat.loaded
+    | PLUS (l, r) ->
+      eval_expr f n p_stat l
+      >>= fun e1 -> eval_expr f n p_stat r >>= fun e2 -> return (e1 + e2)
+    | SUB (l, r) ->
+      eval_expr f n p_stat l
+      >>= fun e1 -> eval_expr f n p_stat r >>= fun e2 -> return (e1 - e2)
+    | MUL (l, r) ->
+      eval_expr f n p_stat l
+      >>= fun e1 -> eval_expr f n p_stat r >>= fun e2 -> return (e1 * e2)
+    | DIV (l, r) ->
+      eval_expr f n p_stat r
+      >>= fun e2 ->
+      if e2 = 0
+      then error "division by zero"
+      else eval_expr f n p_stat l >>= fun e1 -> return (e1 / e2)
+    | VAR_NAME var -> f n p_stat var >>= fun p_stat -> return p_stat.loaded
+  ;;
 end
 
 module SequentialConsistency = struct
@@ -357,31 +379,10 @@ module SequentialConsistency = struct
     return { p_stat with ram }
   ;;
 
-  (* n - is a thread number where expression is evaluated *)
-  let rec eval_expr n p_stat = function
-    | INT c -> return c
-    | VAR_NAME var -> load_from_ram p_stat var >>= fun p_stat -> return p_stat.loaded
-    | REGISTER r_name ->
-      load_from_regs p_stat n r_name >>= fun p_stat -> return p_stat.loaded
-    | PLUS (l, r) ->
-      eval_expr n p_stat l
-      >>= fun e1 -> eval_expr n p_stat r >>= fun e2 -> return (e1 + e2)
-    | SUB (l, r) ->
-      eval_expr n p_stat l
-      >>= fun e1 -> eval_expr n p_stat r >>= fun e2 -> return (e1 - e2)
-    | MUL (l, r) ->
-      eval_expr n p_stat l
-      >>= fun e1 -> eval_expr n p_stat r >>= fun e2 -> return (e1 * e2)
-    | DIV (l, r) ->
-      eval_expr n p_stat r
-      >>= fun e2 ->
-      if e2 = 0
-      then error "division by zero"
-      else eval_expr n p_stat l >>= fun e1 -> return (e1 / e2)
-  ;;
+  let eval_expr_sc n p_stat expr = eval_expr (fun _ -> load_from_ram) n p_stat expr
 
   let eval_assign n p_stat l r =
-    eval_expr n p_stat r
+    eval_expr_sc n p_stat r
     >>= fun value ->
     match l with
     | VAR_NAME var -> store_to_var p_stat var value
@@ -399,12 +400,12 @@ module SequentialConsistency = struct
     >>= function
     | IF (e, _) ->
       let p_stat = set_updated_trace p_stat (n, STMT (IF (e, []))) in
-      eval_expr n p_stat e
+      eval_expr_sc n p_stat e
       >>= fun e ->
       if e = 0 then prog_stat_inc p_stat n else return (enter_block_in_thread n p_stat e)
     | IF_ELSE (e, _, _) ->
       let p_stat = set_updated_trace p_stat (n, STMT (IF_ELSE (e, [], []))) in
-      eval_expr n p_stat e >>= fun e -> return @@ enter_block_in_thread n p_stat e
+      eval_expr_sc n p_stat e >>= fun e -> return @@ enter_block_in_thread n p_stat e
     | NO_OP ->
       let p_stat = set_updated_trace p_stat (n, STMT NO_OP) in
       prog_stat_inc p_stat n
@@ -469,31 +470,12 @@ module TSO = struct
     | None -> load_from_ram p_stat var
   ;;
 
-  (* n - is a thread number where expression is evaluated *)
-  let rec eval_expr n p_stat = function
-    | INT c -> return c
-    | VAR_NAME var -> load_var p_stat n var >>= fun p_stat -> return p_stat.loaded
-    | REGISTER r_name ->
-      load_from_regs p_stat n r_name >>= fun p_stat -> return p_stat.loaded
-    | PLUS (l, r) ->
-      eval_expr n p_stat l
-      >>= fun e1 -> eval_expr n p_stat r >>= fun e2 -> return (e1 + e2)
-    | SUB (l, r) ->
-      eval_expr n p_stat l
-      >>= fun e1 -> eval_expr n p_stat r >>= fun e2 -> return (e1 - e2)
-    | MUL (l, r) ->
-      eval_expr n p_stat l
-      >>= fun e1 -> eval_expr n p_stat r >>= fun e2 -> return (e1 * e2)
-    | DIV (l, r) ->
-      eval_expr n p_stat r
-      >>= fun e2 ->
-      if e2 = 0
-      then error "division by zero"
-      else eval_expr n p_stat l >>= fun e1 -> return (e1 / e2)
+  let eval_expr_tso n p_stat expr =
+    eval_expr (fun n p_stat var -> load_var p_stat n var) n p_stat expr
   ;;
 
   let eval_assign n p_stat l r =
-    eval_expr n p_stat r
+    eval_expr_tso n p_stat r
     >>= fun value ->
     match l with
     | VAR_NAME var -> store_to_var p_stat n var value
@@ -557,7 +539,7 @@ module TSO = struct
         let trace = update_trace p_stat.trace (n, STMT (IF (e, []))) in
         set_updated_trace p_stat trace
       in
-      eval_expr n p_stat e
+      eval_expr_tso n p_stat e
       >>= fun e ->
       if e = 0 then prog_stat_inc p_stat n else return (enter_block_in_thread n p_stat e)
     | IF_ELSE (e, _, _) ->
@@ -565,7 +547,7 @@ module TSO = struct
         let trace = update_trace p_stat.trace (n, STMT (IF_ELSE (e, [], []))) in
         set_updated_trace p_stat trace
       in
-      eval_expr n p_stat e >>= fun e -> return @@ enter_block_in_thread n p_stat e
+      eval_expr_tso n p_stat e >>= fun e -> return @@ enter_block_in_thread n p_stat e
     | NO_OP ->
       let p_stat =
         let trace = update_trace p_stat.trace (n, STMT NO_OP) in
