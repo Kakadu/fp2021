@@ -1,5 +1,5 @@
 open Parallelmodel_lib.Parser
-open Parallelmodel_lib.Interpret
+open Parallelmodel_lib.Interpret.COPYPASTE
 open Parallelmodel_lib.Interpret.TSO
 
 (* Если брать тест, как он описан в магистрской работе Евгения Моисеенко, то в нем у меня

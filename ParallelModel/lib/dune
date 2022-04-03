@@ -2,7 +2,7 @@
  (name parallelmodel_lib)
  (public_name ParallelModel.Lib)
  (modules Ast Interpret Parser)
- (libraries base str unix angstrom ppx_show.runtime)
+ (libraries base str angstrom ppx_show.runtime)
  (preprocess
   (pps ppx_expect ppx_show))
  (inline_tests))

@@ -89,30 +89,12 @@ module BasicFunctions = struct
 
   let set v' n = List.mapi (fun i v -> if i = n then v' else v)
   let last ls = List.nth ls (List.length ls - 1)
-
-  let rec find (list : (string * int) list) (var : string) =
-    match list with
-    | [] -> None
-    | h :: tl ->
-      (match h with
-      | v_name, value -> if v_name = var then Some value else find tl var)
-  ;;
-
+  let rec find (list : (string * int) list) (var : string) = List.assoc_opt var list
   let remove list name = List.filter (fun (v_name, _) -> v_name <> name) list
 
-  let rec replace list name value =
-    match
-      List.find_opt
-        (function
-          | v_name, _ -> v_name = name)
-        list
-    with
-    | None -> (name, value) :: list
-    | Some x ->
-      (match x with
-      | v_name, _ ->
-        let list = remove list v_name in
-        (name, value) :: list)
+  let replace list name value =
+    let list = remove list name in
+    (name, value) :: list
   ;;
 end
 
@@ -160,6 +142,11 @@ module COPYPASTE = struct
     }
   [@@deriving show { with_path = false }]
 
+  let update_p_stat p_stat new_thread new_t_num =
+    let threads = set new_thread new_t_num p_stat.threads in
+    { p_stat with threads }
+  ;;
+
   let get_thread p_stat n =
     let rec helper = function
       | [] -> error ("program doesn't have thread with num " ^ string_of_int n)
@@ -192,18 +179,14 @@ module COPYPASTE = struct
     get_thread p_stat n
     >>= fun thread ->
     let registers = replace thread.registers r_name value in
-    let thread = { thread with registers } in
-    let threads = set thread n p_stat.threads in
-    return { p_stat with threads }
+    return (update_p_stat p_stat { thread with registers } n)
   ;;
 
   let add_to_regs p_stat n r_name value =
     get_thread p_stat n
     >>= fun thread ->
     let registers = (r_name, value) :: thread.registers in
-    let thread = { thread with registers } in
-    let threads = set thread n p_stat.threads in
-    return { p_stat with threads }
+    return (update_p_stat p_stat { thread with registers } n)
   ;;
 
   let load_from_regs p_stat n r_name =
@@ -257,6 +240,8 @@ module COPYPASTE = struct
     }
   ;;
 
+  exception All_stmts_executed of string
+
   let get_stmt p_stat cur_t_num =
     get_thread p_stat cur_t_num
     >>= fun t_stat ->
@@ -265,7 +250,10 @@ module COPYPASTE = struct
       stmts
       >>= fun stmts ->
       match counts with
-      | [ n ] -> return (List.nth stmts n)
+      | [ n ] ->
+        if List.length stmts <= n
+        then raise (All_stmts_executed "all statements at currunt level already executed")
+        else return (List.nth stmts n)
       | n :: tl ->
         helper
           (match List.nth stmts n with
@@ -290,7 +278,7 @@ module COPYPASTE = struct
       match get_stmt p_stat n with
       | _ -> true
     with
-    | Failure _ -> false
+    | All_stmts_executed _ -> false
   ;;
 
   let prog_stat_inc p_stat n =
@@ -318,13 +306,14 @@ module COPYPASTE = struct
   ;;
 
   let prog_is_not_finished p_stat =
-    List.exists (fun x -> x = true) (List.map thread_is_not_finished p_stat.threads)
+    List.exists (( = ) true) (List.map thread_is_not_finished p_stat.threads)
   ;;
 
   let not_finished_threads p_stat =
-    List.filter_map
-      (fun t -> if thread_is_not_finished t then Some t.number else None)
-      p_stat.threads
+    Result.ok
+      (List.filter_map
+         (fun t -> if thread_is_not_finished t then Some t.number else None)
+         p_stat.threads)
   ;;
 
   let show_executions = function
@@ -345,7 +334,7 @@ module COPYPASTE = struct
   ;;
 
   let get_reg_val p_stat n r_name =
-    snd (List.find (fun (s, _) -> s = r_name) (List.nth p_stat.threads n).registers)
+    List.assoc r_name (List.nth p_stat.threads n).registers
   ;;
 
   let rec eval_expr f n p_stat = function
@@ -390,7 +379,7 @@ module COPYPASTE = struct
 end
 
 module SequentialConsistency = struct
-  include COPYPASTE
+  open COPYPASTE
 
   let store_to_var p_stat v_name value =
     let ram = replace p_stat.ram v_name value in
@@ -437,8 +426,7 @@ module SequentialConsistency = struct
     if p_stat.depth < max_depth
     then (
       let p_stat = { p_stat with depth = p_stat.depth + 1 } in
-      let nums = not_finished_threads p_stat in
-      Result.ok nums >>= fun num -> exec_single_stmt_in_thread num p_stat)
+      not_finished_threads p_stat >>= fun num -> exec_single_stmt_in_thread num p_stat)
     else error "execution is too long"
   ;;
 
@@ -446,12 +434,7 @@ module SequentialConsistency = struct
 end
 
 module TSO = struct
-  include COPYPASTE
-
-  let update_p_stat p_stat new_thread new_t_num =
-    let threads = set new_thread new_t_num p_stat.threads in
-    { p_stat with threads }
-  ;;
+  open COPYPASTE
 
   let store_to_var p_stat n v_name value =
     get_thread p_stat n
@@ -576,23 +559,24 @@ module TSO = struct
       | thread :: tl ->
         if st_buf_is_empty thread then helper tl acc else helper tl (thread.number :: acc)
     in
-    helper p_stat.threads []
+    Result.ok (helper p_stat.threads [])
   ;;
 
   let exec_next_instr p_stat max_depth =
     if p_stat.depth < max_depth
     then (
       let p_stat = { p_stat with depth = p_stat.depth + 1 } in
-      let nums1 = not_finished_threads p_stat in
-      let nums2 = threads_with_not_empty_st_buf p_stat in
-      let res1 = Result.ok nums1 >>= fun num -> exec_single_stmt_in_thread num p_stat in
-      let res2 = Result.ok nums2 >>= fun num -> push_store_to_ram p_stat num true in
-      match res1 with
-      | Error e -> error e
-      | Ok list1 ->
-        (match res2 with
-        | Error e -> error e
-        | Ok list2 -> Result.ok (list1 @ list2)))
+      let res1 =
+        not_finished_threads p_stat >>= fun num -> exec_single_stmt_in_thread num p_stat
+      in
+      let res2 =
+        threads_with_not_empty_st_buf p_stat
+        >>= fun num -> push_store_to_ram p_stat num true
+      in
+      match res1, res2 with
+      | Ok list1, Ok list2 -> Result.ok (list1 @ list2)
+      | Error e, _ -> error e
+      | _, Error e -> error e)
     else error "execution is too long"
   ;;
 

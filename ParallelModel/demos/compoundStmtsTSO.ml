@@ -1,6 +1,6 @@
 open Parallelmodel_lib.Ast
 open Parallelmodel_lib.Parser
-open Parallelmodel_lib.Interpret
+open Parallelmodel_lib.Interpret.COPYPASTE
 open Parallelmodel_lib.Interpret.TSO
 
 let s =
