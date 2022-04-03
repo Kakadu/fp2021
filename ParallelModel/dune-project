@@ -1,0 +1,35 @@
+(lang dune 2.8)
+
+(generate_opam_files true)
+
+(cram enable)
+
+(license LGPL-3.0-only)
+
+(authors "Nikita Fast")
+
+(maintainers "Nikita Fast")
+
+(bug_reports "breakdownofsanity1404@gmail.com")
+
+(homepage "breakdownofsanity1404@gmail.com")
+
+(package
+ (name ParallelModel) ; FIXME and regenerate .opam file using 'dune build @install'
+ (synopsis "An interpreter for language of modeling program execution in different memory models")
+ (description
+  "Perform and show all possible executions of program in two memory models: Sequential Consistency and 
+  TSO. Demos folder contains a bunch of litmus tests that proves the correctness of interpreter")
+ (version 0.1)
+ (depends
+  dune
+  angstrom
+  (ppx_inline_test :with-test)
+  qcheck-core
+  ppx_expect
+  ppx_show
+  (odoc :with-doc)
+  (ocamlformat :build)
+  base
+  ; After adding dependencies to 'dune' files and the same dependecies here too
+  ))
