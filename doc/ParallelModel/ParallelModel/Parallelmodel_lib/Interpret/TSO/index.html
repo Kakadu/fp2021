@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>TSO (ParallelModel.Parallelmodel_lib.Interpret.TSO)</title><link rel="stylesheet" href="../../../../odoc.css"/><meta charset="utf-8"/><meta name="generator" content="odoc 2.1.0"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../../../highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../../../index.html">ParallelModel</a> &#x00BB; <a href="../../index.html">Parallelmodel_lib</a> &#x00BB; <a href="../index.html">Interpret</a> &#x00BB; TSO</nav><header class="odoc-preamble"><h1>Module <code><span>Interpret.TSO</span></code></h1></header><div class="odoc-content"><div class="odoc-spec"><div class="spec value" id="val-store_to_var" class="anchored"><a href="#val-store_to_var" class="anchor"></a><code><span><span class="keyword">val</span> store_to_var : 
+  <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>int <span class="arrow">&#45;&gt;</span></span>
+  <span>string <span class="arrow">&#45;&gt;</span></span>
+  <span>int <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> list</span>, string )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-scan_store_buffer" class="anchored"><a href="#val-scan_store_buffer" class="anchor"></a><code><span><span class="keyword">val</span> scan_store_buffer : 
+  <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>int <span class="arrow">&#45;&gt;</span></span>
+  <span>string <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <span><span>int option</span> list</span>, string )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-load_var" class="anchored"><a href="#val-load_var" class="anchor"></a><code><span><span class="keyword">val</span> load_var : 
+  <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>int <span class="arrow">&#45;&gt;</span></span>
+  <span>string <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> list</span>, string )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-eval_expr_tso" class="anchored"><a href="#val-eval_expr_tso" class="anchor"></a><code><span><span class="keyword">val</span> eval_expr_tso : 
+  <span>int <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="../../Ast/index.html#type-expr">Ast.expr</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <span>int list</span>, string )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-eval_assign" class="anchored"><a href="#val-eval_assign" class="anchor"></a><code><span><span class="keyword">val</span> eval_assign : 
+  <span>int <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="../../Ast/index.html#type-expr">Ast.expr</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="../../Ast/index.html#type-expr">Ast.expr</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> list</span>, string )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-set_updated_trace" class="anchored"><a href="#val-set_updated_trace" class="anchor"></a><code><span><span class="keyword">val</span> set_updated_trace : 
+  <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span><a href="../COPYPASTE/index.html#type-trace_step">COPYPASTE.trace_step</a> list</span> <span class="arrow">&#45;&gt;</span></span>
+  <a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-push_store_to_ram" class="anchored"><a href="#val-push_store_to_ram" class="anchor"></a><code><span><span class="keyword">val</span> push_store_to_ram : 
+  <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>int <span class="arrow">&#45;&gt;</span></span>
+  <span>bool <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> list</span>, string )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-st_buf_is_empty" class="anchored"><a href="#val-st_buf_is_empty" class="anchor"></a><code><span><span class="keyword">val</span> st_buf_is_empty : <span><a href="../COPYPASTE/index.html#type-thread_stat">COPYPASTE.thread_stat</a> <span class="arrow">&#45;&gt;</span></span> bool</span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-flush_st_buf" class="anchored"><a href="#val-flush_st_buf" class="anchor"></a><code><span><span class="keyword">val</span> flush_st_buf : 
+  <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>int <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> list</span>, string )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-exec_single_stmt_in_thread" class="anchored"><a href="#val-exec_single_stmt_in_thread" class="anchor"></a><code><span><span class="keyword">val</span> exec_single_stmt_in_thread : 
+  <span>int <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> list</span>, string )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-threads_with_not_empty_st_buf" class="anchored"><a href="#val-threads_with_not_empty_st_buf" class="anchor"></a><code><span><span class="keyword">val</span> threads_with_not_empty_st_buf : 
+  <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <span>int list</span>, <span class="type-var">'a</span> )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-exec_next_instr" class="anchored"><a href="#val-exec_next_instr" class="anchor"></a><code><span><span class="keyword">val</span> exec_next_instr : 
+  <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>int <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> list</span>, string )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-exec_prog_in_tso_monad_list" class="anchored"><a href="#val-exec_prog_in_tso_monad_list" class="anchor"></a><code><span><span class="keyword">val</span> exec_prog_in_tso_monad_list : 
+  <span><a href="../../Ast/index.html#type-prog">Ast.prog</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>int <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <span><a href="../COPYPASTE/index.html#type-prog_stat">COPYPASTE.prog_stat</a> list</span>, string )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div></div></body></html>
