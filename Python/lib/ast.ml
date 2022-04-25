@@ -55,7 +55,7 @@ and statements =
   | If of expression * statements list
   | Else of statements list
   | While of expression * statements list
-  | For of expression * expression * statements list (*for i in range(N):\n\tstmt OR for i in range(someArray):\n\tstmt*)
+  | For of expression * expression * statements list
+    (*for i in range(N):\n\tstmt OR for i in range(someArray):\n\tstmt*)
   | Class of identifier * statements list
-  | LvledStmt of int * statements
-(*it is for assign and expressions*)
+  | LvledStmt of int * statements (*it is for assign and expressions*)
