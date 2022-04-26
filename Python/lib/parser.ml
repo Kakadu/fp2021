@@ -198,6 +198,12 @@ let lst p =
   >>= fun items -> return (List items)
 ;;
 
+let parse_class tabs =
+  token "class" *> identifier
+  <* token ":"
+  >>= fun id -> return (Block (tabs, Class (id, [])))
+;;
+
 (* someMethod(someParams) *)
 let method_call p =
   identifier
@@ -244,7 +250,7 @@ let parse_def tabs =
 ;;
 
 let assign expr tabs =
-  sep_by _comma local_var
+  sep_by _comma (access_field <|> local_var)
   >>= fun lvalues ->
   token "=" *> space *> sep_by _comma expr
   >>= fun rvalues -> return (LvledStmt (tabs, Assign (lvalues, rvalues)))
@@ -445,6 +451,7 @@ let prog =
           | 'f' -> parse_for expr lvl
           | 'd' -> parse_def lvl
           | 'r' -> parse_return expr lvl
+          | 'c' -> parse_class lvl
           | _ -> expr >>| expr_stmt lvl
         in
         space *> choice [ passign; predict; pexpr ])
@@ -655,5 +662,36 @@ let%test _ =
               ( Var (VarName (Local, "i"))
               , [ Const (Integer 1); Const (Integer 10) ]
               , [ LvledStmt (1, Expression (Const (Integer 1))) ] ) )
+      ]
+;;
+
+(* im not sure that its fine *)
+let%test _ =
+  parse prog "a.b = x"
+  = Ok
+      [ LvledStmt (0, Assign ([ FieldAccess ("a", "b") ], [ Var (VarName (Local, "x")) ]))
+      ]
+;;
+
+let%test _ =
+  parse prog "class A:\n\tdef test(self, x):\n\t\tself.x = x\n\t\treturn x"
+  = Ok
+      [ Block
+          ( 0
+          , Class
+              ( "A"
+              , [ Block
+                    ( 1
+                    , MethodDef
+                        ( "test"
+                        , [ "self"; "x" ]
+                        , [ LvledStmt
+                              ( 2
+                              , Assign
+                                  ( [ FieldAccess ("self", "x") ]
+                                  , [ Var (VarName (Local, "x")) ] ) )
+                          ; LvledStmt (2, Return [ Var (VarName (Local, "x")) ])
+                          ] ) )
+                ] ) )
       ]
 ;;
