@@ -26,23 +26,23 @@ let token s = space *> string s
 let _def = token "def"
 let _comma = eolspace *> token "," <* eolspace
 let expr_stmt lvl expr = LvledStmt (lvl, Expression expr)
-let _add = token "+" *> return (fun e1 e2 -> ArithOp (Add, e1, e2))
-let _sub = token "-" *> return (fun e1 e2 -> ArithOp (Sub, e1, e2))
-let _mul = token "*" *> return (fun e1 e2 -> ArithOp (Mul, e1, e2))
-let _div = token "/" *> return (fun e1 e2 -> ArithOp (Div, e1, e2))
-let _mod = token "%" *> return (fun e1 e2 -> ArithOp (Mod, e1, e2))
-let _not = token "not" *> return (fun e1 -> Not e1)
-let _and = token "and" *> return (fun e1 e2 -> BoolOp (And, e1, e2))
-let _or = token "or" *> return (fun e1 e2 -> BoolOp (Or, e1, e2))
-let _eq = token "==" *> return (fun e1 e2 -> Eq (e1, e2))
-let _neq = token "!=" *> return (fun e1 e2 -> NotEq (e1, e2))
-let _ls = token "<" *> return (fun e1 e2 -> Ls (e1, e2))
-let _gr = token ">" *> return (fun e1 e2 -> Gr (e1, e2))
-let _lse = token "<=" *> return (fun e1 e2 -> Lse (e1, e2))
-let _gre = token ">=" *> return (fun e1 e2 -> Gre (e1, e2))
-let high_pr_op = _mul <|> _div <|> _mod <* space
-let low_pr_op = space *> _add <|> _sub <* space
-let cmp_op = _lse <|> _ls <|> _gre <|> _gr <|> _neq <|> _eq <* space
+let arth_add = token "+" *> return (fun e1 e2 -> ArithOp (Add, e1, e2))
+let arth_sub = token "-" *> return (fun e1 e2 -> ArithOp (Sub, e1, e2))
+let arth_mul = token "*" *> return (fun e1 e2 -> ArithOp (Mul, e1, e2))
+let arth_div = token "/" *> return (fun e1 e2 -> ArithOp (Div, e1, e2))
+let arth_mod = token "%" *> return (fun e1 e2 -> ArithOp (Mod, e1, e2))
+let b_not = token "not" *> return (fun e1 -> Not e1)
+let b_and = token "and" *> return (fun e1 e2 -> BoolOp (And, e1, e2))
+let b_or = token "or" *> return (fun e1 e2 -> BoolOp (Or, e1, e2))
+let eq = token "==" *> return (fun e1 e2 -> Eq (e1, e2))
+let neq = token "!=" *> return (fun e1 e2 -> NotEq (e1, e2))
+let ls = token "<" *> return (fun e1 e2 -> Ls (e1, e2))
+let gr = token ">" *> return (fun e1 e2 -> Gr (e1, e2))
+let lse = token "<=" *> return (fun e1 e2 -> Lse (e1, e2))
+let gre = token ">=" *> return (fun e1 e2 -> Gre (e1, e2))
+let high_pr_op = arth_mul <|> arth_div <|> arth_mod <* space
+let low_pr_op = space *> arth_add <|> arth_sub <* space
+let cmp_op = lse <|> ls <|> gre <|> gr <|> neq <|> eq <* space
 let parens p = char '(' *> p <* char ')'
 
 let chainl1 e op =
@@ -427,11 +427,11 @@ let prog =
         let cmp = chainl1 low cmp_op in
         let bfactor =
           fix (fun bfactor ->
-              let nnot = _not <* space <*> bfactor in
+              let nnot = b_not <* space <*> bfactor in
               choice [ nnot; cmp ])
         in
-        let bterm = chainl1 bfactor (_and <* space) in
-        chainl1 bterm (_or <* space))
+        let bterm = chainl1 bfactor (b_and <* space) in
+        chainl1 bterm (b_or <* space))
   in
   let stmt =
     fix (fun _ ->
