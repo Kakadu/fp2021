@@ -57,4 +57,5 @@ type statements =
   | While of expression * statements list
   | For of expression * expression list * statements list
   | Class of identifier * statements list
+  | Return of expression list
   | LvledStmt of int * statements
