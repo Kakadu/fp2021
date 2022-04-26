@@ -261,6 +261,15 @@ let parse_while expr tabs =
   >>= fun while_expr -> return (Block (tabs, While (while_expr, [])))
 ;;
 
+let parse_for expr tabs =
+  token "for" *> local_var
+  >>= fun id ->
+  token "in" *> token "range" *> token "(" *> sep_by _comma expr
+  <* token ")"
+  <* token ":"
+  >>= fun range -> return (Block (tabs, For (id, range, [])))
+;;
+
 (* maybe if and else should be merged *)
 let take_block_from_stmt stmt =
   match stmt with
@@ -428,6 +437,7 @@ let prog =
           | 'i' -> parse_if expr lvl
           | 'e' -> parse_else lvl
           | 'w' -> parse_while expr lvl
+          | 'f' -> parse_for expr lvl
           | 'd' -> parse_def lvl
           | _ -> expr >>| expr_stmt lvl
         in
@@ -627,5 +637,17 @@ let%test _ =
                            (Add, Var (VarName (Local, "x")), Var (VarName (Local, "y"))))
                     )
                 ] ) )
+      ]
+;;
+
+let%test _ =
+  parse prog "for i in range(1, 10):\n\n\t1"
+  = Ok
+      [ Block
+          ( 0
+          , For
+              ( Var (VarName (Local, "i"))
+              , [ Const (Integer 1); Const (Integer 10) ]
+              , [ LvledStmt (1, Expression (Const (Integer 1))) ] ) )
       ]
 ;;
