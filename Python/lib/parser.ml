@@ -23,8 +23,7 @@ let space = take_while is_whitespace
 let space1 = take_while1 is_whitespace
 let eol = take_while is_eol
 let token s = space *> string s
-let _def = token "def"
-let _comma = eolspace *> token "," <* eolspace
+let comma = eolspace *> token "," <* eolspace
 let expr_stmt lvl expr = LvledStmt (lvl, Expression expr)
 let arth_add = token "+" *> return (fun e1 e2 -> ArithOp (Add, e1, e2))
 let arth_sub = token "-" *> return (fun e1 e2 -> ArithOp (Sub, e1, e2))
@@ -183,7 +182,7 @@ let p_string =
 
 let%test _ = parse p_string "\"1.23\"" = Ok (Const (String "1.23"))
 
-let p_params = sep_by _comma identifier
+let p_params = sep_by comma identifier
 
 let%test _ = parse p_params "  a  ,   b,c    " = Ok [ "a"; "b"; "c" ]
 
@@ -208,9 +207,7 @@ let parse_class tabs =
 let method_call p =
   identifier
   >>= fun idd ->
-  token "(" *> sep_by _comma p
-  <* token ")"
-  >>= fun args -> return (MethodCall (idd, args))
+  token "(" *> sep_by comma p <* token ")" >>= fun args -> return (MethodCall (idd, args))
 ;;
 
 (* someClass.someField *)
@@ -220,8 +217,7 @@ let access_field =
 ;;
 
 let parse_return expr tabs =
-  token "return" *> sep_by _comma expr
-  >>= fun ret -> return (LvledStmt (tabs, Return ret))
+  token "return" *> sep_by comma expr >>= fun ret -> return (LvledStmt (tabs, Return ret))
 ;;
 
 (* someClass.someMethod(someParams) *)
@@ -230,7 +226,7 @@ let access_method p =
   >>= fun id ->
   token "." *> identifier
   >>= fun mthd ->
-  token "(" *> sep_by _comma p
+  token "(" *> sep_by comma p
   <* token ")"
   >>= fun args -> return (MethodAccess (id, mthd, args))
 ;;
@@ -242,7 +238,7 @@ let lambda expr =
 ;;
 
 let parse_def tabs =
-  _def *> identifier
+  token "def" *> identifier
   >>= fun id ->
   token "(" *> p_params
   >>= fun args ->
@@ -250,9 +246,9 @@ let parse_def tabs =
 ;;
 
 let assign expr tabs =
-  sep_by _comma (access_field <|> local_var)
+  sep_by comma (access_field <|> local_var)
   >>= fun lvalues ->
-  token "=" *> space *> sep_by _comma expr
+  token "=" *> space *> sep_by comma expr
   >>= fun rvalues -> return (LvledStmt (tabs, Assign (lvalues, rvalues)))
 ;;
 
@@ -275,15 +271,14 @@ let parse_while expr tabs =
 let parse_for expr tabs =
   token "for" *> local_var
   >>= fun id ->
-  token "in" *> token "range" *> token "(" *> sep_by _comma expr
+  token "in" *> token "range" *> token "(" *> sep_by comma expr
   <* token ")"
   <* token ":"
   >>= fun range -> return (Block (tabs, For (id, range, [])))
 ;;
 
 (* maybe if and else should be merged *)
-let take_block_from_stmt stmt =
-  match stmt with
+let take_block_from_stmt = function
   | MethodDef (_, _, stmts) -> stmts
   | For (_, _, stmts) -> stmts
   | If (_, stmts) -> stmts
