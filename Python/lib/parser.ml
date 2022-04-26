@@ -13,12 +13,18 @@ let is_eol = function
   | _ -> false
 ;;
 
+let is_eol_or_space = function
+  | ' ' | '\n' -> true
+  | _ -> false
+;;
+
+let eolspace = take_while is_eol_or_space
 let space = take_while is_whitespace
 let space1 = take_while1 is_whitespace
 let eol = take_while is_eol
 let token s = space *> string s
 let _def = token "def"
-let _comma = token ","
+let _comma = eolspace *> token "," <* eolspace
 let expr_stmt lvl expr = LvledStmt (lvl, Expression expr)
 let _add = token "+" *> return (fun e1 e2 -> ArithOp (Add, e1, e2))
 let _sub = token "-" *> return (fun e1 e2 -> ArithOp (Sub, e1, e2))
@@ -382,7 +388,7 @@ let prog =
   let expr =
     fix (fun expr ->
         let predict =
-          space *> peek_char_fail
+          eolspace *> peek_char_fail
           >>= function
           | x when is_valid_first_char x ->
             access_method expr
@@ -427,7 +433,7 @@ let prog =
         in
         space *> choice [ passign; predict; pexpr ])
   in
-  sep_by (token "\n") stmt
+  sep_by (token "\n") (eolspace *> stmt)
   >>= fun lines ->
   match flatten lines with
   | x ->
@@ -439,7 +445,7 @@ let prog =
 let%test _ = parse prog "5" = Ok [ LvledStmt (0, Expression (Const (Integer 5))) ]
 
 let%test _ =
-  parse prog "x,y = 1, 2"
+  parse prog "\nx,\ny = 1, 2"
   = Ok
       [ LvledStmt
           ( 0
@@ -452,6 +458,11 @@ let%test _ =
 let%test _ =
   parse prog "\ti > 4"
   = Ok [ LvledStmt (1, Expression (Gr (Var (VarName (Local, "i")), Const (Integer 4)))) ]
+;;
+
+let%test _ =
+  parse prog "5 and\n 4"
+  = Ok [ LvledStmt (0, Expression (BoolOp (And, Const (Integer 5), Const (Integer 4)))) ]
 ;;
 
 let%test _ =
@@ -469,6 +480,28 @@ let%test _ =
 
 let%test _ =
   parse prog "[f(5)+f(3), \ncat.head,\n\n           cat.set(10, 20+10)]"
+  = Ok
+      [ LvledStmt
+          ( 0
+          , Expression
+              (List
+                 [ ArithOp
+                     ( Add
+                     , MethodCall ("f", [ Const (Integer 5) ])
+                     , MethodCall ("f", [ Const (Integer 3) ]) )
+                 ; FieldAccess ("cat", "head")
+                 ; MethodAccess
+                     ( "cat"
+                     , "set"
+                     , [ Const (Integer 10)
+                       ; ArithOp (Add, Const (Integer 20), Const (Integer 10))
+                       ] )
+                 ]) )
+      ]
+;;
+
+let%test _ =
+  parse prog "[f(5)+\nf(\n3), \ncat.head,\n\n           cat.set(\n10\n,\n 20+10)]"
   = Ok
       [ LvledStmt
           ( 0
