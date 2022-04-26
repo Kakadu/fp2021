@@ -1,5 +1,5 @@
 type identifier = string
-and params = identifier list
+type params = identifier list
 
 type modifier =
   | Local
@@ -47,7 +47,7 @@ and expression =
   | MethodCall of identifier * expression list
   | Lambda of params * expression
 
-and statements =
+type statements =
   | Expression of expression
   | Assign of expression list * rval
   | Block of int * statements
@@ -56,6 +56,5 @@ and statements =
   | Else of statements list
   | While of expression * statements list
   | For of expression * expression * statements list
-    (*for i in range(N):\n\tstmt OR for i in range(someArray):\n\tstmt*)
   | Class of identifier * statements list
-  | LvledStmt of int * statements (*it is for assign and expressions*)
+  | LvledStmt of int * statements
