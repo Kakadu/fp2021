@@ -213,6 +213,11 @@ let access_field =
   >>= fun id -> token "." *> identifier >>= fun field -> return (FieldAccess (id, field))
 ;;
 
+let parse_return expr tabs =
+  token "return" *> sep_by _comma expr
+  >>= fun ret -> return (LvledStmt (tabs, Return ret))
+;;
+
 (* someClass.someMethod(someParams) *)
 let access_method p =
   identifier
@@ -439,6 +444,7 @@ let prog =
           | 'w' -> parse_while expr lvl
           | 'f' -> parse_for expr lvl
           | 'd' -> parse_def lvl
+          | 'r' -> parse_return expr lvl
           | _ -> expr >>| expr_stmt lvl
         in
         space *> choice [ passign; predict; pexpr ])
@@ -623,7 +629,7 @@ let%test _ =
 ;;
 
 let%test _ =
-  parse prog "def sum(x,y):\n\tx+y"
+  parse prog "def sum(x,y):\n\treturn x+y"
   = Ok
       [ Block
           ( 0
@@ -632,10 +638,10 @@ let%test _ =
               , [ "x"; "y" ]
               , [ LvledStmt
                     ( 1
-                    , Expression
-                        (ArithOp
-                           (Add, Var (VarName (Local, "x")), Var (VarName (Local, "y"))))
-                    )
+                    , Return
+                        [ ArithOp
+                            (Add, Var (VarName (Local, "x")), Var (VarName (Local, "y")))
+                        ] )
                 ] ) )
       ]
 ;;
