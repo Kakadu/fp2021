@@ -298,9 +298,8 @@ let insert_to_stmt new_stmts = function
   | _ -> failwith "Unknown stmt"
 ;;
 
-let check_is_last_block_empty block =
-  let rec check stmts =
-    match List.rev stmts with
+let check_is_first_block_empty block =
+  let rec check = function
     | Block (_, stmt) :: _ ->
       (match take_block_from_stmt stmt with
       | [] -> true
@@ -311,7 +310,7 @@ let check_is_last_block_empty block =
 ;;
 
 let%test _ =
-  check_is_last_block_empty
+  check_is_first_block_empty
     [ Block
         ( 0
         , If
@@ -327,8 +326,9 @@ let%test _ =
 ;;
 
 let%test _ =
-  check_is_last_block_empty
-    [ Block
+  check_is_first_block_empty
+    [ Block (0, If (Const (Integer 0), []))
+    ; Block
         ( 0
         , If
             ( Const (Integer 0)
@@ -339,58 +339,104 @@ let%test _ =
   = true
 ;;
 
+let reverse list =
+  let rec rvrs acc = function
+    | [] -> acc
+    | Block (n, stmt) :: t ->
+      let reversed_stmt = rvrs [] (take_block_from_stmt stmt) in
+      rvrs (Block (n, insert_to_stmt reversed_stmt stmt) :: acc) t
+    | LvledStmt (n, stmt) :: t -> rvrs (LvledStmt (n, stmt) :: acc) t
+    | _ -> []
+  in
+  rvrs [] list
+;;
+
+let%test _ =
+  reverse
+    [ Block
+        ( 0
+        , If
+            ( Const (Integer 0)
+            , [ LvledStmt (1, Expression (Const (Integer 1)))
+              ; LvledStmt (2, Expression (Const (Integer 2)))
+              ] ) )
+    ; Block
+        ( 1
+        , If
+            ( Const (Integer 0)
+            , [ LvledStmt (3, Expression (Const (Integer 3)))
+              ; LvledStmt (4, Expression (Const (Integer 4)))
+              ] ) )
+    ]
+  = [ Block
+        ( 1
+        , If
+            ( Const (Integer 0)
+            , [ LvledStmt (4, Expression (Const (Integer 4)))
+              ; LvledStmt (3, Expression (Const (Integer 3)))
+              ] ) )
+    ; Block
+        ( 0
+        , If
+            ( Const (Integer 0)
+            , [ LvledStmt (2, Expression (Const (Integer 2)))
+              ; LvledStmt (1, Expression (Const (Integer 1)))
+              ] ) )
+    ]
+;;
+
 (* failwith "unreachable" probably because ast is bad *)
 let flatten list =
   let rec insert_ acc_lines = function
     | [] -> acc_lines
     | Block (n, stmt) :: t ->
       if acc_lines = []
-      then insert_ (acc_lines @ [ Block (n, stmt) ]) t
+      then insert_ (Block (n, stmt) :: acc_lines) t
       else (
-        match List.rev acc_lines with
+        match acc_lines with
         | x :: t1 ->
           (match x with
           | Block (m, stmt1) ->
             if m > n
             then (
-              match check_is_last_block_empty (take_block_from_stmt stmt1) with
+              match check_is_first_block_empty (take_block_from_stmt stmt1) with
               | true -> failwith "check tabs!"
-              | _ -> insert_ (acc_lines @ [ Block (n, stmt) ]) t)
+              | _ -> insert_ (Block (n, stmt) :: acc_lines) t)
             else if m = n
             then (
-              match check_is_last_block_empty (take_block_from_stmt stmt1) with
+              match check_is_first_block_empty (take_block_from_stmt stmt1) with
               | true -> failwith "check tabs!"
-              | _ -> insert_ (acc_lines @ [ Block (n, stmt) ]) t)
+              | _ -> insert_ (Block (n, stmt) :: acc_lines) t)
             else (
               let subblock = insert_ (take_block_from_stmt stmt1) [ Block (n, stmt) ] in
-              insert_ (t1 @ [ Block (m, insert_to_stmt subblock stmt1) ]) t)
+              insert_ (Block (m, insert_to_stmt subblock stmt1) :: t1) t)
           | LvledStmt (m, _) ->
             if m < n
             then failwith "check tabs"
-            else insert_ (acc_lines @ [ Block (n, stmt) ]) t
+            else insert_ (Block (n, stmt) :: acc_lines) t
           | _ -> failwith "unreachable")
         | _ -> failwith "unreachable")
     | LvledStmt (n, stmt) :: t ->
       if acc_lines = []
-      then insert_ (acc_lines @ [ LvledStmt (n, stmt) ]) t
+      then insert_ (LvledStmt (n, stmt) :: acc_lines) t
       else (
-        match List.rev acc_lines with
+        match acc_lines with
         | x :: t1 ->
           (match x with
           | Block (m, stmt1) ->
             if m >= n
             then (
-              match check_is_last_block_empty (take_block_from_stmt stmt1) with
+              match check_is_first_block_empty (take_block_from_stmt stmt1) with
               | true -> failwith "check tabs!"
-              | _ -> insert_ (acc_lines @ [ LvledStmt (n, stmt) ]) t)
+              | _ -> insert_ (LvledStmt (n, stmt) :: acc_lines) t)
             else (
               let subblock =
                 insert_ (take_block_from_stmt stmt1) [ LvledStmt (n, stmt) ]
               in
-              insert_ (t1 @ [ Block (m, insert_to_stmt subblock stmt1) ]) t)
+              insert_ (Block (m, insert_to_stmt subblock stmt1) :: t1) t)
           | LvledStmt (m, _) ->
             if m = n
-            then insert_ (acc_lines @ [ LvledStmt (n, stmt) ]) t
+            then insert_ (LvledStmt (n, stmt) :: acc_lines) t
             else failwith "check tabs!"
           | _ -> failwith "unreachable")
         | _ -> failwith "unreachable")
@@ -455,9 +501,9 @@ let prog =
   >>= fun lines ->
   match flatten lines with
   | x ->
-    if check_is_last_block_empty x
+    if check_is_first_block_empty x
     then failwith "Last block is empty!"
-    else return (flatten lines)
+    else return (reverse (flatten lines))
 ;;
 
 let%test _ = parse prog "5" = Ok [ LvledStmt (0, Expression (Const (Integer 5))) ]
@@ -548,14 +594,6 @@ let%test _ =
       ]
 ;;
 
-(* 
-  if 0:
-    1
-    if 1:
-      2
-    1
-    1
-*)
 let%test _ =
   parse prog "if 0:\n\t1\n\tif 1:\n\t\t2\n\t1\n\t1"
   = Ok
@@ -575,12 +613,6 @@ let%test _ =
       ]
 ;;
 
-(* 
-    if 0:
-      0
-    if 1:
-      1
-*)
 let%test _ =
   parse prog "if 0:\n\t0\nif 1:\n\t1"
   = Ok
