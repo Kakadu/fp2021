@@ -339,20 +339,20 @@ let%test _ =
   = true
 ;;
 
-let reverse list =
+let remove_lvling list =
   let rec rvrs acc = function
     | [] -> acc
-    | Block (n, stmt) :: t ->
+    | Block (_, stmt) :: t ->
       let reversed_stmt = rvrs [] (take_block_from_stmt stmt) in
-      rvrs (Block (n, insert_to_stmt reversed_stmt stmt) :: acc) t
-    | LvledStmt (n, stmt) :: t -> rvrs (LvledStmt (n, stmt) :: acc) t
+      rvrs (insert_to_stmt reversed_stmt stmt :: acc) t
+    | LvledStmt (_, stmt) :: t -> rvrs (stmt :: acc) t
     | _ -> []
   in
   rvrs [] list
 ;;
 
 let%test _ =
-  reverse
+  remove_lvling
     [ Block
         ( 0
         , If
@@ -363,25 +363,17 @@ let%test _ =
     ; Block
         ( 1
         , If
-            ( Const (Integer 0)
+            ( Const (Integer 1)
             , [ LvledStmt (3, Expression (Const (Integer 3)))
               ; LvledStmt (4, Expression (Const (Integer 4)))
               ] ) )
     ]
-  = [ Block
-        ( 1
-        , If
-            ( Const (Integer 0)
-            , [ LvledStmt (4, Expression (Const (Integer 4)))
-              ; LvledStmt (3, Expression (Const (Integer 3)))
-              ] ) )
-    ; Block
-        ( 0
-        , If
-            ( Const (Integer 0)
-            , [ LvledStmt (2, Expression (Const (Integer 2)))
-              ; LvledStmt (1, Expression (Const (Integer 1)))
-              ] ) )
+  = [ If
+        ( Const (Integer 1)
+        , [ Expression (Const (Integer 4)); Expression (Const (Integer 3)) ] )
+    ; If
+        ( Const (Integer 0)
+        , [ Expression (Const (Integer 2)); Expression (Const (Integer 1)) ] )
     ]
 ;;
 
@@ -503,222 +495,174 @@ let prog =
   | x ->
     if check_is_first_block_empty x
     then failwith "Last block is empty!"
-    else return (reverse (flatten lines))
+    else return (remove_lvling (flatten lines))
 ;;
 
-let%test _ = parse prog "5" = Ok [ LvledStmt (0, Expression (Const (Integer 5))) ]
+let%test _ = parse prog "5" = Ok [ Expression (Const (Integer 5)) ]
 
 let%test _ =
   parse prog "\nx,\ny = 1, 2"
   = Ok
-      [ LvledStmt
-          ( 0
-          , Assign
-              ( [ Var (VarName (Local, "x")); Var (VarName (Local, "y")) ]
-              , [ Const (Integer 1); Const (Integer 2) ] ) )
+      [ Assign
+          ( [ Var (VarName (Local, "x")); Var (VarName (Local, "y")) ]
+          , [ Const (Integer 1); Const (Integer 2) ] )
       ]
 ;;
 
 let%test _ =
   parse prog "\ti > 4"
-  = Ok [ LvledStmt (1, Expression (Gr (Var (VarName (Local, "i")), Const (Integer 4)))) ]
+  = Ok [ Expression (Gr (Var (VarName (Local, "i")), Const (Integer 4))) ]
 ;;
 
 let%test _ =
   parse prog "5 and\n 4"
-  = Ok [ LvledStmt (0, Expression (BoolOp (And, Const (Integer 5), Const (Integer 4)))) ]
+  = Ok [ Expression (BoolOp (And, Const (Integer 5), Const (Integer 4))) ]
 ;;
 
 let%test _ =
   parse prog "\t[5+3, 4+6]"
   = Ok
-      [ LvledStmt
-          ( 1
-          , Expression
-              (List
-                 [ ArithOp (Add, Const (Integer 5), Const (Integer 3))
-                 ; ArithOp (Add, Const (Integer 4), Const (Integer 6))
-                 ]) )
+      [ Expression
+          (List
+             [ ArithOp (Add, Const (Integer 5), Const (Integer 3))
+             ; ArithOp (Add, Const (Integer 4), Const (Integer 6))
+             ])
       ]
 ;;
 
 let%test _ =
   parse prog "[f(5)+f(3), \ncat.head,\n\n           cat.set(10, 20+10)]"
   = Ok
-      [ LvledStmt
-          ( 0
-          , Expression
-              (List
-                 [ ArithOp
-                     ( Add
-                     , MethodCall ("f", [ Const (Integer 5) ])
-                     , MethodCall ("f", [ Const (Integer 3) ]) )
-                 ; FieldAccess ("cat", "head")
-                 ; MethodAccess
-                     ( "cat"
-                     , "set"
-                     , [ Const (Integer 10)
-                       ; ArithOp (Add, Const (Integer 20), Const (Integer 10))
-                       ] )
-                 ]) )
+      [ Expression
+          (List
+             [ ArithOp
+                 ( Add
+                 , MethodCall ("f", [ Const (Integer 5) ])
+                 , MethodCall ("f", [ Const (Integer 3) ]) )
+             ; FieldAccess ("cat", "head")
+             ; MethodAccess
+                 ( "cat"
+                 , "set"
+                 , [ Const (Integer 10)
+                   ; ArithOp (Add, Const (Integer 20), Const (Integer 10))
+                   ] )
+             ])
       ]
 ;;
 
 let%test _ =
   parse prog "[f(5)+\nf(\n3), \ncat.head,\n\n           cat.set(\n10\n,\n 20+10)]"
   = Ok
-      [ LvledStmt
-          ( 0
-          , Expression
-              (List
-                 [ ArithOp
-                     ( Add
-                     , MethodCall ("f", [ Const (Integer 5) ])
-                     , MethodCall ("f", [ Const (Integer 3) ]) )
-                 ; FieldAccess ("cat", "head")
-                 ; MethodAccess
-                     ( "cat"
-                     , "set"
-                     , [ Const (Integer 10)
-                       ; ArithOp (Add, Const (Integer 20), Const (Integer 10))
-                       ] )
-                 ]) )
+      [ Expression
+          (List
+             [ ArithOp
+                 ( Add
+                 , MethodCall ("f", [ Const (Integer 5) ])
+                 , MethodCall ("f", [ Const (Integer 3) ]) )
+             ; FieldAccess ("cat", "head")
+             ; MethodAccess
+                 ( "cat"
+                 , "set"
+                 , [ Const (Integer 10)
+                   ; ArithOp (Add, Const (Integer 20), Const (Integer 10))
+                   ] )
+             ])
       ]
 ;;
 
 let%test _ =
   parse prog "if 0:\n\t4"
-  = Ok
-      [ Block
-          (0, If (Const (Integer 0), [ LvledStmt (1, Expression (Const (Integer 4))) ]))
-      ]
+  = Ok [ If (Const (Integer 0), [ Expression (Const (Integer 4)) ]) ]
 ;;
 
 let%test _ =
   parse prog "if 0:\n\t1\n\tif 1:\n\t\t2\n\t1\n\t1"
   = Ok
-      [ Block
-          ( 0
-          , If
-              ( Const (Integer 0)
-              , [ LvledStmt (1, Expression (Const (Integer 1)))
-                ; Block
-                    ( 1
-                    , If
-                        ( Const (Integer 1)
-                        , [ LvledStmt (2, Expression (Const (Integer 2))) ] ) )
-                ; LvledStmt (1, Expression (Const (Integer 1)))
-                ; LvledStmt (1, Expression (Const (Integer 1)))
-                ] ) )
+      [ If
+          ( Const (Integer 0)
+          , [ Expression (Const (Integer 1))
+            ; If (Const (Integer 1), [ Expression (Const (Integer 2)) ])
+            ; Expression (Const (Integer 1))
+            ; Expression (Const (Integer 1))
+            ] )
       ]
 ;;
 
 let%test _ =
   parse prog "if 0:\n\t0\nif 1:\n\t1"
   = Ok
-      [ Block
-          (0, If (Const (Integer 0), [ LvledStmt (1, Expression (Const (Integer 0))) ]))
-      ; Block
-          (0, If (Const (Integer 1), [ LvledStmt (1, Expression (Const (Integer 1))) ]))
+      [ If (Const (Integer 0), [ Expression (Const (Integer 0)) ])
+      ; If (Const (Integer 1), [ Expression (Const (Integer 1)) ])
       ]
 ;;
 
 let%test _ =
   parse prog "if \"a\":\n\t0"
-  = Ok
-      [ Block
-          (0, If (Const (String "a"), [ LvledStmt (1, Expression (Const (Integer 0))) ]))
-      ]
+  = Ok [ If (Const (String "a"), [ Expression (Const (Integer 0)) ]) ]
 ;;
 
 let%test _ =
   parse prog "while not x > 0:\n\tx = x -1\n\tcat.head"
   = Ok
-      [ Block
-          ( 0
-          , While
-              ( Not (Gr (Var (VarName (Local, "x")), Const (Integer 0)))
-              , [ LvledStmt
-                    ( 1
-                    , Assign
-                        ( [ Var (VarName (Local, "x")) ]
-                        , [ ArithOp (Sub, Var (VarName (Local, "x")), Const (Integer 1)) ]
-                        ) )
-                ; LvledStmt (1, Expression (FieldAccess ("cat", "head")))
-                ] ) )
+      [ While
+          ( Not (Gr (Var (VarName (Local, "x")), Const (Integer 0)))
+          , [ Assign
+                ( [ Var (VarName (Local, "x")) ]
+                , [ ArithOp (Sub, Var (VarName (Local, "x")), Const (Integer 1)) ] )
+            ; Expression (FieldAccess ("cat", "head"))
+            ] )
       ]
 ;;
 
 let%test _ =
   parse prog "lambda x,y: x+y"
   = Ok
-      [ LvledStmt
-          ( 0
-          , Expression
-              (Lambda
-                 ( [ "x"; "y" ]
-                 , ArithOp (Add, Var (VarName (Local, "x")), Var (VarName (Local, "y")))
-                 )) )
+      [ Expression
+          (Lambda
+             ( [ "x"; "y" ]
+             , ArithOp (Add, Var (VarName (Local, "x")), Var (VarName (Local, "y"))) ))
       ]
 ;;
 
 let%test _ =
   parse prog "def sum(x,y):\n\treturn x+y"
   = Ok
-      [ Block
-          ( 0
-          , MethodDef
-              ( "sum"
-              , [ "x"; "y" ]
-              , [ LvledStmt
-                    ( 1
-                    , Return
-                        [ ArithOp
-                            (Add, Var (VarName (Local, "x")), Var (VarName (Local, "y")))
-                        ] )
-                ] ) )
+      [ MethodDef
+          ( "sum"
+          , [ "x"; "y" ]
+          , [ Return
+                [ ArithOp (Add, Var (VarName (Local, "x")), Var (VarName (Local, "y"))) ]
+            ] )
       ]
 ;;
 
 let%test _ =
   parse prog "for i in range(1, 10):\n\n\t1"
   = Ok
-      [ Block
-          ( 0
-          , For
-              ( Var (VarName (Local, "i"))
-              , [ Const (Integer 1); Const (Integer 10) ]
-              , [ LvledStmt (1, Expression (Const (Integer 1))) ] ) )
+      [ For
+          ( Var (VarName (Local, "i"))
+          , [ Const (Integer 1); Const (Integer 10) ]
+          , [ Expression (Const (Integer 1)) ] )
       ]
 ;;
 
 (* im not sure that its fine *)
 let%test _ =
   parse prog "a.b = x"
-  = Ok
-      [ LvledStmt (0, Assign ([ FieldAccess ("a", "b") ], [ Var (VarName (Local, "x")) ]))
-      ]
+  = Ok [ Assign ([ FieldAccess ("a", "b") ], [ Var (VarName (Local, "x")) ]) ]
 ;;
 
 let%test _ =
   parse prog "class A:\n\tdef test(self, x):\n\t\tself.x = x\n\t\treturn x"
   = Ok
-      [ Block
-          ( 0
-          , Class
-              ( "A"
-              , [ Block
-                    ( 1
-                    , MethodDef
-                        ( "test"
-                        , [ "self"; "x" ]
-                        , [ LvledStmt
-                              ( 2
-                              , Assign
-                                  ( [ FieldAccess ("self", "x") ]
-                                  , [ Var (VarName (Local, "x")) ] ) )
-                          ; LvledStmt (2, Return [ Var (VarName (Local, "x")) ])
-                          ] ) )
-                ] ) )
+      [ Class
+          ( "A"
+          , [ MethodDef
+                ( "test"
+                , [ "self"; "x" ]
+                , [ Assign ([ FieldAccess ("self", "x") ], [ Var (VarName (Local, "x")) ])
+                  ; Return [ Var (VarName (Local, "x")) ]
+                  ] )
+            ] )
       ]
 ;;
