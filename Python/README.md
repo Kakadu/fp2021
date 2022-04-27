@@ -11,9 +11,8 @@ Trade-off:
 
 Features done:
 
-- Parser (90 %)
+- Parser (95 %)
 
 Features in progress (and TODOs):
 
-- delete objects not needed by the interpreter (Blocks, lvls, etc..)  
 - TODO: interpreter
