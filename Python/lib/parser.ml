@@ -488,7 +488,7 @@ let prog =
   match flatten lines with
   | x ->
     if check_is_first_block_empty x
-    then failwith "Last block is empty!"
+    then return [ ParserError ]
     else return (remove_lvling (flatten lines))
 ;;
 
