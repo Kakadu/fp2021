@@ -300,6 +300,7 @@ let insert_to_stmt new_stmts = function
 
 let check_is_first_block_empty block =
   let rec check = function
+    | [] -> true
     | Block (_, stmt) :: _ ->
       (match take_block_from_stmt stmt with
       | [] -> true
