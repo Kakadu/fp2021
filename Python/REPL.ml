@@ -1,3 +1,3 @@
 open Python_lib.Parser
 
-let () = "not implemented"
+let () = print_endline "not implemented"
