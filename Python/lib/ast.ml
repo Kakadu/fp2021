@@ -12,14 +12,14 @@ type value =
   | String of string
   | Bool of bool
 
-type arithOp =
+type arith_op =
   | Add
   | Sub
   | Mul
   | Div
   | Mod
 
-type boolOp =
+type bool_op =
   | And
   | Or
   | Not
@@ -32,8 +32,8 @@ type rval = expression list
 and expression =
   | Const of value
   | Var of var
-  | ArithOp of arithOp * expression * expression
-  | BoolOp of boolOp * expression * expression
+  | ArithOp of arith_op * expression * expression
+  | BoolOp of bool_op * expression * expression
   | Eq of expression * expression
   | NotEq of expression * expression
   | Gr of expression * expression
@@ -59,3 +59,4 @@ type statements =
   | Class of identifier * statements list
   | Return of expression list
   | LvledStmt of int * statements
+  | ParserError
