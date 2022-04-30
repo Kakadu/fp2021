@@ -60,7 +60,7 @@ jobs:
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.REVIEWDOG_TOKEN1 }}
         run: >
-          cat lints.rdjsonl |
+          TRAVIS_PULL_REQUEST=46; cat lints.rdjsonl |
           reviewdog -f=rdjsonl -filter-mode nofilter -reporter=github-pr-review -guess
 
       # TODO: Maybe not deploy empty lint files
