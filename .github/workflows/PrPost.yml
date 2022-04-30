@@ -58,7 +58,7 @@ jobs:
       - uses: reviewdog/action-setup@v1
       - name: Run reviewdog
         env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.REVIEWDOG_TOKEN1 }}
         run: >
           cat lints.rdjsonl |
           reviewdog -f=rdjsonl -filter-mode nofilter -reporter=github-pr-review -guess
