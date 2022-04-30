@@ -113,7 +113,7 @@ jobs:
 
       - name: Run reviewdog
         env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.REVIEWDOG_TOKEN1 }}
         run: >
           cat ${{ env.latest }}/${{ env.RDJSON_FILE_PATH }} |
           reviewdog -f=rdjsonl -filter-mode nofilter -reporter=github-pr-check
