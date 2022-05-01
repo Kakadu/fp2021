@@ -29,9 +29,23 @@ module Eval (M : MONADERROR) = struct
     | VFloat of float
     | VBool of bool
     | VString of string
+    | VList of value list
+    | VNone
 
   type vars = (identifier, value) Hashtbl.t
   type methods = (identifier, params * statements list) Hashtbl.t
+
+  let rec map f = function
+    | [] -> return []
+    | h :: tl -> f h >>= fun c -> map f tl >>= fun lst -> return (c :: lst)
+  ;;
+
+  let rec iter2 f l1 l2 =
+    match l1, l2 with
+    | [], [] -> return ()
+    | a1 :: l1, a2 :: l2 -> f a1 a2 >>= fun _ -> iter2 f l1 l2
+    | _, _ -> error "different list size!"
+  ;;
 
   type class_ctx =
     { id : identifier
@@ -147,34 +161,73 @@ module Eval (M : MONADERROR) = struct
       | Some mths -> get_var mths.fields field_name
       | None -> error "fail with field access")
     | MethodAccess (instance_name, method_name, args) ->
-      (match Hashtbl.find_opt ctx.classes instance_name with
-      | Some methd -> eval_method
-      | None -> error "fail with field access")
+      error "asd"
+      (* (match Hashtbl.find_opt ctx.classes instance_name with
+      | Some methd -> eval_method ctx methd
+       *)
     | MethodCall (method_name, args) ->
+      let push_args_to_local_vars local ctx =
+        let vars = Hashtbl.create 16 in
+        map (fun e -> eval_expr ctx e) args
+        >>= fun vals ->
+        iter2 (fun id v -> return @@ Hashtbl.replace vars id v) local vals
+        >>= fun _ -> return vars
+      in
       (match Hashtbl.find_opt ctx.methods method_name with
-      | Some methd -> eval_method
+      | Some methd ->
+        let try_eval_method (params, body) =
+          push_args_to_local_vars params ctx
+          >>= fun vars -> eval_method { ctx with local_vars = vars } body
+        in
+        try_eval_method methd
       | None -> error "fail with field access")
     | Lambda _ -> error "not implemented"
 
-  and eval_method = error "not implemented"
+  and eval_method ctx = function
+    | [] -> return ctx.return_v
+    | [ Return exprs ] ->
+      (match exprs with
+      | [] -> return VNone
+      | [ e ] -> eval_expr ctx e >>= fun res -> return res
+      | _ as expr_list ->
+        map (fun expr -> eval_expr ctx expr) expr_list
+        >>= fun res_list -> return (VList res_list))
+    | stmt :: stmts ->
+      eval_stmt ctx stmt
+      >>= fun x ->
+      let cur_res = x.return_v in
+      (match cur_res with
+      | VNone -> eval_method x stmts
+      | v -> return v)
+
+  and eval_stmt ctx stmt = error "not implemented"
 
   let init_global_ctx () =
-    let _classes = Hashtbl.create 16 in
+    let methods = Hashtbl.create 16 in
+    let add_test_method =
+      Hashtbl.add
+        methods
+        "a"
+        ([], [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 4)) ] ])
+    in
     { local_vars = Hashtbl.create 16
-    ; methods = Hashtbl.create 16
-    ; classes = _classes
-    ; return_v = VBool true
+    ; methods
+    ; classes = Hashtbl.create 16
+    ; return_v = VNone
     }
   ;;
 
   let set_var id v ctx = Hashtbl.replace ctx.local_vars id v
   let test_ctx = init_global_ctx ()
-
-  let%test _ =
-    eval_expr
-      test_ctx
-      (ArithOp
-         (Add, ArithOp (Add, Const (Integer 5), Const (Integer 4)), Const (Integer 4)))
-    = return (VInt 13)
-  ;;
 end
+
+open Eval (Result)
+
+let%test _ =
+  eval_expr
+    test_ctx
+    (ArithOp (Add, ArithOp (Add, Const (Integer 5), Const (Integer 4)), Const (Integer 4)))
+  = Result.return (VInt 13)
+;;
+
+let%test _ = eval_expr test_ctx (MethodCall ("a", [])) = Result.return (VInt 9)
