@@ -3,6 +3,7 @@
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
 type name = string
+(* *)
 
 (** The main type for our AST (дерева абстрактного синтаксиса) *)
 type 'name t =

@@ -14,6 +14,7 @@ end = struct
     (* implement interpreter here *)
     if true then M.fail (UnknownVariable "var") else failwith "not implemented"
   ;;
+  (* *)
 end
 
 let parse_and_run str =
