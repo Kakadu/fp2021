@@ -59,6 +59,8 @@ jobs:
       - name: Run reviewdog
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.REVIEWDOG_TOKEN1 }}
+          CI_REPO_OWNER: Kakadu 
+          CI_REPO_NAME: fp2021
         run: >
           cat lints.rdjsonl |
           reviewdog -f=rdjsonl -filter-mode nofilter -reporter=github-pr-check -guess
