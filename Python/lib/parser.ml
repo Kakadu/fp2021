@@ -30,7 +30,7 @@ let arth_sub = token "-" *> return (fun e1 e2 -> ArithOp (Sub, e1, e2))
 let arth_mul = token "*" *> return (fun e1 e2 -> ArithOp (Mul, e1, e2))
 let arth_div = token "/" *> return (fun e1 e2 -> ArithOp (Div, e1, e2))
 let arth_mod = token "%" *> return (fun e1 e2 -> ArithOp (Mod, e1, e2))
-let b_not = token "not" *> return (fun e1 -> Not e1)
+let b_not = token "not" *> return (fun e1 -> UnaryOp (Not, e1))
 let b_and = token "and" *> return (fun e1 e2 -> BoolOp (And, e1, e2))
 let b_or = token "or" *> return (fun e1 e2 -> BoolOp (Or, e1, e2))
 let eq = token "==" *> return (fun e1 e2 -> Eq (e1, e2))
@@ -599,7 +599,7 @@ let%test _ =
   parse prog "while not x > 0:\n\tx = x -1\n\tcat.head"
   = Ok
       [ While
-          ( Not (Gr (Var (VarName (Local, "x")), Const (Integer 0)))
+          ( UnaryOp (Not, Gr (Var (VarName (Local, "x")), Const (Integer 0)))
           , [ Assign
                 ( [ Var (VarName (Local, "x")) ]
                 , [ ArithOp (Sub, Var (VarName (Local, "x")), Const (Integer 1)) ] )
