@@ -22,8 +22,8 @@ type arith_op =
 type bool_op =
   | And
   | Or
-  | Not
 
+type unary_op = Not
 type var = VarName of modifier * identifier
 type lval = var list
 
@@ -34,13 +34,13 @@ and expression =
   | Var of var
   | ArithOp of arith_op * expression * expression
   | BoolOp of bool_op * expression * expression
+  | UnaryOp of unary_op * expression
   | Eq of expression * expression
   | NotEq of expression * expression
   | Gr of expression * expression
   | Gre of expression * expression
   | Ls of expression * expression
   | Lse of expression * expression
-  | Not of expression
   | List of expression list
   | FieldAccess of identifier * identifier
   | MethodAccess of identifier * identifier * expression list
