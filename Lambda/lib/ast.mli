@@ -13,3 +13,5 @@ type 'name t =
 (* Application [f g ] *)
 (** In type definition above the 3rd constructor is intentionally without documentation
 to test linter *)
+
+(* test *)
