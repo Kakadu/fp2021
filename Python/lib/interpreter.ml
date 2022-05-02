@@ -273,25 +273,8 @@ module Eval (M : MONADERROR) = struct
     }
   ;;
 
-  let init_test_ctx () =
-    let methods = Hashtbl.create 16 in
-    let add_test_method =
-      Hashtbl.add
-        methods
-        "a"
-        ([], [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 4)) ] ])
-    in
-    let local_vars = Hashtbl.create 16 in
-    let add_test_var =
-      Hashtbl.add local_vars "x" (VInt 5);
-      Hashtbl.add local_vars "y" (VInt 6)
-    in
-    { local_vars; methods; scope = Global; classes = Hashtbl.create 16; return_v = VNone }
-  ;;
-
   let set_var id v ctx = Hashtbl.replace ctx.local_vars id v
   let global_ctx = init_global_ctx ()
-  let test_ctx = init_test_ctx ()
 end
 
 open Eval (Result)
