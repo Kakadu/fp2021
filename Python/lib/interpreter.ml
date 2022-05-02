@@ -248,6 +248,7 @@ module Eval (M : MONADERROR) = struct
     | Else _ -> error "not implemented"
     | While _ -> error "not implemented"
     | For _ -> error "not implemented"
+    | Ast.Class _ -> error "not implemented"
     | Return exprs -> eval_return exprs ctx >>= fun v -> return { ctx with return_v = v }
     | _ -> error "PARSER FAIL"
 
@@ -307,7 +308,7 @@ let%test _ =
         , [ Return
               [ ArithOp (Add, Var (VarName (Local, "x")), Var (VarName (Local, "y"))) ]
           ] )
-    ; Return [ MethodCall ("sum", [ Const (Integer 5); Const (Integer 5) ]) ]
+    ; Expression (MethodCall ("sum", [ Const (Integer 5); Const (Integer 5) ]))
     ]
   = Result.return (VInt 10)
 ;;
