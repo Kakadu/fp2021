@@ -444,7 +444,15 @@ module Eval (M : MONADERROR) = struct
       | VBool true, VBool false -> eval_body ctx stmts
       | VBool true, VBool true -> return ctx
       | _ -> error "unreachable")
-    | While _ -> error "not implemented"
+    | While (expr, stmts) ->
+      let rec helper ctx stmts =
+        eval_expr ctx expr
+        >>= fun e -> if e = VBool true then eval_body_cycle ctx stmts else return ctx
+      and eval_body_cycle temp_ctx = function
+        | [] -> helper temp_ctx stmts
+        | stmt :: t -> eval_stmt temp_ctx stmt >>= fun c -> eval_body_cycle c t
+      in
+      helper ctx stmts
     | For _ -> error "not implemented"
     | Ast.Class (id, body) ->
       eval_body
@@ -580,4 +588,19 @@ let%test _ =
     ; Else [ Return [ ArithOp (Add, Const (Integer 7), Const (Integer 7)) ] ]
     ]
   = Result.return (VInt 14)
+;;
+
+let%test _ =
+  eval_prog
+    global_ctx
+    [ Assign ([ Var (VarName (Local, "x")) ], [ Const (Integer 10) ])
+    ; While
+        ( Gr (Var (VarName (Local, "x")), Const (Integer 5))
+        , [ Assign
+              ( [ Var (VarName (Local, "x")) ]
+              , [ ArithOp (Sub, Var (VarName (Local, "x")), Const (Integer 1)) ] )
+          ] )
+    ; Return [ Var (VarName (Local, "x")) ]
+    ]
+  = Result.return (VInt 5)
 ;;
