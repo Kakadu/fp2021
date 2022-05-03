@@ -32,8 +32,19 @@ module Eval (M : MONADERROR) = struct
     | VList of value list
     | VNone
 
-  type vars = (identifier, value) Hashtbl.t
-  type methods = (identifier, params * statements list) Hashtbl.t
+  type var =
+    { id : identifier
+    ; v : value
+    }
+
+  type method_ctx =
+    { id : identifier
+    ; args : params
+    ; body : statements list
+    }
+
+  type vars = var list
+  type methods = method_ctx list
 
   type scope =
     | Global
@@ -57,24 +68,120 @@ module Eval (M : MONADERROR) = struct
     ; fields : vars
     }
 
+  type instance =
+    { id : identifier
+    ; ref_class : identifier
+    }
+
   type global_ctx =
     { local_vars : vars
     ; return_v : value
     ; methods : methods
     ; scope : scope
-    ; classes : (identifier, class_ctx) Hashtbl.t (* class instances are here too*)
+    ; classes : class_ctx list
+    ; instances : instance list
     }
 
-  let check_is_already_exist tbl key =
-    match Hashtbl.find_opt tbl key with
-    | Some _ -> true
-    | None -> false
+  let is_instance_exist key lst =
+    let rec check = function
+      | h :: t -> if h.id = key then true else check t
+      | [] -> false
+    in
+    check lst
   ;;
 
-  let get_var tbl key =
-    match Hashtbl.find_opt tbl key with
-    | Some v -> return v
-    | None -> error "unknown variable"
+  let is_var_exist key (lst : vars) =
+    let rec check = function
+      | (h : var) :: t -> if h.id = key then true else check t
+      | [] -> false
+    in
+    check lst
+  ;;
+
+  let is_class_exist key (lst : class_ctx list) =
+    let rec check = function
+      | (h : class_ctx) :: t -> if h.id = key then true else check t
+      | [] -> false
+    in
+    check lst
+  ;;
+
+  let is_method_exist key (lst : methods) =
+    let rec check = function
+      | (h : method_ctx) :: t -> if h.id = key then true else check t
+      | [] -> false
+    in
+    check lst
+  ;;
+
+  let get_var key (lst : vars) =
+    let rec get key (lst : vars) =
+      match lst with
+      | h :: t -> if h.id = key then return h.v else get key t
+      | _ -> error "unknown variable"
+    in
+    get key lst
+  ;;
+
+  let get_class key (lst : class_ctx list) =
+    let rec get key (lst : class_ctx list) =
+      match lst with
+      | h :: t -> if h.id = key then return h else get key t
+      | _ -> error "unknown class"
+    in
+    get key lst
+  ;;
+
+  let get_instance key (lst : instance list) =
+    let rec get key (lst : instance list) =
+      match lst with
+      | h :: t -> if h.id = key then return h else get key t
+      | _ -> error "unknown instance"
+    in
+    get key lst
+  ;;
+
+  let get_method key (lst : methods) =
+    let rec get key (lst : methods) =
+      match lst with
+      | h :: t -> if h.id = key then return h else get key t
+      | _ -> error "unknown instance"
+    in
+    get key lst
+  ;;
+
+  let add_or_update_var (variable : var) (lst : vars) =
+    let rec merge acc = function
+      | [] ->
+        (match acc with
+        | [] -> return [ variable ]
+        | _ -> return acc)
+      | (h : var) :: t ->
+        (match is_var_exist variable.id lst with
+        | true ->
+          if h.id = variable.id
+          then merge ({ id = h.id; v = variable.v } :: acc) t
+          else merge (h :: acc) t
+        | false -> return (variable :: lst))
+    in
+    merge [] lst >>= fun t -> return t
+  ;;
+
+  let add_or_update_method (mthd : method_ctx) (lst : methods) =
+    let rec merge acc = function
+      | [] ->
+        (match acc with
+        | [] -> return [ mthd ]
+        | _ -> return acc)
+      | (h : method_ctx) :: t ->
+        (match is_method_exist mthd.id lst with
+        | true ->
+          if h.id = mthd.id
+          then merge ({ id = h.id; args = mthd.args; body = mthd.body } :: acc) t
+          else merge (h :: acc) t
+        | false -> return (mthd :: lst))
+    in
+    merge [] lst
   ;;
 
   let rec eval_expr ctx = function
@@ -84,7 +191,10 @@ module Eval (M : MONADERROR) = struct
       | Float f -> return (VFloat f)
       | String s -> return (VString s)
       | Bool b -> return (VBool b))
-    | Var (VarName (_, id)) -> get_var ctx.local_vars id
+    | Var (VarName (_, id)) ->
+      (match is_var_exist id ctx.local_vars with
+      | false -> error "unknown variable"
+      | true -> get_var id ctx.local_vars)
     | ArithOp (op, e1, e2) ->
       eval_expr ctx e1
       >>= fun l ->
@@ -162,47 +272,58 @@ module Eval (M : MONADERROR) = struct
       eval_expr ctx e1 >>= fun l -> eval_expr ctx e2 >>= fun r -> return (VBool (l <= r))
     | List _ -> error "not implemented"
     | FieldAccess (instance_name, field_name) ->
-      (match Hashtbl.find_opt ctx.classes instance_name with
-      | Some mths -> get_var mths.fields field_name
-      | None -> error "fail with field access")
+      (match get_instance instance_name ctx.instances with
+      | inst ->
+        inst
+        >>= fun i ->
+        get_class i.ref_class ctx.classes >>= fun c -> get_var field_name c.fields)
     | MethodAccess (instance_name, method_name, args) ->
       let push_args_to_local_vars local ctx =
-        let vars = Hashtbl.create 16 in
+        let varlst = [] in
         map (fun e -> eval_expr ctx e) args
         >>= fun vals ->
-        iter2 (fun id v -> return @@ Hashtbl.replace vars id v) local vals
-        >>= fun _ -> return vars
+        iter2 (fun id v -> add_or_update_var { id; v } varlst) local vals
+        >>= fun _ -> return varlst
       in
-      (match Hashtbl.find_opt ctx.classes instance_name with
-      | Some cls ->
-        (match Hashtbl.find_opt cls.methods method_name with
-        | Some methd ->
-          let try_eval_method (params, body) =
-            push_args_to_local_vars params ctx
-            >>= fun vars ->
-            eval_method
-              { ctx with local_vars = vars; scope = Class cls.id; return_v = VNone }
-              body
-          in
-          try_eval_method methd
-        | None -> error "method doesn't exist in class")
-      | None -> error "class instance doesn't exist")
+      let try_eval_method (params, body) =
+        push_args_to_local_vars params ctx
+        >>= fun vars -> eval_method { ctx with local_vars = vars } body
+      in
+      (match is_instance_exist instance_name ctx.instances with
+      | false -> error "instance error"
+      | true ->
+        get_instance instance_name ctx.instances
+        >>= fun i ->
+        (match is_class_exist i.ref_class ctx.classes with
+        | false -> error "no class"
+        | true ->
+          get_class i.ref_class ctx.classes
+          >>= fun cl ->
+          (match is_method_exist method_name cl.methods with
+          | false -> error "no method in class"
+          | true ->
+            get_method method_name cl.methods >>= fun m -> try_eval_method (m.args, m.body))))
     | MethodCall (method_name, args) ->
-      let push_args_to_local_vars local ctx =
-        let vars = Hashtbl.create 16 in
-        map (fun e -> eval_expr ctx e) args
-        >>= fun vals ->
-        iter2 (fun id v -> return @@ Hashtbl.replace vars id v) local vals
-        >>= fun _ -> return vars
+      let rec set_values_to_vars values (args : identifier list) ctx_upd =
+        match values, args with
+        | h1 :: t1, h2 :: t2 ->
+          add_or_update_var { id = h2; v = h1 } ctx_upd.local_vars
+          >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
+        | [], [] -> return ctx_upd
+        | _ -> error "different siz"
       in
-      (match Hashtbl.find_opt ctx.methods method_name with
-      | Some methd ->
-        let try_eval_method (params, body) =
-          push_args_to_local_vars params ctx
-          >>= fun vars -> eval_method { ctx with local_vars = vars } body
+      map (fun e -> eval_expr ctx e) args
+      >>= fun vals ->
+      (match is_method_exist method_name ctx.methods with
+      | true ->
+        let try_eval_method params body =
+          get_method method_name ctx.methods
+          >>= fun m ->
+          set_values_to_vars params m.args { ctx with local_vars = [] }
+          >>= fun c -> eval_method c body
         in
-        try_eval_method methd
-      | None -> error "fail with field access")
+        get_method method_name ctx.methods >>= fun m -> try_eval_method vals m.body
+      | false -> error "check method name")
     | Lambda _ -> error "not implemented"
 
   and eval_method ctx = function
@@ -227,23 +348,32 @@ module Eval (M : MONADERROR) = struct
   and eval_stmt ctx = function
     | Expression e -> eval_expr ctx e >>= fun v -> return { ctx with return_v = v }
     | Assign (exprs, vals) ->
-      let set_value_to_var value = function
-        | Var (VarName (Local, id)) -> return (Hashtbl.replace ctx.local_vars id value)
-        | _ -> error "sad"
+      let rec set_values_to_vars values (vars : expression list) ctx_upd =
+        match values, vars with
+        | h1 :: t1, h2 :: t2 ->
+          (match h2 with
+          | Var (VarName (Local, id)) ->
+            add_or_update_var { id; v = h1 } ctx_upd.local_vars
+            >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
+          | _ -> error "asd")
+        | [], [] -> return ctx_upd
+        | _ -> error "different siz"
       in
       map (fun expr -> eval_expr ctx expr) vals
-      >>= fun vs -> iter2 set_value_to_var vs exprs >>= fun _ -> return ctx
+      >>= fun vs -> set_values_to_vars vs exprs ctx >>= fun c -> return c
     | MethodDef (id, params, stmts) ->
-      let add_method_to_class class_name =
-        get_var ctx.classes class_name
+      (* let add_method_to_class class_name =
+        get_class class_name ctx.classes
         >>= fun cur_class ->
-        return (Hashtbl.replace cur_class.methods id (params, stmts))
-        >>= fun _ -> return ctx
-      in
+        add_or_update_method { id; args = params; body = stmts } cur_class.methods
+        >>= fun c -> return { ctx with methods = c }
+      in *)
       (match ctx.scope with
-      | Class class_name -> add_method_to_class class_name >>= fun _ -> return ctx
+      (* | Class class_name -> add_method_to_class class_name >>= fun c -> return c *)
+      | Class _ -> error "not implemented"
       | Global ->
-        return (Hashtbl.replace ctx.methods id (params, stmts)) >>= fun _ -> return ctx)
+        add_or_update_method { id; args = params; body = stmts } ctx.methods
+        >>= fun c -> return { ctx with methods = c })
     | If _ -> error "not implemented"
     | Else _ -> error "not implemented"
     | While _ -> error "not implemented"
@@ -259,22 +389,22 @@ module Eval (M : MONADERROR) = struct
   ;;
 
   let init_global_ctx () =
-    let methods = Hashtbl.create 16 in
-    let add_test_method =
-      Hashtbl.add
-        methods
-        "a"
-        ([], [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 4)) ] ])
+    let methods =
+      [ { id = "a"
+        ; body = [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 4)) ] ]
+        ; args = []
+        }
+      ]
     in
-    { local_vars = Hashtbl.create 16
+    { local_vars = []
     ; methods
     ; scope = Global
-    ; classes = Hashtbl.create 16
+    ; classes = []
     ; return_v = VNone
+    ; instances = []
     }
   ;;
 
-  let set_var id v ctx = Hashtbl.replace ctx.local_vars id v
   let global_ctx = init_global_ctx ()
 end
 
@@ -295,8 +425,9 @@ let%test _ =
     [ Assign
         ( [ Var (VarName (Local, "x")); Var (VarName (Local, "y")) ]
         , [ Const (Integer 5); Const (Integer 6) ] )
+    ; Return [ ArithOp (Add, Var (VarName (Local, "x")), Var (VarName (Local, "y"))) ]
     ]
-  = Result.return VNone
+  = Result.return (VInt 11)
 ;;
 
 let%test _ =
@@ -311,4 +442,9 @@ let%test _ =
     ; Expression (MethodCall ("sum", [ Const (Integer 5); Const (Integer 5) ]))
     ]
   = Result.return (VInt 10)
+;;
+
+let%test _ =
+  add_or_update_var { id = "a"; v = VBool true } []
+  = Result.return [ { id = "a"; v = VBool true } ]
 ;;
