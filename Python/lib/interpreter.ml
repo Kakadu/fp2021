@@ -29,6 +29,7 @@ module Eval (M : MONADERROR) = struct
     | VFloat of float
     | VBool of bool
     | VString of string
+    | VClassRef of identifier * value list
     | VList of value list
     | VNone
 
@@ -70,7 +71,7 @@ module Eval (M : MONADERROR) = struct
 
   type instance =
     { id : identifier
-    ; ref_class : identifier
+    ; ref_class : class_ctx
     }
 
   type global_ctx =
@@ -167,6 +168,23 @@ module Eval (M : MONADERROR) = struct
     merge [] lst >>= fun t -> return t
   ;;
 
+  let add_or_update_instance (inst : instance) (lst : instance list) =
+    let rec merge acc = function
+      | [] ->
+        (match acc with
+        | [] -> return [ inst ]
+        | _ -> return acc)
+      | (h : instance) :: t ->
+        (match is_instance_exist inst.id lst with
+        | true ->
+          if h.id = inst.id
+          then merge ({ id = h.id; ref_class = inst.ref_class } :: acc) t
+          else merge (h :: acc) t
+        | false -> return (inst :: lst))
+    in
+    merge [] lst >>= fun t -> return t
+  ;;
+
   let add_or_update_method (mthd : method_ctx) (lst : methods) =
     let rec merge acc = function
       | [] ->
@@ -184,6 +202,23 @@ module Eval (M : MONADERROR) = struct
     merge [] lst
   ;;
 
+  let add_or_update_class id (cls : global_ctx) (lst : class_ctx list) =
+    let rec merge (acc : class_ctx list) = function
+      | [] ->
+        (match acc with
+        | [] -> return [ { id; methods = cls.methods; fields = cls.local_vars } ]
+        | _ -> return acc)
+      | (h : class_ctx) :: t ->
+        (match is_class_exist id lst with
+        | true ->
+          if h.id = id
+          then merge ({ id; methods = cls.methods; fields = cls.local_vars } :: acc) t
+          else merge (h :: acc) t
+        | false -> return (h :: lst))
+    in
+    merge [] lst
+  ;;
+
   let rec eval_expr ctx = function
     | Const x ->
       (match x with
@@ -195,6 +230,11 @@ module Eval (M : MONADERROR) = struct
       (match is_var_exist id ctx.local_vars with
       | false -> error "unknown variable"
       | true -> get_var id ctx.local_vars)
+    | ClassToInstance (id, args) ->
+      (match is_class_exist id ctx.classes with
+      | true ->
+        map (fun e -> eval_expr ctx e) args >>= fun a -> return (VClassRef (id, a))
+      | false -> error "class doesn't exist")
     | ArithOp (op, e1, e2) ->
       eval_expr ctx e1
       >>= fun l ->
@@ -276,33 +316,37 @@ module Eval (M : MONADERROR) = struct
       | inst ->
         inst
         >>= fun i ->
-        get_class i.ref_class ctx.classes >>= fun c -> get_var field_name c.fields)
+        get_class i.ref_class.id ctx.classes >>= fun c -> get_var field_name c.fields)
     | MethodAccess (instance_name, method_name, args) ->
-      let push_args_to_local_vars local ctx =
-        let varlst = [] in
-        map (fun e -> eval_expr ctx e) args
-        >>= fun vals ->
-        iter2 (fun id v -> add_or_update_var { id; v } varlst) local vals
-        >>= fun _ -> return varlst
+      let rec set_values_to_vars values (args : identifier list) ctx_upd =
+        match values, args with
+        | h1 :: t1, h2 :: t2 ->
+          add_or_update_var { id = h2; v = h1 } ctx_upd.local_vars
+          >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
+        | [], [] -> return ctx_upd
+        | _ -> error "different siz"
       in
-      let try_eval_method (params, body) =
-        push_args_to_local_vars params ctx
-        >>= fun vars -> eval_method { ctx with local_vars = vars } body
-      in
+      map (fun e -> eval_expr ctx e) args
+      >>= fun vals ->
       (match is_instance_exist instance_name ctx.instances with
-      | false -> error "instance error"
+      | false -> failwith "instance error"
       | true ->
         get_instance instance_name ctx.instances
         >>= fun i ->
-        (match is_class_exist i.ref_class ctx.classes with
-        | false -> error "no class"
+        (match is_class_exist i.ref_class.id ctx.classes with
+        | false -> failwith "no class"
         | true ->
-          get_class i.ref_class ctx.classes
-          >>= fun cl ->
-          (match is_method_exist method_name cl.methods with
-          | false -> error "no method in class"
+          (match is_method_exist method_name i.ref_class.methods with
+          | false -> failwith "no method in class"
           | true ->
-            get_method method_name cl.methods >>= fun m -> try_eval_method (m.args, m.body))))
+            let try_eval_method params body =
+              get_method method_name i.ref_class.methods
+              >>= fun m ->
+              set_values_to_vars params m.args { ctx with local_vars = [] }
+              >>= fun c -> eval_method c body
+            in
+            get_method method_name i.ref_class.methods
+            >>= fun m -> try_eval_method vals m.body)))
     | MethodCall (method_name, args) ->
       let rec set_values_to_vars values (args : identifier list) ctx_upd =
         match values, args with
@@ -345,6 +389,11 @@ module Eval (M : MONADERROR) = struct
       map (fun expr -> eval_expr ctx expr) expr_list
       >>= fun res_list -> return (VList res_list)
 
+  and eval_body ctx = function
+    | [] -> return ctx
+    | [ stmt ] -> eval_stmt ctx stmt >>= fun c -> return c
+    | stmt :: stmts -> eval_stmt ctx stmt >>= fun c -> eval_body c stmts
+
   and eval_stmt ctx = function
     | Expression e -> eval_expr ctx e >>= fun v -> return { ctx with return_v = v }
     | Assign (exprs, vals) ->
@@ -353,8 +402,15 @@ module Eval (M : MONADERROR) = struct
         | h1 :: t1, h2 :: t2 ->
           (match h2 with
           | Var (VarName (Local, id)) ->
-            add_or_update_var { id; v = h1 } ctx_upd.local_vars
-            >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
+            (match h1 with
+            | VClassRef (class_id, _) ->
+              get_class class_id ctx.classes
+              >>= fun cls ->
+              add_or_update_instance { id; ref_class = cls } ctx.instances
+              >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with instances = t }
+            | _ ->
+              add_or_update_var { id; v = h1 } ctx_upd.local_vars
+              >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t })
           | _ -> error "asd")
         | [], [] -> return ctx_upd
         | _ -> error "different siz"
@@ -362,15 +418,14 @@ module Eval (M : MONADERROR) = struct
       map (fun expr -> eval_expr ctx expr) vals
       >>= fun vs -> set_values_to_vars vs exprs ctx >>= fun c -> return c
     | MethodDef (id, params, stmts) ->
-      (* let add_method_to_class class_name =
+      let add_method_to_class class_name =
         get_class class_name ctx.classes
         >>= fun cur_class ->
         add_or_update_method { id; args = params; body = stmts } cur_class.methods
         >>= fun c -> return { ctx with methods = c }
-      in *)
+      in
       (match ctx.scope with
-      (* | Class class_name -> add_method_to_class class_name >>= fun c -> return c *)
-      | Class _ -> error "not implemented"
+      | Class class_name -> add_method_to_class class_name >>= fun c -> return c
       | Global ->
         add_or_update_method { id; args = params; body = stmts } ctx.methods
         >>= fun c -> return { ctx with methods = c })
@@ -378,7 +433,19 @@ module Eval (M : MONADERROR) = struct
     | Else _ -> error "not implemented"
     | While _ -> error "not implemented"
     | For _ -> error "not implemented"
-    | Ast.Class _ -> error "not implemented"
+    | Ast.Class (id, body) ->
+      eval_body
+        { local_vars = []
+        ; return_v = VNone
+        ; methods = []
+        ; scope = Global
+        ; classes = []
+        ; instances = []
+        }
+        body
+      >>= fun cls_ctx ->
+      add_or_update_class id cls_ctx ctx.classes
+      >>= fun c -> return { ctx with classes = c }
     | Return exprs -> eval_return exprs ctx >>= fun v -> return { ctx with return_v = v }
     | _ -> error "PARSER FAIL"
 
@@ -447,4 +514,23 @@ let%test _ =
 let%test _ =
   add_or_update_var { id = "a"; v = VBool true } []
   = Result.return [ { id = "a"; v = VBool true } ]
+;;
+
+let%test _ =
+  eval_prog
+    global_ctx
+    [ Class
+        ( "A"
+        , [ MethodDef
+              ( "sum"
+              , [ "x"; "y" ]
+              , [ Return
+                    [ ArithOp (Add, Var (VarName (Local, "x")), Var (VarName (Local, "y")))
+                    ]
+                ] )
+          ] )
+    ; Assign ([ Var (VarName (Local, "a")) ], [ ClassToInstance ("A", []) ])
+    ; Return [ MethodAccess ("a", "sum", [ Const (Integer 5); Const (Integer 5) ]) ]
+    ]
+  = Result.return (VInt 10)
 ;;

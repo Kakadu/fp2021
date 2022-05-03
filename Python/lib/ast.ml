@@ -46,6 +46,7 @@ and expression =
   | MethodAccess of identifier * identifier * expression list
   | MethodCall of identifier * expression list
   | Lambda of params * expression
+  | ClassToInstance of identifier * rval
 
 type statements =
   | Expression of expression

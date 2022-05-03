@@ -103,6 +103,11 @@ let is_valid_first_char = function
   | _ -> false
 ;;
 
+let is_first_char_capital = function
+  | 'A' .. 'Z' -> true
+  | _ -> false
+;;
+
 let is_valid_char = function
   | '_' | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' -> true
   | _ -> false
@@ -208,6 +213,21 @@ let method_call p =
   identifier
   >>= fun idd ->
   token "(" *> sep_by comma p <* token ")" >>= fun args -> return (MethodCall (idd, args))
+;;
+
+let class_instance p =
+  match peek_char_fail with
+  | c ->
+    c
+    >>= fun chr ->
+    (match is_first_char_capital chr with
+    | true ->
+      identifier
+      >>= fun id ->
+      token "(" *> sep_by comma p
+      <* token ")"
+      >>= fun args -> return (ClassToInstance (id, args))
+    | false -> fail "SAD")
 ;;
 
 (* someClass.someField *)
@@ -438,7 +458,8 @@ let prog =
           eolspace *> peek_char_fail
           >>= function
           | x when is_valid_first_char x ->
-            access_method expr
+            class_instance expr
+            <|> access_method expr
             <|> access_field
             <|> method_call expr
             <|> local_var
@@ -659,4 +680,9 @@ let%test _ =
                   ] )
             ] )
       ]
+;;
+
+let%test _ =
+  parse prog "a = A()"
+  = Ok [ Assign ([ Var (VarName (Local, "a")) ], [ ClassToInstance ("A", []) ]) ]
 ;;
