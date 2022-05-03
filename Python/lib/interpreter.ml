@@ -81,6 +81,7 @@ module Eval (M : MONADERROR) = struct
     ; scope : scope
     ; classes : class_ctx list
     ; instances : instance list
+    ; last_if : value * value (* was if before * value of if expr*)
     }
 
   let is_instance_exist key lst =
@@ -429,8 +430,20 @@ module Eval (M : MONADERROR) = struct
       | Global ->
         add_or_update_method { id; args = params; body = stmts } ctx.methods
         >>= fun c -> return { ctx with methods = c })
-    | If _ -> error "not implemented"
-    | Else _ -> error "not implemented"
+    | If (expr, stmts) ->
+      eval_expr ctx expr
+      >>= fun e ->
+      if e = VBool true
+      then
+        eval_body ctx stmts
+        >>= fun c -> return { c with last_if = VBool true, VBool true }
+      else return { ctx with last_if = VBool true, VBool false }
+    | Else stmts ->
+      (match ctx.last_if with
+      | VBool false, _ -> error "else hasn't pair if"
+      | VBool true, VBool false -> eval_body ctx stmts
+      | VBool true, VBool true -> return ctx
+      | _ -> error "unreachable")
     | While _ -> error "not implemented"
     | For _ -> error "not implemented"
     | Ast.Class (id, body) ->
@@ -441,6 +454,7 @@ module Eval (M : MONADERROR) = struct
         ; scope = Global
         ; classes = []
         ; instances = []
+        ; last_if = VBool false, VBool false
         }
         body
       >>= fun cls_ctx ->
@@ -469,6 +483,7 @@ module Eval (M : MONADERROR) = struct
     ; classes = []
     ; return_v = VNone
     ; instances = []
+    ; last_if = VBool false, VBool false
     }
   ;;
 
@@ -533,4 +548,36 @@ let%test _ =
     ; Return [ MethodAccess ("a", "sum", [ Const (Integer 5); Const (Integer 5) ]) ]
     ]
   = Result.return (VInt 10)
+;;
+
+let%test _ =
+  eval_prog
+    global_ctx
+    [ If
+        ( Eq (Const (Integer 5), Const (Integer 5))
+        , [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 5)) ] ] )
+    ]
+  = Result.return (VInt 10)
+;;
+
+let%test _ =
+  eval_prog
+    global_ctx
+    [ If
+        ( Eq (Const (Integer 5), Const (Integer 5))
+        , [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 5)) ] ] )
+    ; Else [ Return [ ArithOp (Add, Const (Integer 7), Const (Integer 7)) ] ]
+    ]
+  = Result.return (VInt 10)
+;;
+
+let%test _ =
+  eval_prog
+    global_ctx
+    [ If
+        ( Eq (Const (Bool true), Const (Integer 5))
+        , [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 5)) ] ] )
+    ; Else [ Return [ ArithOp (Add, Const (Integer 7), Const (Integer 7)) ] ]
+    ]
+  = Result.return (VInt 14)
 ;;
