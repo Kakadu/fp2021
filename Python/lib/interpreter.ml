@@ -311,7 +311,7 @@ module Eval (M : MONADERROR) = struct
       eval_expr ctx e1 >>= fun l -> eval_expr ctx e2 >>= fun r -> return (VBool (l < r))
     | Lse (e1, e2) ->
       eval_expr ctx e1 >>= fun l -> eval_expr ctx e2 >>= fun r -> return (VBool (l <= r))
-    | List _ -> error "not implemented"
+    | List exprs -> map (fun e -> eval_expr ctx e) exprs >>= fun e -> return (VList e)
     | FieldAccess (instance_name, field_name) ->
       (match get_instance instance_name ctx.instances with
       | inst ->
@@ -603,4 +603,15 @@ let%test _ =
     ; Return [ Var (VarName (Local, "x")) ]
     ]
   = Result.return (VInt 5)
+;;
+
+let%test _ =
+  eval_prog
+    global_ctx
+    [ Assign
+        ( [ Var (VarName (Local, "x")) ]
+        , [ List [ Const (Integer 3); Const (Integer 2); Const (Integer 1) ] ] )
+    ; Return [ Var (VarName (Local, "x")) ]
+    ]
+  = Result.return (VList [ VInt 3; VInt 2; VInt 1 ])
 ;;
