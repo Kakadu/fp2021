@@ -87,9 +87,16 @@ module Eval (M : MONADERROR) = struct
     ; last_if : value * value (* was if before * value of if expr*)
     }
 
-  let string_of_value = function
+  let rec string_of_value = function
     | VInt i -> return (string_of_int i)
-    | _ -> error "not implemented"
+    | VFloat f -> return (string_of_float f)
+    | VBool b -> return (string_of_bool b)
+    | VString s -> return s
+    | VNone -> return "none"
+    | VList lst ->
+      map (fun x -> string_of_value x) lst
+      >>= fun l -> return ("[" ^ String.concat ", " l ^ "]")
+    | VClassRef _ -> return "none"
   ;;
 
   let is_instance_exist key lst =
@@ -459,7 +466,7 @@ module Eval (M : MONADERROR) = struct
             | _ ->
               add_or_update_var { id; v = h1 } ctx_upd.local_vars
               >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t })
-          | Var (VarName (Class _, id)) ->
+          | Var (VarName (Class, id)) ->
             (match ctx_upd.scope with
             | Instance inst_id ->
               get_instance inst_id ctx_upd.instances
@@ -496,7 +503,7 @@ module Eval (M : MONADERROR) = struct
       | Global ->
         add_or_update_method { id; args = params; body = stmts } ctx.methods
         >>= fun c -> return { ctx with methods = c }
-      | Instance id -> error "unreachable")
+      | Instance _ -> error "unreachable")
     | If (expr, stmts) ->
       eval_expr ctx expr
       >>= fun e ->
@@ -557,9 +564,17 @@ module Eval (M : MONADERROR) = struct
   ;;
 
   let global_ctx = init_global_ctx ()
+
+  let parse_and_interpet input =
+    match Parser.parse Parser.prog input with
+    | Ok x -> eval_prog global_ctx x >>= fun v -> string_of_value v
+    | _ -> error "sad"
+  ;;
 end
 
 open Eval (Result)
+
+let%test _ = parse_and_interpet "[1+1,2+2, 3+3]" = Result.return "[2, 4, 6]"
 
 let%test _ =
   eval_prog
@@ -726,7 +741,14 @@ let%test _ =
                       ) )
               ]
           ] )
-    ; Expression (MethodCall ("fact", [ Const (Integer 5) ]))
+    ; Expression
+        (List
+           [ MethodCall ("fact", [ Const (Integer 1) ])
+           ; MethodCall ("fact", [ Const (Integer 2) ])
+           ; MethodCall ("fact", [ Const (Integer 3) ])
+           ; MethodCall ("fact", [ Const (Integer 4) ])
+           ; MethodCall ("fact", [ Const (Integer 5) ])
+           ])
     ]
-  = Result.return (VInt 120)
+  = Result.return (VList [ VInt 1; VInt 2; VInt 6; VInt 24; VInt 120 ])
 ;;

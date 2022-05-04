@@ -523,7 +523,8 @@ let prog =
         in
         space *> choice [ passign; predict; pexpr ])
   in
-  sep_by (token "\n") (eolspace *> stmt)
+  take_while (fun c -> is_eol c) *> sep_by (token "\n") (eolspace *> stmt)
+  <* take_while (fun c -> is_eol c)
   >>= fun lines ->
   match flatten lines with
   | x ->
@@ -711,6 +712,20 @@ let%test _ =
   = Ok [ Assign ([ Var (VarName (Class, "x")) ], [ Var (VarName (Local, "x")) ]) ]
 ;;
 
+(* "def fact(n):\n\
+     \tif n < 0:\n\
+     \t\treturn\n\
+     \tif n == 0 or n == 1:\n\
+     \t\treturn 1\n\
+     \treturn n * fact(n-1)" *)
+(*{|
+    def fact(n):
+      if n < 0 :
+        return n
+      if n == 0 or n == 1:
+        return 1
+      return n * fact(n-1)
+    |}  *)
 let%test _ =
   parse
     prog
@@ -741,5 +756,38 @@ let%test _ =
                         ) )
                 ]
             ] )
+      ]
+;;
+
+let%test _ =
+  parse
+    prog
+    "class Node:\n\
+     \tdef init(v):\n\
+     \t\tself.value = v\n\
+     \tdef get():\n\
+     \t\treturn self.value\n\
+     node1 = Node()\n\
+     node1.init(5)\n\
+     node2 = Node()\n\
+     node2.init(10)\n\
+     [node1.get(), node2.get()]"
+  = Ok
+      [ Class
+          ( "Node"
+          , [ MethodDef
+                ( "init"
+                , [ "v" ]
+                , [ Assign
+                      ([ Var (VarName (Class, "value")) ], [ Var (VarName (Local, "v")) ])
+                  ] )
+            ; MethodDef ("get", [], [ Return [ Var (VarName (Class, "value")) ] ])
+            ] )
+      ; Assign ([ Var (VarName (Local, "node1")) ], [ ClassToInstance ("Node", []) ])
+      ; Expression (MethodAccess ("node1", "init", [ Const (Integer 5) ]))
+      ; Assign ([ Var (VarName (Local, "node2")) ], [ ClassToInstance ("Node", []) ])
+      ; Expression (MethodAccess ("node2", "init", [ Const (Integer 10) ]))
+      ; Expression
+          (List [ MethodAccess ("node1", "get", []); MethodAccess ("node2", "get", []) ])
       ]
 ;;
