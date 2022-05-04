@@ -4,7 +4,7 @@ type params = identifier list
 type modifier =
   | Local
   | Global
-  | Class
+  | Class of identifier
 
 type value =
   | Integer of int

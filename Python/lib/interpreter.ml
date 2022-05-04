@@ -50,6 +50,7 @@ module Eval (M : MONADERROR) = struct
   type scope =
     | Global
     | Class of identifier
+    | Instance of identifier
 
   let rec map f = function
     | [] -> return []
@@ -71,7 +72,9 @@ module Eval (M : MONADERROR) = struct
 
   type instance =
     { id : identifier
-    ; ref_class : class_ctx
+    ; class_id : identifier
+    ; methods : methods
+    ; fields : vars
     }
 
   type global_ctx =
@@ -83,6 +86,11 @@ module Eval (M : MONADERROR) = struct
     ; instances : instance list
     ; last_if : value * value (* was if before * value of if expr*)
     }
+
+  let string_of_value = function
+    | VInt i -> return (string_of_int i)
+    | _ -> error "not implemented"
+  ;;
 
   let is_instance_exist key lst =
     let rec check = function
@@ -179,7 +187,15 @@ module Eval (M : MONADERROR) = struct
         (match is_instance_exist inst.id lst with
         | true ->
           if h.id = inst.id
-          then merge ({ id = h.id; ref_class = inst.ref_class } :: acc) t
+          then
+            merge
+              ({ id = h.id
+               ; class_id = inst.class_id
+               ; fields = inst.fields
+               ; methods = inst.methods
+               }
+              :: acc)
+              t
           else merge (h :: acc) t
         | false -> return (inst :: lst))
     in
@@ -220,104 +236,126 @@ module Eval (M : MONADERROR) = struct
     merge [] lst
   ;;
 
-  let rec eval_expr ctx = function
-    | Const x ->
-      (match x with
-      | Integer i -> return (VInt i)
-      | Float f -> return (VFloat f)
-      | String s -> return (VString s)
-      | Bool b -> return (VBool b))
-    | Var (VarName (_, id)) ->
-      (match is_var_exist id ctx.local_vars with
-      | false -> error "unknown variable"
-      | true -> get_var id ctx.local_vars)
-    | ClassToInstance (id, args) ->
-      (match is_class_exist id ctx.classes with
-      | true ->
-        map (fun e -> eval_expr ctx e) args >>= fun a -> return (VClassRef (id, a))
-      | false -> error "class doesn't exist")
-    | ArithOp (op, e1, e2) ->
-      eval_expr ctx e1
-      >>= fun l ->
-      eval_expr ctx e2
-      >>= fun r ->
-      (match op with
-      | Add ->
-        (match l, r with
-        | VInt i1, VInt i2 -> return (VInt (i1 + i2))
-        | VFloat f1, VFloat f2 -> return (VFloat (f1 +. f2))
-        | VFloat f, VInt i -> return (VFloat (f +. float_of_int i))
-        | VInt i, VFloat f -> return (VFloat (float_of_int i +. f))
-        | VString s1, VString s2 -> return (VString (s1 ^ s2))
-        | _ -> error "fail with +")
-      | Mul ->
-        (match l, r with
-        | VInt i1, VInt i2 -> return (VInt (i1 * i2))
-        | VFloat f1, VFloat f2 -> return (VFloat (f1 *. f2))
-        | VFloat f, VInt i -> return (VFloat (f *. float_of_int i))
-        | VInt i, VFloat f -> return (VFloat (float_of_int i *. f))
-        | _ -> error "fail with *")
-      | Sub ->
-        (match l, r with
-        | VInt i1, VInt i2 -> return (VInt (i1 - i2))
-        | VFloat f1, VFloat f2 -> return (VFloat (f1 -. f2))
-        | VFloat f, VInt i -> return (VFloat (f -. float_of_int i))
-        | VInt i, VFloat f -> return (VFloat (float_of_int i -. f))
-        | _ -> error "fail with -")
-      | Div ->
-        (match l, r with
-        | VInt _, VInt 0 | VFloat _, VInt 0 | VFloat _, VFloat 0.0 | VInt _, VFloat 0.0 ->
-          error "division by zero"
-        | VFloat f1, VFloat f2 -> return (VFloat (f1 /. f2))
-        | VFloat f, VInt i -> return (VFloat (f +. float_of_int i))
-        | VInt i, VFloat f -> return (VFloat (float_of_int i +. f))
-        | _ -> error "fail with +")
-      | Mod ->
-        (match l, r with
-        | VInt _, VInt 0 | VFloat _, VInt 0 | VFloat _, VFloat 0.0 | VInt _, VFloat 0.0 ->
-          error "division by zero"
-        | VInt i1, VInt i2 -> return (VInt (i1 mod i2))
-        | _ -> error "fail with mod"))
-    | BoolOp (op, e1, e2) ->
-      eval_expr ctx e1
-      >>= fun l ->
-      eval_expr ctx e2
-      >>= fun r ->
-      (match op with
-      | And ->
-        (match l, r with
-        | VBool true, VBool true -> return (VBool true)
-        | _ -> return (VBool false))
-      | Or ->
-        (match l, r with
-        | VBool false, VBool false -> return (VBool false)
-        | _ -> return (VBool true)))
-    | UnaryOp (Not, e1) ->
-      eval_expr ctx e1
-      >>= fun l ->
-      (match l with
-      | VBool false -> return (VBool true)
-      | VBool true -> return (VBool false)
-      | _ -> error "fail with NOT")
-    | Eq (e1, e2) ->
-      eval_expr ctx e1 >>= fun l -> eval_expr ctx e2 >>= fun r -> return (VBool (l = r))
-    | NotEq (e1, e2) ->
-      eval_expr ctx e1 >>= fun l -> eval_expr ctx e2 >>= fun r -> return (VBool (l != r))
-    | Gr (e1, e2) ->
-      eval_expr ctx e1 >>= fun l -> eval_expr ctx e2 >>= fun r -> return (VBool (l > r))
-    | Gre (e1, e2) ->
-      eval_expr ctx e1 >>= fun l -> eval_expr ctx e2 >>= fun r -> return (VBool (l >= r))
-    | Ls (e1, e2) ->
-      eval_expr ctx e1 >>= fun l -> eval_expr ctx e2 >>= fun r -> return (VBool (l < r))
-    | Lse (e1, e2) ->
-      eval_expr ctx e1 >>= fun l -> eval_expr ctx e2 >>= fun r -> return (VBool (l <= r))
-    | List exprs -> map (fun e -> eval_expr ctx e) exprs >>= fun e -> return (VList e)
-    | FieldAccess (instance_name, field_name) ->
-      (match get_instance instance_name ctx.instances with
-      | inst ->
-        inst
-        >>= fun i ->
-        get_class i.ref_class.id ctx.classes >>= fun c -> get_var field_name c.fields)
+  let rec merge_return_vals (acc : value list) = function
+    | [] -> return acc
+    | h :: t -> merge_return_vals (h.return_v :: acc) t
+  ;;
+
+  let rec eval_expr ctx expr =
+    let rec get_val e =
+      match e with
+      | Const x ->
+        (match x with
+        | Integer i -> return (VInt i)
+        | Float f -> return (VFloat f)
+        | String s -> return (VString s)
+        | Bool b -> return (VBool b))
+      | Var (VarName (x, id)) ->
+        (match ctx.scope with
+        | Global ->
+          (match is_var_exist id ctx.local_vars with
+          | false -> error "unknown variable"
+          | true -> get_var id ctx.local_vars)
+        | Instance inst_id ->
+          (match is_instance_exist inst_id ctx.instances with
+          | false -> error "unknown instance"
+          | true ->
+            (match x with
+            | Local -> get_var id ctx.local_vars
+            | Class class_id ->
+              get_instance inst_id ctx.instances >>= fun inst -> get_var id inst.fields
+            | _ -> error ""))
+        | _ -> error "now isn't using")
+      | ClassToInstance (id, args) ->
+        (match is_class_exist id ctx.classes with
+        | true -> map (fun e -> get_val e) args >>= fun a -> return (VClassRef (id, a))
+        | false -> error "class doesn't exist")
+      | ArithOp (op, e1, e2) ->
+        get_val e1
+        >>= fun l ->
+        get_val e2
+        >>= fun r ->
+        (match op with
+        | Add ->
+          (match l, r with
+          | VInt i1, VInt i2 -> return (VInt (i1 + i2))
+          | VFloat f1, VFloat f2 -> return (VFloat (f1 +. f2))
+          | VFloat f, VInt i -> return (VFloat (f +. float_of_int i))
+          | VInt i, VFloat f -> return (VFloat (float_of_int i +. f))
+          | VString s1, VString s2 -> return (VString (s1 ^ s2))
+          | _ -> error "fail with +")
+        | Mul ->
+          (match l, r with
+          | VInt i1, VInt i2 -> return (VInt (i1 * i2))
+          | VFloat f1, VFloat f2 -> return (VFloat (f1 *. f2))
+          | VFloat f, VInt i -> return (VFloat (f *. float_of_int i))
+          | VInt i, VFloat f -> return (VFloat (float_of_int i *. f))
+          | _ -> error "fail with *")
+        | Sub ->
+          (match l, r with
+          | VInt i1, VInt i2 -> return (VInt (i1 - i2))
+          | VFloat f1, VFloat f2 -> return (VFloat (f1 -. f2))
+          | VFloat f, VInt i -> return (VFloat (f -. float_of_int i))
+          | VInt i, VFloat f -> return (VFloat (float_of_int i -. f))
+          | _ -> error "fail with -")
+        | Div ->
+          (match l, r with
+          | VInt _, VInt 0 | VFloat _, VInt 0 | VFloat _, VFloat 0.0 | VInt _, VFloat 0.0
+            -> error "division by zero"
+          | VFloat f1, VFloat f2 -> return (VFloat (f1 /. f2))
+          | VFloat f, VInt i -> return (VFloat (f +. float_of_int i))
+          | VInt i, VFloat f -> return (VFloat (float_of_int i +. f))
+          | _ -> error "fail with +")
+        | Mod ->
+          (match l, r with
+          | VInt _, VInt 0 | VFloat _, VInt 0 | VFloat _, VFloat 0.0 | VInt _, VFloat 0.0
+            -> error "division by zero"
+          | VInt i1, VInt i2 -> return (VInt (i1 mod i2))
+          | _ -> error "fail with mod"))
+      | BoolOp (op, e1, e2) ->
+        get_val e1
+        >>= fun l ->
+        get_val e2
+        >>= fun r ->
+        (match op with
+        | And ->
+          (match l, r with
+          | VBool true, VBool true -> return (VBool true)
+          | _ -> return (VBool false))
+        | Or ->
+          (match l, r with
+          | VBool false, VBool false -> return (VBool false)
+          | _ -> return (VBool true)))
+      | UnaryOp (Not, e1) ->
+        get_val e1
+        >>= fun l ->
+        (match l with
+        | VBool false -> return (VBool true)
+        | VBool true -> return (VBool false)
+        | _ -> error "fail with NOT")
+      | Eq (e1, e2) ->
+        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l = r))
+      | NotEq (e1, e2) ->
+        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l != r))
+      | Gr (e1, e2) ->
+        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l > r))
+      | Gre (e1, e2) ->
+        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l >= r))
+      | Ls (e1, e2) ->
+        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l < r))
+      | Lse (e1, e2) ->
+        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l <= r))
+      | List exprs -> map (fun e -> get_val e) exprs >>= fun e -> return (VList e)
+      | FieldAccess (instance_name, field_name) ->
+        (match get_instance instance_name ctx.instances with
+        | inst ->
+          inst
+          >>= fun i ->
+          get_class i.class_id ctx.classes >>= fun c -> get_var field_name c.fields)
+      | Lambda _ -> error "not implemented"
+      | _ -> error "expr can effect on ctx"
+    in
+    match expr with
     | MethodAccess (instance_name, method_name, args) ->
       let rec set_values_to_vars values (args : identifier list) ctx_upd =
         match values, args with
@@ -327,27 +365,30 @@ module Eval (M : MONADERROR) = struct
         | [], [] -> return ctx_upd
         | _ -> error "different siz"
       in
-      map (fun e -> eval_expr ctx e) args
+      map (fun e -> get_val e) args
       >>= fun vals ->
       (match is_instance_exist instance_name ctx.instances with
-      | false -> failwith "instance error"
+      | false -> error "instance error"
       | true ->
         get_instance instance_name ctx.instances
         >>= fun i ->
-        (match is_class_exist i.ref_class.id ctx.classes with
-        | false -> failwith "no class"
+        (match is_method_exist method_name i.methods with
+        | false -> error "no method in class"
         | true ->
-          (match is_method_exist method_name i.ref_class.methods with
-          | false -> failwith "no method in class"
-          | true ->
-            let try_eval_method params body =
-              get_method method_name i.ref_class.methods
-              >>= fun m ->
-              set_values_to_vars params m.args { ctx with local_vars = [] }
-              >>= fun c -> eval_method c body
-            in
-            get_method method_name i.ref_class.methods
-            >>= fun m -> try_eval_method vals m.body)))
+          let try_eval_method params body =
+            get_method method_name i.methods
+            >>= fun m ->
+            set_values_to_vars
+              params
+              m.args
+              { ctx with local_vars = []; scope = Instance i.id }
+            >>= fun c ->
+            (* if is_var_exist "y" c.local_vars
+              then get_var "y" c.local_vars >>= fun v -> failwith (string_of_value v)
+              else *)
+            eval_method c body
+          in
+          get_method method_name i.methods >>= fun m -> try_eval_method vals m.body))
     | MethodCall (method_name, args) ->
       let rec set_values_to_vars values (args : identifier list) ctx_upd =
         match values, args with
@@ -357,7 +398,7 @@ module Eval (M : MONADERROR) = struct
         | [], [] -> return ctx_upd
         | _ -> error "different siz"
       in
-      map (fun e -> eval_expr ctx e) args
+      map (fun e -> get_val e) args
       >>= fun vals ->
       (match is_method_exist method_name ctx.methods with
       | true ->
@@ -368,11 +409,11 @@ module Eval (M : MONADERROR) = struct
           >>= fun c -> eval_method c body
         in
         get_method method_name ctx.methods >>= fun m -> try_eval_method vals m.body
-      | false -> error "check method name")
-    | Lambda _ -> error "not implemented"
+      | false -> error "method doesnot exitst")
+    | _ -> get_val expr >>= fun v -> return { ctx with return_v = v }
 
   and eval_method ctx = function
-    | [] -> return ctx.return_v
+    | [] -> return ctx
     | [ Return exprs ] -> eval_return exprs ctx
     | stmt :: stmts ->
       eval_stmt ctx stmt
@@ -380,15 +421,17 @@ module Eval (M : MONADERROR) = struct
       let cur_res = x.return_v in
       (match cur_res with
       | VNone -> eval_method x stmts
-      | v -> return v)
+      | v -> return { ctx with return_v = v })
 
   and eval_return exprs ctx =
     match exprs with
-    | [] -> return VNone
-    | [ e ] -> eval_expr ctx e >>= fun res -> return res
+    | [] -> return { ctx with return_v = VNone }
+    | [ e ] -> eval_expr ctx e >>= fun res -> return { ctx with return_v = res.return_v }
     | _ as expr_list ->
       map (fun expr -> eval_expr ctx expr) expr_list
-      >>= fun res_list -> return (VList res_list)
+      >>= fun res_list ->
+      merge_return_vals [] res_list
+      >>= fun v -> return { ctx with return_v = VList (List.rev v) }
 
   and eval_body ctx = function
     | [] -> return ctx
@@ -396,7 +439,7 @@ module Eval (M : MONADERROR) = struct
     | stmt :: stmts -> eval_stmt ctx stmt >>= fun c -> eval_body c stmts
 
   and eval_stmt ctx = function
-    | Expression e -> eval_expr ctx e >>= fun v -> return { ctx with return_v = v }
+    | Expression e -> eval_expr ctx e >>= fun upd -> return upd
     | Assign (exprs, vals) ->
       let rec set_values_to_vars values (vars : expression list) ctx_upd =
         match values, vars with
@@ -407,17 +450,38 @@ module Eval (M : MONADERROR) = struct
             | VClassRef (class_id, _) ->
               get_class class_id ctx.classes
               >>= fun cls ->
-              add_or_update_instance { id; ref_class = cls } ctx.instances
+              add_or_update_instance
+                { id; class_id = cls.id; fields = cls.fields; methods = cls.methods }
+                ctx.instances
               >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with instances = t }
             | _ ->
               add_or_update_var { id; v = h1 } ctx_upd.local_vars
               >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t })
+          | Var (VarName (Class _, id)) ->
+            (match ctx_upd.scope with
+            | Instance inst_id ->
+              get_instance inst_id ctx_upd.instances
+              >>= fun i ->
+              add_or_update_var { id; v = h1 } i.fields
+              >>= fun fields_upd ->
+              add_or_update_instance
+                { id = inst_id
+                ; class_id = i.id
+                ; fields = fields_upd
+                ; methods = i.methods
+                }
+                ctx_upd.instances
+              >>= fun new_insta ->
+              set_values_to_vars t1 t2 { ctx_upd with instances = new_insta }
+            | _ -> error "Asd")
           | _ -> error "asd")
         | [], [] -> return ctx_upd
         | _ -> error "different siz"
       in
       map (fun expr -> eval_expr ctx expr) vals
-      >>= fun vs -> set_values_to_vars vs exprs ctx >>= fun c -> return c
+      >>= fun vs ->
+      merge_return_vals [] vs
+      >>= fun vs_ -> set_values_to_vars vs_ exprs ctx >>= fun c -> return c
     | MethodDef (id, params, stmts) ->
       let add_method_to_class class_name =
         get_class class_name ctx.classes
@@ -429,11 +493,12 @@ module Eval (M : MONADERROR) = struct
       | Class class_name -> add_method_to_class class_name >>= fun c -> return c
       | Global ->
         add_or_update_method { id; args = params; body = stmts } ctx.methods
-        >>= fun c -> return { ctx with methods = c })
+        >>= fun c -> return { ctx with methods = c }
+      | Instance id -> error "unreachable")
     | If (expr, stmts) ->
       eval_expr ctx expr
       >>= fun e ->
-      if e = VBool true
+      if e.return_v = VBool true
       then
         eval_body ctx stmts
         >>= fun c -> return { c with last_if = VBool true, VBool true }
@@ -447,7 +512,8 @@ module Eval (M : MONADERROR) = struct
     | While (expr, stmts) ->
       let rec helper ctx stmts =
         eval_expr ctx expr
-        >>= fun e -> if e = VBool true then eval_body_cycle ctx stmts else return ctx
+        >>= fun e ->
+        if e.return_v = VBool true then eval_body_cycle ctx stmts else return ctx
       and eval_body_cycle temp_ctx = function
         | [] -> helper temp_ctx stmts
         | stmt :: t -> eval_stmt temp_ctx stmt >>= fun c -> eval_body_cycle c t
@@ -468,7 +534,7 @@ module Eval (M : MONADERROR) = struct
       >>= fun cls_ctx ->
       add_or_update_class id cls_ctx ctx.classes
       >>= fun c -> return { ctx with classes = c }
-    | Return exprs -> eval_return exprs ctx >>= fun v -> return { ctx with return_v = v }
+    | Return exprs -> eval_return exprs ctx >>= fun v -> return v
     | _ -> error "PARSER FAIL"
 
   and eval_prog ctx = function
@@ -478,15 +544,8 @@ module Eval (M : MONADERROR) = struct
   ;;
 
   let init_global_ctx () =
-    let methods =
-      [ { id = "a"
-        ; body = [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 4)) ] ]
-        ; args = []
-        }
-      ]
-    in
     { local_vars = []
-    ; methods
+    ; methods = []
     ; scope = Global
     ; classes = []
     ; return_v = VNone
@@ -499,15 +558,6 @@ module Eval (M : MONADERROR) = struct
 end
 
 open Eval (Result)
-
-let%test _ =
-  eval_expr
-    global_ctx
-    (ArithOp (Add, ArithOp (Add, Const (Integer 5), Const (Integer 4)), Const (Integer 4)))
-  = Result.return (VInt 13)
-;;
-
-let%test _ = eval_expr global_ctx (MethodCall ("a", [])) = Result.return (VInt 9)
 
 let%test _ =
   eval_prog
@@ -553,9 +603,9 @@ let%test _ =
                 ] )
           ] )
     ; Assign ([ Var (VarName (Local, "a")) ], [ ClassToInstance ("A", []) ])
-    ; Return [ MethodAccess ("a", "sum", [ Const (Integer 5); Const (Integer 5) ]) ]
+    ; Return [ MethodAccess ("a", "sum", [ Const (Integer 5); Const (Integer 6) ]) ]
     ]
-  = Result.return (VInt 10)
+  = Result.return (VInt 11)
 ;;
 
 let%test _ =
@@ -614,4 +664,28 @@ let%test _ =
     ; Return [ Var (VarName (Local, "x")) ]
     ]
   = Result.return (VList [ VInt 3; VInt 2; VInt 1 ])
+;;
+
+let%test _ =
+  eval_prog
+    global_ctx
+    [ Class
+        ( "Node"
+        , [ MethodDef
+              ( "init"
+              , [ "v" ]
+              , [ Assign
+                    ( [ Var (VarName (Class "Node", "value")) ]
+                    , [ Var (VarName (Local, "v")) ] )
+                  (* ; Return [ Var (VarName (Class "Node", "value")) ] *)
+                ] )
+          ; MethodDef ("get", [], [ Return [ Var (VarName (Class "Node", "value")) ] ])
+          ] )
+    ; Assign ([ Var (VarName (Local, "node1")) ], [ ClassToInstance ("Node", []) ])
+    ; Assign ([ Var (VarName (Local, "node2")) ], [ ClassToInstance ("Node", []) ])
+    ; Expression (MethodAccess ("node1", "init", [ Const (Integer 5) ]))
+    ; Expression (MethodAccess ("node2", "init", [ Const (Integer 10) ]))
+    ; Return [ MethodAccess ("node1", "get", []); MethodAccess ("node2", "get", []) ]
+    ]
+  = Result.return (VList [ VInt 5; VInt 10 ])
 ;;
