@@ -4,13 +4,14 @@ type params = identifier list
 type modifier =
   | Local
   | Global
-  | Class of identifier
+  | Class
 
 type value =
   | Integer of int
   | Float of float
   | String of string
   | Bool of bool
+  | Void
 
 type arith_op =
   | Add

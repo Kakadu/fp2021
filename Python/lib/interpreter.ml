@@ -249,7 +249,8 @@ module Eval (M : MONADERROR) = struct
         | Integer i -> return (VInt i)
         | Float f -> return (VFloat f)
         | String s -> return (VString s)
-        | Bool b -> return (VBool b))
+        | Bool b -> return (VBool b)
+        | Void -> return VNone)
       | Var (VarName (x, id)) ->
         (match ctx.scope with
         | Global ->
@@ -262,7 +263,7 @@ module Eval (M : MONADERROR) = struct
           | true ->
             (match x with
             | Local -> get_var id ctx.local_vars
-            | Class class_id ->
+            | Class ->
               get_instance inst_id ctx.instances >>= fun inst -> get_var id inst.fields
             | _ -> error ""))
         | _ -> error "now isn't using")
@@ -382,11 +383,7 @@ module Eval (M : MONADERROR) = struct
               params
               m.args
               { ctx with local_vars = []; scope = Instance i.id }
-            >>= fun c ->
-            (* if is_var_exist "y" c.local_vars
-              then get_var "y" c.local_vars >>= fun v -> failwith (string_of_value v)
-              else *)
-            eval_method c body
+            >>= fun c -> eval_method c body
           in
           get_method method_name i.methods >>= fun m -> try_eval_method vals m.body))
     | MethodCall (method_name, args) ->
@@ -675,17 +672,28 @@ let%test _ =
               ( "init"
               , [ "v" ]
               , [ Assign
-                    ( [ Var (VarName (Class "Node", "value")) ]
-                    , [ Var (VarName (Local, "v")) ] )
+                    ([ Var (VarName (Class, "value")) ], [ Var (VarName (Local, "v")) ])
+                ; Assign ([ Var (VarName (Class, "next")) ], [ Const Void ])
                   (* ; Return [ Var (VarName (Class "Node", "value")) ] *)
                 ] )
-          ; MethodDef ("get", [], [ Return [ Var (VarName (Class "Node", "value")) ] ])
+          ; MethodDef
+              ( "set"
+              , [ "next" ]
+              , [ Assign
+                    ([ Var (VarName (Class, "next")) ], [ Var (VarName (Local, "next")) ])
+                ] )
+          ; MethodDef
+              ( "get"
+              , []
+              , [ Return [ Var (VarName (Class, "value")); Var (VarName (Class, "next")) ]
+                ] )
           ] )
     ; Assign ([ Var (VarName (Local, "node1")) ], [ ClassToInstance ("Node", []) ])
     ; Assign ([ Var (VarName (Local, "node2")) ], [ ClassToInstance ("Node", []) ])
     ; Expression (MethodAccess ("node1", "init", [ Const (Integer 5) ]))
     ; Expression (MethodAccess ("node2", "init", [ Const (Integer 10) ]))
+    ; Expression (MethodAccess ("node1", "set", [ Const (Integer 7) ]))
     ; Return [ MethodAccess ("node1", "get", []); MethodAccess ("node2", "get", []) ]
     ]
-  = Result.return (VList [ VInt 5; VInt 10 ])
+  = Result.return (VList [ VList [ VInt 5; VInt 7 ]; VList [ VInt 10; VNone ] ])
 ;;

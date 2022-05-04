@@ -125,10 +125,28 @@ let identifier =
   | _ -> fail "Invalid first char"
 ;;
 
+let no_space_identifier =
+  peek_char
+  >>= function
+  | Some c when is_valid_first_char c ->
+    take_while is_valid_char
+    >>= fun id ->
+    (match is_reserved id with
+    | false -> return id <* space
+    | true -> fail "Reserved identifier")
+  | _ -> fail "Invalid first char"
+;;
+
 let local_var =
   identifier
   >>= function
   | id -> return (Var (VarName (Local, id)))
+;;
+
+let class_field =
+  token "self." *> no_space_identifier
+  >>= function
+  | id -> return (Var (VarName (Class, id)))
 ;;
 
 let%test _ = parse local_var "a" = Ok (Var (VarName (Local, "a")))
@@ -266,7 +284,7 @@ let parse_def tabs =
 ;;
 
 let assign expr tabs =
-  sep_by comma (access_field <|> local_var)
+  sep_by comma (class_field <|> access_field <|> local_var)
   >>= fun lvalues ->
   token "=" *> space *> sep_by comma expr
   >>= fun rvalues -> return (LvledStmt (tabs, Assign (lvalues, rvalues)))
@@ -458,7 +476,8 @@ let prog =
           eolspace *> peek_char_fail
           >>= function
           | x when is_valid_first_char x ->
-            class_instance expr
+            class_field
+            <|> class_instance expr
             <|> access_method expr
             <|> access_field
             <|> method_call expr
@@ -675,7 +694,7 @@ let%test _ =
           , [ MethodDef
                 ( "test"
                 , [ "self"; "x" ]
-                , [ Assign ([ FieldAccess ("self", "x") ], [ Var (VarName (Local, "x")) ])
+                , [ Assign ([ Var (VarName (Class, "x")) ], [ Var (VarName (Local, "x")) ])
                   ; Return [ Var (VarName (Local, "x")) ]
                   ] )
             ] )
@@ -685,4 +704,9 @@ let%test _ =
 let%test _ =
   parse prog "a = A()"
   = Ok [ Assign ([ Var (VarName (Local, "a")) ], [ ClassToInstance ("A", []) ]) ]
+;;
+
+let%test _ =
+  parse prog "self.x = x"
+  = Ok [ Assign ([ Var (VarName (Class, "x")) ], [ Var (VarName (Local, "x")) ]) ]
 ;;
