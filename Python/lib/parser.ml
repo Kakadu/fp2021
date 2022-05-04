@@ -710,3 +710,36 @@ let%test _ =
   parse prog "self.x = x"
   = Ok [ Assign ([ Var (VarName (Class, "x")) ], [ Var (VarName (Local, "x")) ]) ]
 ;;
+
+let%test _ =
+  parse
+    prog
+    "def fact(n):\n\
+     \tif n < 0:\n\
+     \t\treturn\n\
+     \tif n == 0 or n == 1:\n\
+     \t\treturn 1\n\
+     \treturn n * fact(n-1)"
+  = Ok
+      [ MethodDef
+          ( "fact"
+          , [ "n" ]
+          , [ If (Ls (Var (VarName (Local, "n")), Const (Integer 0)), [ Return [] ])
+            ; If
+                ( BoolOp
+                    ( Or
+                    , Eq (Var (VarName (Local, "n")), Const (Integer 0))
+                    , Eq (Var (VarName (Local, "n")), Const (Integer 1)) )
+                , [ Return [ Const (Integer 1) ] ] )
+            ; Return
+                [ ArithOp
+                    ( Mul
+                    , Var (VarName (Local, "n"))
+                    , MethodCall
+                        ( "fact"
+                        , [ ArithOp (Sub, Var (VarName (Local, "n")), Const (Integer 1)) ]
+                        ) )
+                ]
+            ] )
+      ]
+;;

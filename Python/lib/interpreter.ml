@@ -272,9 +272,15 @@ module Eval (M : MONADERROR) = struct
         | true -> map (fun e -> get_val e) args >>= fun a -> return (VClassRef (id, a))
         | false -> error "class doesn't exist")
       | ArithOp (op, e1, e2) ->
-        get_val e1
+        let evl e_ =
+          match e_ with
+          | MethodAccess _ | MethodCall _ ->
+            eval_expr ctx e_ >>= fun c -> return c.return_v
+          | _ -> get_val e_
+        in
+        evl e1
         >>= fun l ->
-        get_val e2
+        evl e2
         >>= fun r ->
         (match op with
         | Add ->
@@ -696,4 +702,32 @@ let%test _ =
     ; Return [ MethodAccess ("node1", "get", []); MethodAccess ("node2", "get", []) ]
     ]
   = Result.return (VList [ VList [ VInt 5; VInt 7 ]; VList [ VInt 10; VNone ] ])
+;;
+
+let%test _ =
+  eval_prog
+    global_ctx
+    [ MethodDef
+        ( "fact"
+        , [ "n" ]
+        , [ If (Ls (Var (VarName (Local, "n")), Const (Integer 0)), [ Return [] ])
+          ; If
+              ( BoolOp
+                  ( Or
+                  , Eq (Var (VarName (Local, "n")), Const (Integer 0))
+                  , Eq (Var (VarName (Local, "n")), Const (Integer 1)) )
+              , [ Return [ Const (Integer 1) ] ] )
+          ; Return
+              [ ArithOp
+                  ( Mul
+                  , Var (VarName (Local, "n"))
+                  , MethodCall
+                      ( "fact"
+                      , [ ArithOp (Sub, Var (VarName (Local, "n")), Const (Integer 1)) ]
+                      ) )
+              ]
+          ] )
+    ; Expression (MethodCall ("fact", [ Const (Integer 5) ]))
+    ]
+  = Result.return (VInt 120)
 ;;
