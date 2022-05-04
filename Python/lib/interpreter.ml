@@ -242,6 +242,11 @@ module Eval (M : MONADERROR) = struct
   ;;
 
   let rec eval_expr ctx expr =
+    let eval get_val = function
+      | (MethodAccess _ | MethodCall _) as e ->
+        eval_expr ctx e >>= fun c -> return c.return_v
+      | _ as e -> get_val e
+    in
     let rec get_val e =
       match e with
       | Const x ->
@@ -272,15 +277,9 @@ module Eval (M : MONADERROR) = struct
         | true -> map (fun e -> get_val e) args >>= fun a -> return (VClassRef (id, a))
         | false -> error "class doesn't exist")
       | ArithOp (op, e1, e2) ->
-        let evl e_ =
-          match e_ with
-          | MethodAccess _ | MethodCall _ ->
-            eval_expr ctx e_ >>= fun c -> return c.return_v
-          | _ -> get_val e_
-        in
-        evl e1
+        eval get_val e1
         >>= fun l ->
-        evl e2
+        eval get_val e2
         >>= fun r ->
         (match op with
         | Add ->
@@ -320,9 +319,9 @@ module Eval (M : MONADERROR) = struct
           | VInt i1, VInt i2 -> return (VInt (i1 mod i2))
           | _ -> error "fail with mod"))
       | BoolOp (op, e1, e2) ->
-        get_val e1
+        eval get_val e1
         >>= fun l ->
-        get_val e2
+        eval get_val e2
         >>= fun r ->
         (match op with
         | And ->
@@ -334,25 +333,25 @@ module Eval (M : MONADERROR) = struct
           | VBool false, VBool false -> return (VBool false)
           | _ -> return (VBool true)))
       | UnaryOp (Not, e1) ->
-        get_val e1
+        eval get_val e1
         >>= fun l ->
         (match l with
         | VBool false -> return (VBool true)
         | VBool true -> return (VBool false)
         | _ -> error "fail with NOT")
       | Eq (e1, e2) ->
-        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l = r))
+        eval get_val e1 >>= fun l -> eval get_val e2 >>= fun r -> return (VBool (l = r))
       | NotEq (e1, e2) ->
-        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l != r))
+        eval get_val e1 >>= fun l -> eval get_val e2 >>= fun r -> return (VBool (l != r))
       | Gr (e1, e2) ->
-        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l > r))
+        eval get_val e1 >>= fun l -> eval get_val e2 >>= fun r -> return (VBool (l > r))
       | Gre (e1, e2) ->
-        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l >= r))
+        eval get_val e1 >>= fun l -> eval get_val e2 >>= fun r -> return (VBool (l >= r))
       | Ls (e1, e2) ->
-        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l < r))
+        eval get_val e1 >>= fun l -> eval get_val e2 >>= fun r -> return (VBool (l < r))
       | Lse (e1, e2) ->
-        get_val e1 >>= fun l -> get_val e2 >>= fun r -> return (VBool (l <= r))
-      | List exprs -> map (fun e -> get_val e) exprs >>= fun e -> return (VList e)
+        eval get_val e1 >>= fun l -> eval get_val e2 >>= fun r -> return (VBool (l <= r))
+      | List exprs -> map (fun e -> eval get_val e) exprs >>= fun e -> return (VList e)
       | FieldAccess (instance_name, field_name) ->
         (match get_instance instance_name ctx.instances with
         | inst ->
