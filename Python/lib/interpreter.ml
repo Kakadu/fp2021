@@ -34,12 +34,12 @@ module Eval (M : MONADERROR) = struct
     | VNone
 
   type var =
-    { id : identifier
+    { var_id : identifier
     ; v : value
     }
 
   type method_ctx =
-    { id : identifier
+    { method_id : identifier
     ; args : params
     ; body : statements list
     }
@@ -65,16 +65,16 @@ module Eval (M : MONADERROR) = struct
   ;;
 
   type class_ctx =
-    { id : identifier
-    ; methods : methods
-    ; fields : vars
+    { class_id : identifier
+    ; class_methods : methods
+    ; class_fields : vars
     }
 
   type instance =
-    { id : identifier
-    ; class_id : identifier
-    ; methods : methods
-    ; fields : vars
+    { instance_id : identifier
+    ; class_reference_id : identifier
+    ; instance_methods : methods
+    ; instance_fields : vars
     }
 
   type global_ctx =
@@ -101,144 +101,83 @@ module Eval (M : MONADERROR) = struct
 
   let is_instance_exist key lst =
     let rec check = function
-      | h :: t -> if h.id = key then true else check t
+      | h :: t -> if h.instance_id = key then true else check t
       | [] -> false
     in
     check lst
   ;;
 
-  let is_var_exist key (lst : vars) =
+  let is_var_exist key lst =
     let rec check = function
-      | (h : var) :: t -> if h.id = key then true else check t
+      | h :: t -> if h.var_id = key then true else check t
       | [] -> false
     in
     check lst
   ;;
 
-  let is_class_exist key (lst : class_ctx list) =
+  let is_class_exist key lst =
     let rec check = function
-      | (h : class_ctx) :: t -> if h.id = key then true else check t
+      | h :: t -> if h.class_id = key then true else check t
       | [] -> false
     in
     check lst
   ;;
 
-  let is_method_exist key (lst : methods) =
+  let is_method_exist key lst =
     let rec check = function
-      | (h : method_ctx) :: t -> if h.id = key then true else check t
+      | h :: t -> if h.method_id = key then true else check t
       | [] -> false
     in
     check lst
   ;;
 
-  let get_var key (lst : vars) =
-    let rec get key (lst : vars) =
+  let get_var key lst =
+    let rec get key lst =
       match lst with
-      | h :: t -> if h.id = key then return h.v else get key t
+      | h :: t -> if h.var_id = key then return h.v else get key t
       | _ -> error "unknown variable"
     in
     get key lst
   ;;
 
-  let get_class key (lst : class_ctx list) =
-    let rec get key (lst : class_ctx list) =
+  let get_class key lst =
+    let rec get key lst =
       match lst with
-      | h :: t -> if h.id = key then return h else get key t
+      | h :: t -> if h.class_id = key then return h else get key t
       | _ -> error "unknown class"
     in
     get key lst
   ;;
 
-  let get_instance key (lst : instance list) =
-    let rec get key (lst : instance list) =
+  let get_instance key lst =
+    let rec get key lst =
       match lst with
-      | h :: t -> if h.id = key then return h else get key t
+      | h :: t -> if h.instance_id = key then return h else get key t
       | _ -> error "unknown instance"
     in
     get key lst
   ;;
 
-  let get_method key (lst : methods) =
-    let rec get key (lst : methods) =
+  let get_method key lst =
+    let rec get key lst =
       match lst with
-      | h :: t -> if h.id = key then return h else get key t
+      | h :: t -> if h.method_id = key then return h else get key t
       | _ -> error "unknown instance"
     in
     get key lst
   ;;
 
-  let add_or_update_var (variable : var) (lst : vars) =
+  let add_or_update exist is_equal_id id element lst =
     let rec merge acc = function
       | [] ->
         (match acc with
-        | [] -> return [ variable ]
+        | [] -> return [ element ]
         | _ -> return acc)
-      | (h : var) :: t ->
-        (match is_var_exist variable.id lst with
+      | h :: t ->
+        (match exist id lst with
         | true ->
-          if h.id = variable.id
-          then merge ({ id = h.id; v = variable.v } :: acc) t
-          else merge (h :: acc) t
-        | false -> return (variable :: lst))
-    in
-    merge [] lst >>= fun t -> return t
-  ;;
-
-  let add_or_update_instance (inst : instance) (lst : instance list) =
-    let rec merge acc = function
-      | [] ->
-        (match acc with
-        | [] -> return [ inst ]
-        | _ -> return acc)
-      | (h : instance) :: t ->
-        (match is_instance_exist inst.id lst with
-        | true ->
-          if h.id = inst.id
-          then
-            merge
-              ({ id = h.id
-               ; class_id = inst.class_id
-               ; fields = inst.fields
-               ; methods = inst.methods
-               }
-              :: acc)
-              t
-          else merge (h :: acc) t
-        | false -> return (inst :: lst))
-    in
-    merge [] lst >>= fun t -> return t
-  ;;
-
-  let add_or_update_method (mthd : method_ctx) (lst : methods) =
-    let rec merge acc = function
-      | [] ->
-        (match acc with
-        | [] -> return [ mthd ]
-        | _ -> return acc)
-      | (h : method_ctx) :: t ->
-        (match is_method_exist mthd.id lst with
-        | true ->
-          if h.id = mthd.id
-          then merge ({ id = h.id; args = mthd.args; body = mthd.body } :: acc) t
-          else merge (h :: acc) t
-        | false -> return (mthd :: lst))
-    in
-    merge [] lst
-  ;;
-
-  let add_or_update_class id (cls : global_ctx) (lst : class_ctx list) =
-    let rec merge (acc : class_ctx list) = function
-      | [] ->
-        (match acc with
-        | [] -> return [ { id; methods = cls.methods; fields = cls.local_vars } ]
-        | _ -> return acc)
-      | (h : class_ctx) :: t ->
-        (match is_class_exist id lst with
-        | true ->
-          if h.id = id
-          then merge ({ id; methods = cls.methods; fields = cls.local_vars } :: acc) t
-          else merge (h :: acc) t
-        | false -> return (h :: lst))
+          if is_equal_id h id then merge (element :: acc) t else merge (h :: acc) t
+        | false -> return (element :: lst))
     in
     merge [] lst
   ;;
@@ -276,7 +215,8 @@ module Eval (M : MONADERROR) = struct
             (match x with
             | Local -> get_var id ctx.local_vars
             | Class ->
-              get_instance inst_id ctx.instances >>= fun inst -> get_var id inst.fields
+              get_instance inst_id ctx.instances
+              >>= fun inst -> get_var id inst.instance_fields
             | _ -> error ""))
         | _ -> error "now isn't using")
       | ClassToInstance (id, args) ->
@@ -364,7 +304,8 @@ module Eval (M : MONADERROR) = struct
         | inst ->
           inst
           >>= fun i ->
-          get_class i.class_id ctx.classes >>= fun c -> get_var field_name c.fields)
+          get_class i.class_reference_id ctx.classes
+          >>= fun c -> get_var field_name c.class_fields)
       | Lambda _ -> error "not implemented"
       | _ -> error "expr can effect on ctx"
     in
@@ -373,7 +314,12 @@ module Eval (M : MONADERROR) = struct
       let rec set_values_to_vars values (args : identifier list) ctx_upd =
         match values, args with
         | h1 :: t1, h2 :: t2 ->
-          add_or_update_var { id = h2; v = h1 } ctx_upd.local_vars
+          add_or_update
+            is_var_exist
+            (fun x y -> x.var_id = y)
+            h2
+            { var_id = h2; v = h1 }
+            ctx_upd.local_vars
           >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
         | [], [] -> return ctx_upd
         | _ -> error "different siz"
@@ -385,24 +331,30 @@ module Eval (M : MONADERROR) = struct
       | true ->
         get_instance instance_name ctx.instances
         >>= fun i ->
-        (match is_method_exist method_name i.methods with
+        (match is_method_exist method_name i.instance_methods with
         | false -> error "no method in class"
         | true ->
           let try_eval_method params body =
-            get_method method_name i.methods
+            get_method method_name i.instance_methods
             >>= fun m ->
             set_values_to_vars
               params
               m.args
-              { ctx with local_vars = []; scope = Instance i.id }
+              { ctx with local_vars = []; scope = Instance i.instance_id }
             >>= fun c -> eval_method c body
           in
-          get_method method_name i.methods >>= fun m -> try_eval_method vals m.body))
+          get_method method_name i.instance_methods
+          >>= fun m -> try_eval_method vals m.body))
     | MethodCall (method_name, args) ->
       let rec set_values_to_vars values (args : identifier list) ctx_upd =
         match values, args with
         | h1 :: t1, h2 :: t2 ->
-          add_or_update_var { id = h2; v = h1 } ctx_upd.local_vars
+          add_or_update
+            is_var_exist
+            (fun x y -> x.var_id = y)
+            h2
+            { var_id = h2; v = h1 }
+            ctx_upd.local_vars
           >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
         | [], [] -> return ctx_upd
         | _ -> error "different siz"
@@ -459,25 +411,45 @@ module Eval (M : MONADERROR) = struct
             | VClassRef (class_id, _) ->
               get_class class_id ctx.classes
               >>= fun cls ->
-              add_or_update_instance
-                { id; class_id = cls.id; fields = cls.fields; methods = cls.methods }
+              add_or_update
+                is_instance_exist
+                (fun x y -> x.instance_id = y)
+                id
+                { instance_id = id
+                ; class_reference_id = cls.class_id
+                ; instance_fields = cls.class_fields
+                ; instance_methods = cls.class_methods
+                }
                 ctx.instances
               >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with instances = t }
             | _ ->
-              add_or_update_var { id; v = h1 } ctx_upd.local_vars
+              add_or_update
+                is_var_exist
+                (fun x y -> x.var_id = y)
+                id
+                { var_id = id; v = h1 }
+                ctx_upd.local_vars
               >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t })
           | Var (VarName (Class, id)) ->
             (match ctx_upd.scope with
             | Instance inst_id ->
               get_instance inst_id ctx_upd.instances
               >>= fun i ->
-              add_or_update_var { id; v = h1 } i.fields
+              add_or_update
+                is_var_exist
+                (fun x y -> x.var_id = y)
+                id
+                { var_id = id; v = h1 }
+                i.instance_fields
               >>= fun fields_upd ->
-              add_or_update_instance
-                { id = inst_id
-                ; class_id = i.id
-                ; fields = fields_upd
-                ; methods = i.methods
+              add_or_update
+                is_instance_exist
+                (fun x y -> x.instance_id = y)
+                id
+                { instance_id = inst_id
+                ; class_reference_id = i.class_reference_id
+                ; instance_fields = fields_upd
+                ; instance_methods = i.instance_methods
                 }
                 ctx_upd.instances
               >>= fun new_insta ->
@@ -495,13 +467,23 @@ module Eval (M : MONADERROR) = struct
       let add_method_to_class class_name =
         get_class class_name ctx.classes
         >>= fun cur_class ->
-        add_or_update_method { id; args = params; body = stmts } cur_class.methods
+        add_or_update
+          is_method_exist
+          (fun x y -> x.method_id = y)
+          id
+          { method_id = id; args = params; body = stmts }
+          cur_class.class_methods
         >>= fun c -> return { ctx with methods = c }
       in
       (match ctx.scope with
       | Class class_name -> add_method_to_class class_name >>= fun c -> return c
       | Global ->
-        add_or_update_method { id; args = params; body = stmts } ctx.methods
+        add_or_update
+          is_method_exist
+          (fun x y -> x.method_id = y)
+          id
+          { method_id = id; args = params; body = stmts }
+          ctx.methods
         >>= fun c -> return { ctx with methods = c }
       | Instance _ -> error "unreachable")
     | If (expr, stmts) ->
@@ -541,7 +523,15 @@ module Eval (M : MONADERROR) = struct
         }
         body
       >>= fun cls_ctx ->
-      add_or_update_class id cls_ctx ctx.classes
+      add_or_update
+        is_class_exist
+        (fun x y -> x.class_id = y)
+        id
+        { class_id = id
+        ; class_methods = cls_ctx.methods
+        ; class_fields = cls_ctx.local_vars
+        }
+        ctx.classes
       >>= fun c -> return { ctx with classes = c }
     | Return exprs -> eval_return exprs ctx >>= fun v -> return v
     | _ -> error "PARSER FAIL"
@@ -602,8 +592,13 @@ let%test _ =
 ;;
 
 let%test _ =
-  add_or_update_var { id = "a"; v = VBool true } []
-  = Result.return [ { id = "a"; v = VBool true } ]
+  add_or_update
+    is_var_exist
+    (fun x y -> x.var_id = y)
+    "a"
+    { var_id = "a"; v = VBool true }
+    []
+  = Result.return [ { var_id = "a"; v = VBool true } ]
 ;;
 
 let%test _ =
