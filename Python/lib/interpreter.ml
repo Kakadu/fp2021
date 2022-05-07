@@ -33,6 +33,24 @@ module Eval (M : MONADERROR) = struct
     | VList of value list
     | VNone
 
+  and error =
+    | UndefinedOp of string
+    | UnknownName of string
+    | DivisionByZero
+    | AssignFail
+    | MethodArgsFail
+    | ElseFail
+
+  let print_err = function
+    | UndefinedOp str -> Printf.sprintf "The %s operator is not defined in this case" str
+    | UnknownName str -> Printf.sprintf "Unknown name %s" str
+    | DivisionByZero -> Printf.sprintf "Division by zero"
+    | AssignFail -> Printf.sprintf "Left and Right sides of different size"
+    | MethodArgsFail ->
+      Printf.sprintf "The number of method arguments doesn't macth the signature"
+    | ElseFail -> Printf.sprintf "if-pair doesn't exist. chekc tabs"
+  ;;
+
   type var =
     { var_id : identifier
     ; v : value
@@ -55,13 +73,6 @@ module Eval (M : MONADERROR) = struct
   let rec map f = function
     | [] -> return []
     | h :: tl -> f h >>= fun c -> map f tl >>= fun lst -> return (c :: lst)
-  ;;
-
-  let rec iter2 f l1 l2 =
-    match l1, l2 with
-    | [], [] -> return ()
-    | a1 :: l1, a2 :: l2 -> f a1 a2 >>= fun _ -> iter2 f l1 l2
-    | _, _ -> error "different list size!"
   ;;
 
   type class_ctx =
@@ -135,7 +146,7 @@ module Eval (M : MONADERROR) = struct
     let rec get key lst =
       match lst with
       | h :: t -> if h.var_id = key then return h.v else get key t
-      | _ -> error "unknown variable"
+      | _ -> error (print_err (UnknownName key))
     in
     get key lst
   ;;
@@ -144,7 +155,7 @@ module Eval (M : MONADERROR) = struct
     let rec get key lst =
       match lst with
       | h :: t -> if h.class_id = key then return h else get key t
-      | _ -> error "unknown class"
+      | _ -> error (print_err (UnknownName key))
     in
     get key lst
   ;;
@@ -153,7 +164,7 @@ module Eval (M : MONADERROR) = struct
     let rec get key lst =
       match lst with
       | h :: t -> if h.instance_id = key then return h else get key t
-      | _ -> error "unknown instance"
+      | _ -> error (print_err (UnknownName key))
     in
     get key lst
   ;;
@@ -162,7 +173,7 @@ module Eval (M : MONADERROR) = struct
     let rec get key lst =
       match lst with
       | h :: t -> if h.method_id = key then return h else get key t
-      | _ -> error "unknown instance"
+      | _ -> error (print_err (UnknownName key))
     in
     get key lst
   ;;
@@ -206,11 +217,11 @@ module Eval (M : MONADERROR) = struct
         (match ctx.scope with
         | Global ->
           (match is_var_exist id ctx.local_vars with
-          | false -> error "unknown variable"
+          | false -> error (print_err (UnknownName id))
           | true -> get_var id ctx.local_vars)
         | Instance inst_id ->
           (match is_instance_exist inst_id ctx.instances with
-          | false -> error "unknown instance"
+          | false -> error (print_err (UnknownName inst_id))
           | true ->
             (match x with
             | Local -> get_var id ctx.local_vars
@@ -222,7 +233,7 @@ module Eval (M : MONADERROR) = struct
       | ClassToInstance (id, args) ->
         (match is_class_exist id ctx.classes with
         | true -> map (fun e -> get_val e) args >>= fun a -> return (VClassRef (id, a))
-        | false -> error "class doesn't exist")
+        | false -> error (print_err (UnknownName id)))
       | ArithOp (op, e1, e2) ->
         eval get_val e1
         >>= fun l ->
@@ -236,35 +247,35 @@ module Eval (M : MONADERROR) = struct
           | VFloat f, VInt i -> return (VFloat (f +. float_of_int i))
           | VInt i, VFloat f -> return (VFloat (float_of_int i +. f))
           | VString s1, VString s2 -> return (VString (s1 ^ s2))
-          | _ -> error "fail with +")
+          | _ -> error (print_err (UndefinedOp "+")))
         | Mul ->
           (match l, r with
           | VInt i1, VInt i2 -> return (VInt (i1 * i2))
           | VFloat f1, VFloat f2 -> return (VFloat (f1 *. f2))
           | VFloat f, VInt i -> return (VFloat (f *. float_of_int i))
           | VInt i, VFloat f -> return (VFloat (float_of_int i *. f))
-          | _ -> error "fail with *")
+          | _ -> error (print_err (UndefinedOp "*")))
         | Sub ->
           (match l, r with
           | VInt i1, VInt i2 -> return (VInt (i1 - i2))
           | VFloat f1, VFloat f2 -> return (VFloat (f1 -. f2))
           | VFloat f, VInt i -> return (VFloat (f -. float_of_int i))
           | VInt i, VFloat f -> return (VFloat (float_of_int i -. f))
-          | _ -> error "fail with -")
+          | _ -> error (print_err (UndefinedOp "-")))
         | Div ->
           (match l, r with
           | VInt _, VInt 0 | VFloat _, VInt 0 | VFloat _, VFloat 0.0 | VInt _, VFloat 0.0
-            -> error "division by zero"
+            -> error (print_err DivisionByZero)
           | VFloat f1, VFloat f2 -> return (VFloat (f1 /. f2))
           | VFloat f, VInt i -> return (VFloat (f +. float_of_int i))
           | VInt i, VFloat f -> return (VFloat (float_of_int i +. f))
-          | _ -> error "fail with +")
+          | _ -> error (print_err (UndefinedOp "div")))
         | Mod ->
           (match l, r with
           | VInt _, VInt 0 | VFloat _, VInt 0 | VFloat _, VFloat 0.0 | VInt _, VFloat 0.0
-            -> error "division by zero"
+            -> error (print_err DivisionByZero)
           | VInt i1, VInt i2 -> return (VInt (i1 mod i2))
-          | _ -> error "fail with mod"))
+          | _ -> error (print_err DivisionByZero)))
       | BoolOp (op, e1, e2) ->
         eval get_val e1
         >>= fun l ->
@@ -285,7 +296,7 @@ module Eval (M : MONADERROR) = struct
         (match l with
         | VBool false -> return (VBool true)
         | VBool true -> return (VBool false)
-        | _ -> error "fail with NOT")
+        | _ -> error (print_err (UndefinedOp "NOT")))
       | Eq (e1, e2) ->
         eval get_val e1 >>= fun l -> eval get_val e2 >>= fun r -> return (VBool (l = r))
       | NotEq (e1, e2) ->
@@ -322,17 +333,17 @@ module Eval (M : MONADERROR) = struct
             ctx_upd.local_vars
           >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
         | [], [] -> return ctx_upd
-        | _ -> error "different siz"
+        | _ -> error (print_err MethodArgsFail)
       in
       map (fun e -> get_val e) args
       >>= fun vals ->
       (match is_instance_exist instance_name ctx.instances with
-      | false -> error "instance error"
+      | false -> error (print_err (UnknownName instance_name))
       | true ->
         get_instance instance_name ctx.instances
         >>= fun i ->
         (match is_method_exist method_name i.instance_methods with
-        | false -> error "no method in class"
+        | false -> error (print_err (UnknownName method_name))
         | true ->
           let try_eval_method params body =
             get_method method_name i.instance_methods
@@ -357,7 +368,7 @@ module Eval (M : MONADERROR) = struct
             ctx_upd.local_vars
           >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
         | [], [] -> return ctx_upd
-        | _ -> error "different siz"
+        | _ -> error (print_err MethodArgsFail)
       in
       map (fun e -> get_val e) args
       >>= fun vals ->
@@ -370,7 +381,7 @@ module Eval (M : MONADERROR) = struct
           >>= fun c -> eval_method c body
         in
         get_method method_name ctx.methods >>= fun m -> try_eval_method vals m.body
-      | false -> error "method doesnot exitst")
+      | false -> error (print_err (UnknownName method_name)))
     | _ -> get_val expr >>= fun v -> return { ctx with return_v = v }
 
   and eval_method ctx = function
@@ -454,10 +465,10 @@ module Eval (M : MONADERROR) = struct
                 ctx_upd.instances
               >>= fun new_insta ->
               set_values_to_vars t1 t2 { ctx_upd with instances = new_insta }
-            | _ -> error "Asd")
-          | _ -> error "asd")
+            | _ -> error "other case currently unavailabel")
+          | _ -> error "not using now")
         | [], [] -> return ctx_upd
-        | _ -> error "different siz"
+        | _ -> error (print_err AssignFail)
       in
       map (fun expr -> eval_expr ctx expr) vals
       >>= fun vs ->
@@ -496,7 +507,7 @@ module Eval (M : MONADERROR) = struct
       else return { ctx with last_if = VBool true, VBool false }
     | Else stmts ->
       (match ctx.last_if with
-      | VBool false, _ -> error "else hasn't pair if"
+      | VBool false, _ -> error (print_err ElseFail)
       | VBool true, VBool false -> eval_body ctx stmts
       | VBool true, VBool true -> return ctx
       | _ -> error "unreachable")
@@ -534,7 +545,7 @@ module Eval (M : MONADERROR) = struct
         ctx.classes
       >>= fun c -> return { ctx with classes = c }
     | Return exprs -> eval_return exprs ctx >>= fun v -> return v
-    | _ -> error "PARSER FAIL"
+    | _ -> error "unreachable"
 
   and eval_prog ctx = function
     | [] -> return VNone
@@ -565,6 +576,8 @@ end
 open Eval (Result)
 
 let%test _ = parse_and_interpet "[1+1,2+2, 3+3]" = Result.return "[2, 4, 6]"
+let%test _ = parse_and_interpet "a" = Result.error "Unknown name a"
+let%test _ = parse_and_interpet "if 5 > 0:\n\ta=5\na" = Result.return "5"
 
 let%test _ =
   eval_prog
