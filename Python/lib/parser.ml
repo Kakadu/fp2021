@@ -333,7 +333,7 @@ let insert_to_stmt new_stmts = function
   | If (e, _) -> If (e, new_stmts)
   | While (e, _) -> While (e, new_stmts)
   | Class (e, _) -> Class (e, new_stmts)
-  | _ -> ParserError
+  | _ -> failwith "unreachable"
 ;;
 
 let check_is_first_block_empty block =
@@ -422,49 +422,49 @@ let%test _ =
 (* failwith "unreachable" probably because ast is bad *)
 let flatten list =
   let rec insert_ acc_lines = function
-    | [] -> acc_lines
+    | [] -> return acc_lines
     | Block (n, stmt) :: t ->
       (match acc_lines with
       | [] -> insert_ (Block (n, stmt) :: acc_lines) t
       | x :: t1 ->
         (match x with
-        | ParserError -> [ ParserError ]
         | Block (m, stmt1) ->
           if m > n
           then (
             match check_is_first_block_empty (take_block_from_stmt stmt1) with
-            | true -> [ ParserError ]
+            | true -> fail "check tabs. block is empty"
             | _ -> insert_ (Block (n, stmt) :: acc_lines) t)
           else if m = n
           then (
             match check_is_first_block_empty (take_block_from_stmt stmt1) with
-            | true -> [ ParserError ]
+            | true -> fail "check tabs. block is empty"
             | _ -> insert_ (Block (n, stmt) :: acc_lines) t)
           else (
             let subblock = insert_ (take_block_from_stmt stmt1) [ Block (n, stmt) ] in
-            insert_ (Block (m, insert_to_stmt subblock stmt1) :: t1) t)
+            subblock >>= fun sb -> insert_ (Block (m, insert_to_stmt sb stmt1) :: t1) t)
         | LvledStmt (m, _) ->
-          if m < n then [ ParserError ] else insert_ (Block (n, stmt) :: acc_lines) t
-        | _ -> failwith "unreachable"))
+          if m < n then fail "parser error" else insert_ (Block (n, stmt) :: acc_lines) t
+        | _ -> fail "unreachable"))
     | LvledStmt (n, stmt) :: t ->
       (match acc_lines with
       | [] -> insert_ (LvledStmt (n, stmt) :: acc_lines) t
       | x :: t1 ->
         (match x with
-        | ParserError -> [ ParserError ]
         | Block (m, stmt1) ->
           if m >= n
           then (
             match check_is_first_block_empty (take_block_from_stmt stmt1) with
-            | true -> [ ParserError ]
+            | true -> fail "check tabs. block is empty"
             | _ -> insert_ (LvledStmt (n, stmt) :: acc_lines) t)
           else (
             let subblock = insert_ (take_block_from_stmt stmt1) [ LvledStmt (n, stmt) ] in
-            insert_ (Block (m, insert_to_stmt subblock stmt1) :: t1) t)
+            subblock >>= fun sb -> insert_ (Block (m, insert_to_stmt sb stmt1) :: t1) t)
         | LvledStmt (m, _) ->
-          if m = n then insert_ (LvledStmt (n, stmt) :: acc_lines) t else [ ParserError ]
-        | _ -> failwith "unreachable"))
-    | _ -> failwith "unreachable"
+          if m = n
+          then insert_ (LvledStmt (n, stmt) :: acc_lines) t
+          else fail "parser error"
+        | _ -> fail "unreachable"))
+    | _ -> fail "unreachable"
   in
   insert_ [] list
 ;;
@@ -526,11 +526,11 @@ let prog =
   take_while (fun c -> is_eol c) *> sep_by (token "\n") (eolspace *> stmt)
   <* take_while (fun c -> is_eol c)
   >>= fun lines ->
-  match flatten lines with
-  | x ->
-    if check_is_first_block_empty x
-    then return [ ParserError ]
-    else return (remove_lvling (flatten lines))
+  flatten lines
+  >>= fun res ->
+  if check_is_first_block_empty res
+  then fail "parser error"
+  else return (remove_lvling res)
 ;;
 
 let%test _ = parse prog "5" = Ok [ Expression (Const (Integer 5)) ]

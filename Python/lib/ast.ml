@@ -61,4 +61,3 @@ type statements =
   | Class of identifier * statements list
   | Return of expression list
   | LvledStmt of int * statements
-  | ParserError
