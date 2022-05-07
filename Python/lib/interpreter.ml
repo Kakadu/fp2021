@@ -99,15 +99,13 @@ module Eval (M : MONADERROR) = struct
     }
 
   let rec string_of_value = function
-    | VInt i -> return (string_of_int i)
-    | VFloat f -> return (string_of_float f)
-    | VBool b -> return (string_of_bool b)
-    | VString s -> return s
-    | VNone -> return "none"
-    | VList lst ->
-      map (fun x -> string_of_value x) lst
-      >>= fun l -> return ("[" ^ String.concat ", " l ^ "]")
-    | VClassRef _ -> return "none"
+    | VInt i -> string_of_int i
+    | VFloat f -> string_of_float f
+    | VBool b -> string_of_bool b
+    | VString s -> s
+    | VNone -> "none"
+    | VList lst -> "[" ^ String.concat ", " (List.map string_of_value lst) ^ "]"
+    | VClassRef _ -> "none"
   ;;
 
   let is_instance_exist key lst =
@@ -568,14 +566,20 @@ module Eval (M : MONADERROR) = struct
 
   let parse_and_interpet input =
     match Parser.parse Parser.prog input with
-    | Ok x -> eval_prog global_ctx x >>= fun v -> string_of_value v
+    | Ok x -> eval_prog global_ctx x >>= fun v -> return (string_of_value v)
     | _ -> error "sad"
   ;;
 end
 
 open Eval (Result)
 
-let%test _ = parse_and_interpet "[1+1,2+2, 3+3]" = Result.return "[2, 4, 6]"
+let%test _ = parse_and_interpet "\"a\"" = Result.return "a"
+
+let%test _ =
+  parse_and_interpet "[1+1,\"someString_\" + \"_anotherString\", 3+3]"
+  = Result.return "[2, someString__anotherString, 6]"
+;;
+
 let%test _ = parse_and_interpet "a" = Result.error "Unknown name a"
 let%test _ = parse_and_interpet "if 5 > 0:\n\ta=5\na" = Result.return "5"
 
