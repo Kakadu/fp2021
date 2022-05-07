@@ -381,12 +381,9 @@ let%test _ =
 let remove_lvling list =
   let rec rvrs acc = function
     | [] -> acc
-    | [ ParserError ] -> [ ParserError ]
     | Block (_, stmt) :: t ->
       let reversed_stmt = rvrs [] (take_block_from_stmt stmt) in
-      (match reversed_stmt with
-      | [ ParserError ] -> [ ParserError ]
-      | _ -> rvrs (insert_to_stmt reversed_stmt stmt :: acc) t)
+      rvrs (insert_to_stmt reversed_stmt stmt :: acc) t
     | LvledStmt (_, stmt) :: t -> rvrs (stmt :: acc) t
     | _ -> []
   in
