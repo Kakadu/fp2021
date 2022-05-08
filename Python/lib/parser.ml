@@ -31,6 +31,7 @@ let is_eol_or_space = function
   | _ -> false
 ;;
 
+let tab_as_spaces = "    "
 let eolspace = take_while is_eol_or_space
 let space = take_while is_whitespace
 let space1 = take_while1 is_whitespace
@@ -528,11 +529,15 @@ let prog =
   let stmt =
     fix (fun _ ->
         let pexpr =
-          many (token "\t") >>= fun tabs -> expr >>| expr_stmt (List.length tabs)
+          many (string "\t" <|> string tab_as_spaces)
+          >>= fun tabs -> expr >>| expr_stmt (List.length tabs)
         in
-        let passign = many (token "\t") >>= fun tabs -> assign expr (List.length tabs) in
+        let passign =
+          many (token "\t" <|> string tab_as_spaces)
+          >>= fun tabs -> assign expr (List.length tabs)
+        in
         let predict =
-          many (token "\t")
+          many (string "\t" <|> string tab_as_spaces)
           >>= fun tabs ->
           let lvl = List.length tabs in
           peek_char_fail
@@ -546,9 +551,9 @@ let prog =
           | 'c' -> parse_class lvl
           | _ -> expr >>| expr_stmt lvl
         in
-        space *> choice [ passign; predict; pexpr ])
+        choice [ passign; predict; pexpr ])
   in
-  take_while (fun c -> is_eol c) *> sep_by (token "\n") (eolspace *> stmt)
+  take_while (fun c -> is_eol c) *> sep_by (token "\n") stmt
   <* take_while (fun c -> is_eol c)
   >>= fun lines ->
   flatten lines
@@ -697,7 +702,7 @@ let%test _ =
 ;;
 
 let%test _ =
-  parse prog "for i in range(1, 10):\n\n\t1"
+  parse prog "for i in range(1, 10):\n    1"
   = Ok
       [ For
           ( Var (VarName (Local, "i"))

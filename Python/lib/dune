@@ -8,7 +8,7 @@
  (name python_lib)
  (public_name Python.Lib)
  (modules Ast Parser Interpreter)
- (libraries angstrom)
+ (libraries angstrom stdio)
  (inline_tests)
  (preprocess
   (pps ppx_expect ppx_deriving.show)))

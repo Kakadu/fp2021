@@ -25,5 +25,17 @@
  (preprocess
   (pps ppx_deriving.show ppx_deriving.eq)))
 
+(executable
+ (name demo)
+ (modules demo)
+ (libraries Python.Lib)
+ (preprocess
+  (pps ppx_deriving.show ppx_deriving.eq)))
+
 (cram
- (deps ./demoFactorial.exe ./demoSimpleOOP.exe ./demoWhile.exe))
+ (deps
+  ./demoFactorial.exe
+  ./demoSimpleOOP.exe
+  ./demoWhile.exe
+  ./demo.exe
+  ./pythonSamples/fact.py))

@@ -10,3 +10,7 @@ Use `dune promote` after you change things that should runned
 
   $ ./demoWhile.exe
   10
+
+  $ ./demo.exe <<-EOF
+  > ./pythonSamples/fact.py
+  [1, 2, 6, 24, 120]
