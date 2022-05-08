@@ -1,6 +1,19 @@
 open Ast
 open Angstrom
 
+type help_statements =
+  | Expression of expression
+  | Assign of expression list * rval
+  | Block of int * help_statements
+  | MethodDef of identifier * params * help_statements list
+  | If of expression * help_statements list
+  | Else of help_statements list
+  | While of expression * help_statements list
+  | For of expression * expression list * help_statements list
+  | Class of identifier * help_statements list
+  | Return of expression list
+  | LvledStmt of int * help_statements
+
 let parse p s = parse_string ~consume:All p s
 
 let is_whitespace = function
@@ -336,6 +349,21 @@ let insert_to_stmt new_stmts = function
   | _ -> failwith "unreachable"
 ;;
 
+let rec help_to_ast = function
+  | MethodDef (i, p, stmts) ->
+    Ast.MethodDef (i, p, List.map (fun x -> help_to_ast x) stmts)
+  | For (e1, e2, stmts) -> For (e1, e2, List.map (fun x -> help_to_ast x) stmts)
+  | Else stmts -> Else (List.map (fun x -> help_to_ast x) stmts)
+  | If (e, stmts) -> If (e, List.map (fun x -> help_to_ast x) stmts)
+  | While (e, stmts) -> While (e, List.map (fun x -> help_to_ast x) stmts)
+  | Class (e, stmts) -> Class (e, List.map (fun x -> help_to_ast x) stmts)
+  | Block (_, stmt) -> help_to_ast stmt
+  | LvledStmt (_, stmt) -> help_to_ast stmt
+  | Return x -> Return x
+  | Assign (l, r) -> Assign (l, r)
+  | Expression e -> Expression e
+;;
+
 let check_is_first_block_empty block =
   let rec check = function
     | [] -> true
@@ -387,7 +415,7 @@ let remove_lvling list =
     | LvledStmt (_, stmt) :: t -> rvrs (stmt :: acc) t
     | _ -> []
   in
-  rvrs [] list
+  List.map (fun x -> help_to_ast x) (rvrs [] list)
 ;;
 
 let%test _ =

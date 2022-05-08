@@ -52,7 +52,6 @@ and expression =
 type statements =
   | Expression of expression
   | Assign of expression list * rval
-  | Block of int * statements
   | MethodDef of identifier * params * statements list
   | If of expression * statements list
   | Else of statements list
@@ -60,4 +59,3 @@ type statements =
   | For of expression * expression list * statements list
   | Class of identifier * statements list
   | Return of expression list
-  | LvledStmt of int * statements

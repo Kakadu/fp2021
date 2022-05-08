@@ -543,7 +543,6 @@ module Eval (M : MONADERROR) = struct
         ctx.classes
       >>= fun c -> return { ctx with classes = c }
     | Return exprs -> eval_return exprs ctx >>= fun v -> return v
-    | _ -> error "unreachable"
 
   and eval_prog ctx = function
     | [] -> return VNone
