@@ -173,15 +173,14 @@ module Eval (M : MONADERROR) = struct
     merge [] lst
   ;;
 
+  let add_or_update_var key v lst =
+    add_or_update is_var_exist (fun x y -> x.var_id = y) key { var_id = key; v } lst
+  ;;
+
   let rec set_values_to_vars values args ctx_upd =
     match values, args with
     | h1 :: t1, h2 :: t2 ->
-      add_or_update
-        is_var_exist
-        (fun x y -> x.var_id = y)
-        h2
-        { var_id = h2; v = h1 }
-        ctx_upd.local_vars
+      add_or_update_var h2 h1 ctx_upd.local_vars
       >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
     | [], [] -> return ctx_upd
     | _ -> error (str_of_err MethodArgsFail)
@@ -387,24 +386,14 @@ module Eval (M : MONADERROR) = struct
                 ctx.instances
               >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with instances = t }
             | _ ->
-              add_or_update
-                is_var_exist
-                (fun x y -> x.var_id = y)
-                id
-                { var_id = id; v = h1 }
-                ctx_upd.local_vars
+              add_or_update_var id h1 ctx_upd.local_vars
               >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t })
           | Var (VarName (Class, id)) ->
             (match ctx_upd.scope with
             | Instance inst_id ->
               get_with_key (fun x y -> x.instance_id = y) inst_id ctx_upd.instances
               >>= fun i ->
-              add_or_update
-                is_var_exist
-                (fun x y -> x.var_id = y)
-                id
-                { var_id = id; v = h1 }
-                i.instance_fields
+              add_or_update_var id h1 i.instance_fields
               >>= fun fields_upd ->
               add_or_update
                 is_instance_exist
@@ -563,12 +552,7 @@ let%test _ =
 ;;
 
 let%test _ =
-  add_or_update
-    is_var_exist
-    (fun x y -> x.var_id = y)
-    "a"
-    { var_id = "a"; v = VBool true }
-    []
+  add_or_update_var "a" (VBool true) []
   = Result.return [ { var_id = "a"; v = VBool true } ]
 ;;
 
