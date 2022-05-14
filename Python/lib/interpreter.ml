@@ -111,7 +111,9 @@ module Eval (M : MONADERROR) = struct
 
   let is_instance_exist key lst =
     let rec check = function
-      | h :: t -> if h.instance_id = key then true else check t
+      | h :: _ when h.instance_id = key -> true
+      | h :: t when h.instance_id != key -> check t
+      | _ :: _ -> false
       | [] -> false
     in
     check lst
@@ -119,7 +121,9 @@ module Eval (M : MONADERROR) = struct
 
   let is_var_exist key lst =
     let rec check = function
-      | h :: t -> if h.var_id = key then true else check t
+      | h :: _ when h.var_id = key -> true
+      | h :: t when h.var_id != key -> check t
+      | _ :: _ -> false
       | [] -> false
     in
     check lst
@@ -127,7 +131,9 @@ module Eval (M : MONADERROR) = struct
 
   let is_class_exist key lst =
     let rec check = function
-      | h :: t -> if h.class_id = key then true else check t
+      | h :: _ when h.class_id = key -> true
+      | h :: t when h.class_id != key -> check t
+      | _ :: _ -> false
       | [] -> false
     in
     check lst
@@ -135,7 +141,9 @@ module Eval (M : MONADERROR) = struct
 
   let is_method_exist key lst =
     let rec check = function
-      | h :: t -> if h.method_id = key then true else check t
+      | h :: _ when h.method_id = key -> true
+      | h :: t when h.method_id != key -> check t
+      | _ :: _ -> false
       | [] -> false
     in
     check lst
