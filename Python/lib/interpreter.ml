@@ -399,11 +399,7 @@ module Eval (M : MONADERROR) = struct
                 is_instance_exist
                 (fun x y -> x.instance_id = y)
                 id
-                { instance_id = inst_id
-                ; class_reference_id = i.class_reference_id
-                ; instance_fields = fields_upd
-                ; instance_methods = i.instance_methods
-                }
+                { i with instance_fields = fields_upd }
                 ctx_upd.instances
               >>= fun new_insta ->
               set_values_to_vars t1 t2 { ctx_upd with instances = new_insta }
