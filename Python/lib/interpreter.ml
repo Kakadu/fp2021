@@ -76,6 +76,11 @@ module Eval (M : MONADERROR) = struct
     | h :: tl -> f h >>= fun c -> map f tl >>= fun lst -> return (c :: lst)
   ;;
 
+  let rec fold_left f acc = function
+    | [] -> return acc
+    | a :: l -> f acc a >>= fun x -> fold_left f x l
+  ;;
+
   type class_ctx =
     { class_id : identifier
     ; class_methods : methods
@@ -357,10 +362,7 @@ module Eval (M : MONADERROR) = struct
       merge_return_vals [] res_list
       >>= fun v -> return { ctx with return_v = VList (List.rev v) }
 
-  and eval_body ctx = function
-    | [] -> return ctx
-    | [ stmt ] -> eval_stmt ctx stmt >>= fun c -> return c
-    | stmt :: stmts -> eval_stmt ctx stmt >>= fun c -> eval_body c stmts
+  and eval_body ctx body = fold_left (fun c stmt -> eval_stmt c stmt) ctx body
 
   and eval_stmt ctx = function
     | Expression e -> eval_expr ctx e >>= fun upd -> return upd
@@ -484,10 +486,9 @@ module Eval (M : MONADERROR) = struct
       >>= fun c -> return { ctx with classes = c }
     | Return exprs -> eval_return exprs ctx >>= fun v -> return v
 
-  and eval_prog ctx = function
-    | [] -> return VNone
-    | [ x ] -> eval_stmt ctx x >>= fun ctx_upd -> return ctx_upd.return_v
-    | stmt :: stmts -> eval_stmt ctx stmt >>= fun ctx_upd -> eval_prog ctx_upd stmts
+  and eval_prog ctx stmts =
+    fold_left (fun ctx stmt -> eval_stmt ctx stmt) ctx stmts
+    >>= fun x -> return x.return_v
   ;;
 
   let init_global_ctx () =
