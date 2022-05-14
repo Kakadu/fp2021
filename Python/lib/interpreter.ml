@@ -40,15 +40,16 @@ module Eval (M : MONADERROR) = struct
     | AssignFail
     | MethodArgsFail
     | ElseFail
+    | NotImplementedFeature
 
-  let print_err = function
-    | UndefinedOp str -> Printf.sprintf "The %s operator is not defined in this case" str
-    | UnknownName str -> Printf.sprintf "Unknown name %s" str
-    | DivisionByZero -> Printf.sprintf "Division by zero"
-    | AssignFail -> Printf.sprintf "Left and Right sides of different size"
-    | MethodArgsFail ->
-      Printf.sprintf "The number of method arguments doesn't macth the signature"
-    | ElseFail -> Printf.sprintf "if-pair doesn't exist. chekc tabs"
+  let str_of_err = function
+    | UndefinedOp str -> "The " ^ str ^ " operator is not defined in this case"
+    | UnknownName str -> "Unknown name " ^ str
+    | DivisionByZero -> "Division by zero"
+    | AssignFail -> "Left and Right sides of different size"
+    | MethodArgsFail -> "The number of method arguments doesn't macth the signature"
+    | ElseFail -> "if-pair doesn't exist. chekc tabs"
+    | NotImplementedFeature -> "Interpreter has crashed. Feature not implemented yet."
   ;;
 
   type var =
@@ -144,7 +145,7 @@ module Eval (M : MONADERROR) = struct
     let rec get key lst =
       match lst with
       | h :: t -> if is_equal h key then return h else get key t
-      | _ -> error (print_err (UnknownName key))
+      | _ -> error (str_of_err (UnknownName key))
     in
     get key lst
   ;;
@@ -162,6 +163,20 @@ module Eval (M : MONADERROR) = struct
         | false -> return (element :: lst))
     in
     merge [] lst
+  ;;
+
+  let rec set_values_to_vars values args ctx_upd =
+    match values, args with
+    | h1 :: t1, h2 :: t2 ->
+      add_or_update
+        is_var_exist
+        (fun x y -> x.var_id = y)
+        h2
+        { var_id = h2; v = h1 }
+        ctx_upd.local_vars
+      >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
+    | [], [] -> return ctx_upd
+    | _ -> error (str_of_err MethodArgsFail)
   ;;
 
   let rec merge_return_vals (acc : value list) = function
@@ -187,28 +202,22 @@ module Eval (M : MONADERROR) = struct
       | Var (VarName (x, id)) ->
         (match ctx.scope with
         | Global | Class _ ->
-          (match is_var_exist id ctx.local_vars with
-          | false -> error (print_err (UnknownName id))
-          | true ->
-            get_with_key (fun x y -> x.var_id = y) id ctx.local_vars
-            >>= fun vr -> return vr.v)
+          get_with_key (fun x y -> x.var_id = y) id ctx.local_vars
+          >>= fun vr -> return vr.v
         | Instance inst_id ->
-          (match is_instance_exist inst_id ctx.instances with
-          | false -> error (print_err (UnknownName inst_id))
-          | true ->
-            (match x with
-            | Local ->
-              get_with_key (fun x y -> x.var_id = y) id ctx.local_vars
-              >>= fun vr -> return vr.v
-            | Class ->
-              get_with_key (fun x y -> x.instance_id = y) inst_id ctx.instances
-              >>= fun inst ->
-              get_with_key (fun x y -> x.var_id = y) id inst.instance_fields
-              >>= fun vr -> return vr.v)))
+          (match x with
+          | Local ->
+            get_with_key (fun x y -> x.var_id = y) id ctx.local_vars
+            >>= fun vr -> return vr.v
+          | Class ->
+            get_with_key (fun x y -> x.instance_id = y) inst_id ctx.instances
+            >>= fun inst ->
+            get_with_key (fun x y -> x.var_id = y) id inst.instance_fields
+            >>= fun vr -> return vr.v))
       | ClassToInstance (id, args) ->
         (match is_class_exist id ctx.classes with
         | true -> map (fun e -> get_val e) args >>= fun a -> return (VClassRef (id, a))
-        | false -> error (print_err (UnknownName id)))
+        | false -> error (str_of_err (UnknownName id)))
       | ArithOp (op, e1, e2) ->
         eval get_val e1
         >>= fun l ->
@@ -222,35 +231,35 @@ module Eval (M : MONADERROR) = struct
           | VFloat f, VInt i -> return (VFloat (f +. float_of_int i))
           | VInt i, VFloat f -> return (VFloat (float_of_int i +. f))
           | VString s1, VString s2 -> return (VString (s1 ^ s2))
-          | _ -> error (print_err (UndefinedOp "+")))
+          | _ -> error (str_of_err (UndefinedOp "+")))
         | Mul ->
           (match l, r with
           | VInt i1, VInt i2 -> return (VInt (i1 * i2))
           | VFloat f1, VFloat f2 -> return (VFloat (f1 *. f2))
           | VFloat f, VInt i -> return (VFloat (f *. float_of_int i))
           | VInt i, VFloat f -> return (VFloat (float_of_int i *. f))
-          | _ -> error (print_err (UndefinedOp "*")))
+          | _ -> error (str_of_err (UndefinedOp "*")))
         | Sub ->
           (match l, r with
           | VInt i1, VInt i2 -> return (VInt (i1 - i2))
           | VFloat f1, VFloat f2 -> return (VFloat (f1 -. f2))
           | VFloat f, VInt i -> return (VFloat (f -. float_of_int i))
           | VInt i, VFloat f -> return (VFloat (float_of_int i -. f))
-          | _ -> error (print_err (UndefinedOp "-")))
+          | _ -> error (str_of_err (UndefinedOp "-")))
         | Div ->
           (match l, r with
           | VInt _, VInt 0 | VFloat _, VInt 0 | VFloat _, VFloat 0.0 | VInt _, VFloat 0.0
-            -> error (print_err DivisionByZero)
+            -> error (str_of_err DivisionByZero)
           | VFloat f1, VFloat f2 -> return (VFloat (f1 /. f2))
           | VFloat f, VInt i -> return (VFloat (f +. float_of_int i))
           | VInt i, VFloat f -> return (VFloat (float_of_int i +. f))
-          | _ -> error (print_err (UndefinedOp "div")))
+          | _ -> error (str_of_err (UndefinedOp "div")))
         | Mod ->
           (match l, r with
           | VInt _, VInt 0 | VFloat _, VInt 0 | VFloat _, VFloat 0.0 | VInt _, VFloat 0.0
-            -> error (print_err DivisionByZero)
+            -> error (str_of_err DivisionByZero)
           | VInt i1, VInt i2 -> return (VInt (i1 mod i2))
-          | _ -> error (print_err DivisionByZero)))
+          | _ -> error (str_of_err DivisionByZero)))
       | BoolOp (op, e1, e2) ->
         eval get_val e1
         >>= fun l ->
@@ -271,7 +280,7 @@ module Eval (M : MONADERROR) = struct
         (match l with
         | VBool false -> return (VBool true)
         | VBool true -> return (VBool false)
-        | _ -> error (print_err (UndefinedOp "NOT")))
+        | _ -> error (str_of_err (UndefinedOp "NOT")))
       | Eq (e1, e2) ->
         eval get_val e1 >>= fun l -> eval get_val e2 >>= fun r -> return (VBool (l = r))
       | NotEq (e1, e2) ->
@@ -296,72 +305,28 @@ module Eval (M : MONADERROR) = struct
           >>= fun c ->
           get_with_key (fun x y -> x.var_id = y) field_name c.class_fields
           >>= fun vr -> return vr.v)
-      | Lambda _ -> error "not implemented"
+      | Lambda _ -> error (str_of_err NotImplementedFeature)
       | _ -> error "expr can effect on ctx"
+    in
+    let try_eval_method params method_id inst_id methods =
+      let cur_ctx =
+        match inst_id with
+        | "" -> { ctx with local_vars = [] }
+        | _ -> { ctx with local_vars = []; scope = Instance inst_id }
+      in
+      get_with_key (fun x y -> x.method_id = y) method_id methods
+      >>= fun m ->
+      set_values_to_vars params m.args cur_ctx >>= fun c -> eval_method c m.body
     in
     match expr with
     | MethodAccess (instance_name, method_name, args) ->
-      let rec set_values_to_vars values (args : identifier list) ctx_upd =
-        match values, args with
-        | h1 :: t1, h2 :: t2 ->
-          add_or_update
-            is_var_exist
-            (fun x y -> x.var_id = y)
-            h2
-            { var_id = h2; v = h1 }
-            ctx_upd.local_vars
-          >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
-        | [], [] -> return ctx_upd
-        | _ -> error (print_err MethodArgsFail)
-      in
       map (fun e -> get_val e) args
       >>= fun vals ->
-      (match is_instance_exist instance_name ctx.instances with
-      | false -> error (print_err (UnknownName instance_name))
-      | true ->
-        get_with_key (fun x y -> x.instance_id = y) instance_name ctx.instances
-        >>= fun i ->
-        (match is_method_exist method_name i.instance_methods with
-        | false -> error (print_err (UnknownName method_name))
-        | true ->
-          let try_eval_method params body =
-            get_with_key (fun x y -> x.method_id = y) method_name i.instance_methods
-            >>= fun m ->
-            set_values_to_vars
-              params
-              m.args
-              { ctx with local_vars = []; scope = Instance i.instance_id }
-            >>= fun c -> eval_method c body
-          in
-          get_with_key (fun x y -> x.method_id = y) method_name i.instance_methods
-          >>= fun m -> try_eval_method vals m.body))
+      get_with_key (fun x y -> x.instance_id = y) instance_name ctx.instances
+      >>= fun i -> try_eval_method vals method_name i.instance_id i.instance_methods
     | MethodCall (method_name, args) ->
-      let rec set_values_to_vars values (args : identifier list) ctx_upd =
-        match values, args with
-        | h1 :: t1, h2 :: t2 ->
-          add_or_update
-            is_var_exist
-            (fun x y -> x.var_id = y)
-            h2
-            { var_id = h2; v = h1 }
-            ctx_upd.local_vars
-          >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t }
-        | [], [] -> return ctx_upd
-        | _ -> error (print_err MethodArgsFail)
-      in
       map (fun e -> get_val e) args
-      >>= fun vals ->
-      (match is_method_exist method_name ctx.methods with
-      | true ->
-        let try_eval_method params body =
-          get_with_key (fun x y -> x.method_id = y) method_name ctx.methods
-          >>= fun m ->
-          set_values_to_vars params m.args { ctx with local_vars = [] }
-          >>= fun c -> eval_method c body
-        in
-        get_with_key (fun x y -> x.method_id = y) method_name ctx.methods
-        >>= fun m -> try_eval_method vals m.body
-      | false -> error (print_err (UnknownName method_name)))
+      >>= fun vals -> try_eval_method vals method_name "" ctx.methods
     | _ -> get_val expr >>= fun v -> return { ctx with return_v = v }
 
   and eval_method ctx = function
@@ -445,10 +410,10 @@ module Eval (M : MONADERROR) = struct
                 ctx_upd.instances
               >>= fun new_insta ->
               set_values_to_vars t1 t2 { ctx_upd with instances = new_insta }
-            | _ -> error "other case currently unavailabel")
-          | _ -> error "not using now")
+            | _ -> error (str_of_err NotImplementedFeature))
+          | _ -> error (str_of_err NotImplementedFeature))
         | [], [] -> return ctx_upd
-        | _ -> error (print_err AssignFail)
+        | _ -> error (str_of_err AssignFail)
       in
       map (fun expr -> eval_expr ctx expr) vals
       >>= fun vs ->
@@ -487,10 +452,10 @@ module Eval (M : MONADERROR) = struct
       else return { ctx with last_if = VBool true, VBool false }
     | Else stmts ->
       (match ctx.last_if with
-      | VBool false, _ -> error (print_err ElseFail)
+      | VBool false, _ -> error (str_of_err ElseFail)
       | VBool true, VBool false -> eval_body ctx stmts
       | VBool true, VBool true -> return ctx
-      | _ -> error "unreachable")
+      | _ -> error (str_of_err ElseFail))
     | While (expr, stmts) ->
       let rec helper ctx stmts =
         eval_expr ctx expr
@@ -501,7 +466,7 @@ module Eval (M : MONADERROR) = struct
         | stmt :: t -> eval_stmt temp_ctx stmt >>= fun c -> eval_body_cycle c t
       in
       helper ctx stmts
-    | For _ -> error "not implemented"
+    | For _ -> error (str_of_err NotImplementedFeature)
     | Ast.Class (id, body) ->
       eval_body
         { local_vars = []
@@ -548,7 +513,7 @@ module Eval (M : MONADERROR) = struct
   let parse_and_interpet input =
     match Parser.parse Parser.prog input with
     | Ok x -> eval_prog global_ctx x >>= fun v -> return (string_of_value v)
-    | _ -> error "sad"
+    | _ -> error "Parser fail"
   ;;
 end
 
