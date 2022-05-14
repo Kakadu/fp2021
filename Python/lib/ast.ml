@@ -3,7 +3,6 @@ type params = identifier list
 
 type modifier =
   | Local
-  | Global
   | Class
 
 type value =

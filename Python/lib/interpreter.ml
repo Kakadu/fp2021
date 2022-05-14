@@ -140,37 +140,10 @@ module Eval (M : MONADERROR) = struct
     check lst
   ;;
 
-  let get_var key lst =
+  let get_with_key is_equal key lst =
     let rec get key lst =
       match lst with
-      | h :: t -> if h.var_id = key then return h.v else get key t
-      | _ -> error (print_err (UnknownName key))
-    in
-    get key lst
-  ;;
-
-  let get_class key lst =
-    let rec get key lst =
-      match lst with
-      | h :: t -> if h.class_id = key then return h else get key t
-      | _ -> error (print_err (UnknownName key))
-    in
-    get key lst
-  ;;
-
-  let get_instance key lst =
-    let rec get key lst =
-      match lst with
-      | h :: t -> if h.instance_id = key then return h else get key t
-      | _ -> error (print_err (UnknownName key))
-    in
-    get key lst
-  ;;
-
-  let get_method key lst =
-    let rec get key lst =
-      match lst with
-      | h :: t -> if h.method_id = key then return h else get key t
+      | h :: t -> if is_equal h key then return h else get key t
       | _ -> error (print_err (UnknownName key))
     in
     get key lst
@@ -213,21 +186,25 @@ module Eval (M : MONADERROR) = struct
         | Void -> return VNone)
       | Var (VarName (x, id)) ->
         (match ctx.scope with
-        | Global ->
+        | Global | Class _ ->
           (match is_var_exist id ctx.local_vars with
           | false -> error (print_err (UnknownName id))
-          | true -> get_var id ctx.local_vars)
+          | true ->
+            get_with_key (fun x y -> x.var_id = y) id ctx.local_vars
+            >>= fun vr -> return vr.v)
         | Instance inst_id ->
           (match is_instance_exist inst_id ctx.instances with
           | false -> error (print_err (UnknownName inst_id))
           | true ->
             (match x with
-            | Local -> get_var id ctx.local_vars
+            | Local ->
+              get_with_key (fun x y -> x.var_id = y) id ctx.local_vars
+              >>= fun vr -> return vr.v
             | Class ->
-              get_instance inst_id ctx.instances
-              >>= fun inst -> get_var id inst.instance_fields
-            | _ -> error ""))
-        | _ -> error "now isn't using")
+              get_with_key (fun x y -> x.instance_id = y) inst_id ctx.instances
+              >>= fun inst ->
+              get_with_key (fun x y -> x.var_id = y) id inst.instance_fields
+              >>= fun vr -> return vr.v)))
       | ClassToInstance (id, args) ->
         (match is_class_exist id ctx.classes with
         | true -> map (fun e -> get_val e) args >>= fun a -> return (VClassRef (id, a))
@@ -309,12 +286,16 @@ module Eval (M : MONADERROR) = struct
         eval get_val e1 >>= fun l -> eval get_val e2 >>= fun r -> return (VBool (l <= r))
       | List exprs -> map (fun e -> eval get_val e) exprs >>= fun e -> return (VList e)
       | FieldAccess (instance_name, field_name) ->
-        (match get_instance instance_name ctx.instances with
+        (match
+           get_with_key (fun x y -> x.instance_id = y) instance_name ctx.instances
+         with
         | inst ->
           inst
           >>= fun i ->
-          get_class i.class_reference_id ctx.classes
-          >>= fun c -> get_var field_name c.class_fields)
+          get_with_key (fun x y -> x.class_id = y) i.class_reference_id ctx.classes
+          >>= fun c ->
+          get_with_key (fun x y -> x.var_id = y) field_name c.class_fields
+          >>= fun vr -> return vr.v)
       | Lambda _ -> error "not implemented"
       | _ -> error "expr can effect on ctx"
     in
@@ -338,13 +319,13 @@ module Eval (M : MONADERROR) = struct
       (match is_instance_exist instance_name ctx.instances with
       | false -> error (print_err (UnknownName instance_name))
       | true ->
-        get_instance instance_name ctx.instances
+        get_with_key (fun x y -> x.instance_id = y) instance_name ctx.instances
         >>= fun i ->
         (match is_method_exist method_name i.instance_methods with
         | false -> error (print_err (UnknownName method_name))
         | true ->
           let try_eval_method params body =
-            get_method method_name i.instance_methods
+            get_with_key (fun x y -> x.method_id = y) method_name i.instance_methods
             >>= fun m ->
             set_values_to_vars
               params
@@ -352,7 +333,7 @@ module Eval (M : MONADERROR) = struct
               { ctx with local_vars = []; scope = Instance i.instance_id }
             >>= fun c -> eval_method c body
           in
-          get_method method_name i.instance_methods
+          get_with_key (fun x y -> x.method_id = y) method_name i.instance_methods
           >>= fun m -> try_eval_method vals m.body))
     | MethodCall (method_name, args) ->
       let rec set_values_to_vars values (args : identifier list) ctx_upd =
@@ -373,12 +354,13 @@ module Eval (M : MONADERROR) = struct
       (match is_method_exist method_name ctx.methods with
       | true ->
         let try_eval_method params body =
-          get_method method_name ctx.methods
+          get_with_key (fun x y -> x.method_id = y) method_name ctx.methods
           >>= fun m ->
           set_values_to_vars params m.args { ctx with local_vars = [] }
           >>= fun c -> eval_method c body
         in
-        get_method method_name ctx.methods >>= fun m -> try_eval_method vals m.body
+        get_with_key (fun x y -> x.method_id = y) method_name ctx.methods
+        >>= fun m -> try_eval_method vals m.body
       | false -> error (print_err (UnknownName method_name)))
     | _ -> get_val expr >>= fun v -> return { ctx with return_v = v }
 
@@ -418,7 +400,7 @@ module Eval (M : MONADERROR) = struct
           | Var (VarName (Local, id)) ->
             (match h1 with
             | VClassRef (class_id, _) ->
-              get_class class_id ctx.classes
+              get_with_key (fun x y -> x.class_id = y) class_id ctx.classes
               >>= fun cls ->
               add_or_update
                 is_instance_exist
@@ -442,7 +424,7 @@ module Eval (M : MONADERROR) = struct
           | Var (VarName (Class, id)) ->
             (match ctx_upd.scope with
             | Instance inst_id ->
-              get_instance inst_id ctx_upd.instances
+              get_with_key (fun x y -> x.instance_id = y) inst_id ctx_upd.instances
               >>= fun i ->
               add_or_update
                 is_var_exist
@@ -474,7 +456,7 @@ module Eval (M : MONADERROR) = struct
       >>= fun vs_ -> set_values_to_vars vs_ exprs ctx >>= fun c -> return c
     | MethodDef (id, params, stmts) ->
       let add_method_to_class class_name =
-        get_class class_name ctx.classes
+        get_with_key (fun x y -> x.class_id = y) class_name ctx.classes
         >>= fun cur_class ->
         add_or_update
           is_method_exist
