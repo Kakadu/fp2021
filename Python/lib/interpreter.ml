@@ -118,8 +118,7 @@ module Eval (M : MONADERROR) = struct
     let rec check = function
       | h :: _ when h.instance_id = key -> true
       | h :: t when h.instance_id != key -> check t
-      | _ :: _ -> false
-      | [] -> false
+      | _ -> false
     in
     check lst
   ;;
@@ -128,8 +127,7 @@ module Eval (M : MONADERROR) = struct
     let rec check = function
       | h :: _ when h.var_id = key -> true
       | h :: t when h.var_id != key -> check t
-      | _ :: _ -> false
-      | [] -> false
+      | _ -> false
     in
     check lst
   ;;
@@ -138,8 +136,7 @@ module Eval (M : MONADERROR) = struct
     let rec check = function
       | h :: _ when h.class_id = key -> true
       | h :: t when h.class_id != key -> check t
-      | _ :: _ -> false
-      | [] -> false
+      | _ -> false
     in
     check lst
   ;;
@@ -148,8 +145,7 @@ module Eval (M : MONADERROR) = struct
     let rec check = function
       | h :: _ when h.method_id = key -> true
       | h :: t when h.method_id != key -> check t
-      | _ :: _ -> false
-      | [] -> false
+      | _ -> false
     in
     check lst
   ;;
@@ -163,6 +159,7 @@ module Eval (M : MONADERROR) = struct
     get key lst
   ;;
 
+  (* add element to list of elements. overwrite if exist. *)
   let add_or_update exist is_equal_id id element lst =
     let rec merge acc = function
       | [] ->
@@ -170,12 +167,11 @@ module Eval (M : MONADERROR) = struct
         | [] -> return [ element ]
         | _ -> return acc)
       | h :: t ->
-        (match exist id lst with
-        | true ->
-          if is_equal_id h id then merge (element :: acc) t else merge (h :: acc) t
-        | false -> return (element :: lst))
+        if is_equal_id h id then merge (element :: acc) t else merge (h :: acc) t
     in
-    merge [] lst
+    match exist id lst with
+    | true -> merge [] lst
+    | false -> return (element :: lst)
   ;;
 
   let add_or_update_var key v lst =
