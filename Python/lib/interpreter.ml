@@ -30,6 +30,7 @@ module Eval (M : MONADERROR) = struct
     | VBool of bool
     | VString of string
     | VClassRef of identifier * value list
+    | VLambda of identifier list * expression
     | VList of value list
     | VNone
 
@@ -39,7 +40,6 @@ module Eval (M : MONADERROR) = struct
     | DivisionByZero
     | AssignFail
     | MethodArgsFail
-    | ElseFail
     | NotImplementedFeature
 
   let str_of_err = function
@@ -48,7 +48,6 @@ module Eval (M : MONADERROR) = struct
     | DivisionByZero -> "Division by zero"
     | AssignFail -> "Left and Right sides of different size"
     | MethodArgsFail -> "The number of method arguments doesn't macth the signature"
-    | ElseFail -> "if-pair doesn't exist. chekc tabs"
     | NotImplementedFeature -> "Interpreter has crashed. Feature not implemented yet."
   ;;
 
@@ -111,6 +110,7 @@ module Eval (M : MONADERROR) = struct
     | VNone -> "none"
     | VList lst -> "[" ^ String.concat ", " (List.map string_of_value lst) ^ "]"
     | VClassRef _ -> "none"
+    | VLambda _ -> ""
   ;;
 
   let is_instance_exist key lst =
@@ -312,7 +312,7 @@ module Eval (M : MONADERROR) = struct
           >>= fun c ->
           get_with_key (fun x y -> x.var_id = y) field_name c.class_fields
           >>= fun vr -> return vr.v)
-      | Lambda _ -> error (str_of_err NotImplementedFeature)
+      | Lambda (args, expr) -> return (VLambda (args, expr))
       | _ -> return VNone
     in
     let try_eval_method params method_id inst_id methods =
@@ -327,12 +327,12 @@ module Eval (M : MONADERROR) = struct
     in
     match expr with
     | MethodAccess (instance_name, method_name, args) ->
-      map (fun e -> get_val e) args
+      (fun e -> map get_val e) args
       >>= fun vals ->
       get_with_key (fun x y -> x.instance_id = y) instance_name ctx.instances
       >>= fun i -> try_eval_method vals method_name i.instance_id i.instance_methods
     | MethodCall (method_name, args) ->
-      map (fun e -> get_val e) args
+      (fun e -> map get_val e) args
       >>= fun vals -> try_eval_method vals method_name "" ctx.methods
     | _ -> get_val expr >>= fun v -> return { ctx with return_v = v }
 
@@ -380,8 +380,16 @@ module Eval (M : MONADERROR) = struct
                 ; instance_fields = cls.class_fields
                 ; instance_methods = cls.class_methods
                 }
-                ctx.instances
+                ctx_upd.instances
               >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with instances = t }
+            | VLambda (args, expr) ->
+              add_or_update
+                is_method_exist
+                (fun x y -> x.method_id = y)
+                id
+                { method_id = id; args; body = [ Ast.Return [ expr ] ] }
+                ctx_upd.methods
+              >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with methods = t }
             | _ ->
               add_or_update_var id h1 ctx_upd.local_vars
               >>= fun t -> set_values_to_vars t1 t2 { ctx_upd with local_vars = t })
@@ -400,8 +408,8 @@ module Eval (M : MONADERROR) = struct
                 ctx_upd.instances
               >>= fun new_insta ->
               set_values_to_vars t1 t2 { ctx_upd with instances = new_insta }
-            | _ -> error (str_of_err NotImplementedFeature))
-          | _ -> error (str_of_err NotImplementedFeature))
+            | _ -> set_values_to_vars t1 t2 ctx_upd)
+          | _ -> set_values_to_vars t1 t2 ctx_upd)
         | [], [] -> return ctx_upd
         | _ -> error (str_of_err AssignFail)
       in
@@ -694,3 +702,5 @@ let%test _ =
     ]
   = Result.return (VList [ VInt 1; VInt 2; VInt 6; VInt 24; VInt 120 ])
 ;;
+
+let%test _ = parse_and_interpet "a = lambda x,y : x + y\na(2,5)" = Result.return "7"
