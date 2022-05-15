@@ -1,6 +1,19 @@
 open Ast
 open Angstrom
 
+type help_statements =
+  | Expression of expression
+  | Assign of expression list * rval
+  | Block of int * help_statements
+  | MethodDef of identifier * params * help_statements list
+  | IfElse of expression * help_statements list * help_statements list
+  | Else of help_statements list
+  | While of expression * help_statements list
+  | For of expression * expression list * help_statements list
+  | Class of identifier * help_statements list
+  | Return of expression list
+  | LvledStmt of int * help_statements
+
 let parse p s = parse_string ~consume:All p s
 
 let is_whitespace = function
@@ -18,6 +31,7 @@ let is_eol_or_space = function
   | _ -> false
 ;;
 
+let tab_as_spaces = "    "
 let eolspace = take_while is_eol_or_space
 let space = take_while is_whitespace
 let space1 = take_while1 is_whitespace
@@ -103,6 +117,11 @@ let is_valid_first_char = function
   | _ -> false
 ;;
 
+let is_first_char_capital = function
+  | 'A' .. 'Z' -> true
+  | _ -> false
+;;
+
 let is_valid_char = function
   | '_' | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' -> true
   | _ -> false
@@ -120,10 +139,28 @@ let identifier =
   | _ -> fail "Invalid first char"
 ;;
 
+let no_space_identifier =
+  peek_char
+  >>= function
+  | Some c when is_valid_first_char c ->
+    take_while is_valid_char
+    >>= fun id ->
+    (match is_reserved id with
+    | false -> return id <* space
+    | true -> fail "Reserved identifier")
+  | _ -> fail "Invalid first char"
+;;
+
 let local_var =
   identifier
   >>= function
   | id -> return (Var (VarName (Local, id)))
+;;
+
+let class_field =
+  token "self." *> no_space_identifier
+  >>= function
+  | id -> return (Var (VarName (Class, id)))
 ;;
 
 let%test _ = parse local_var "a" = Ok (Var (VarName (Local, "a")))
@@ -210,6 +247,21 @@ let method_call p =
   token "(" *> sep_by comma p <* token ")" >>= fun args -> return (MethodCall (idd, args))
 ;;
 
+let class_instance p =
+  match peek_char_fail with
+  | c ->
+    c
+    >>= fun chr ->
+    (match is_first_char_capital chr with
+    | true ->
+      identifier
+      >>= fun id ->
+      token "(" *> sep_by comma p
+      <* token ")"
+      >>= fun args -> return (ClassToInstance (id, args))
+    | false -> fail "SAD")
+;;
+
 (* someClass.someField *)
 let access_field =
   identifier
@@ -246,7 +298,7 @@ let parse_def tabs =
 ;;
 
 let assign expr tabs =
-  sep_by comma (access_field <|> local_var)
+  sep_by comma (class_field <|> access_field <|> local_var)
   >>= fun lvalues ->
   token "=" *> space *> sep_by comma expr
   >>= fun rvalues -> return (LvledStmt (tabs, Assign (lvalues, rvalues)))
@@ -255,7 +307,7 @@ let assign expr tabs =
 let parse_if expr tabs =
   token "if" *> space1 *> expr
   <* token ":"
-  >>= fun if_expr -> return (Block (tabs, If (if_expr, [])))
+  >>= fun if_expr -> return (Block (tabs, IfElse (if_expr, [], [])))
 ;;
 
 let parse_else tabs =
@@ -281,7 +333,7 @@ let parse_for expr tabs =
 let take_block_from_stmt = function
   | MethodDef (_, _, stmts) -> stmts
   | For (_, _, stmts) -> stmts
-  | If (_, stmts) -> stmts
+  | IfElse (_, stmts, _) -> stmts
   | Else stmts -> stmts
   | While (_, stmts) -> stmts
   | Class (_, stmts) -> stmts
@@ -292,10 +344,29 @@ let insert_to_stmt new_stmts = function
   | MethodDef (i, p, _) -> MethodDef (i, p, new_stmts)
   | For (e1, e2, _) -> For (e1, e2, new_stmts)
   | Else _ -> Else new_stmts
-  | If (e, _) -> If (e, new_stmts)
+  | IfElse (e, _, else_stmts) -> IfElse (e, new_stmts, else_stmts)
   | While (e, _) -> While (e, new_stmts)
   | Class (e, _) -> Class (e, new_stmts)
-  | _ -> ParserError
+  | _ -> failwith "unreachable"
+;;
+
+let rec help_to_ast = function
+  | MethodDef (i, p, stmts) ->
+    Ast.MethodDef (i, p, List.map (fun x -> help_to_ast x) stmts)
+  | For (e1, e2, stmts) -> For (e1, e2, List.map (fun x -> help_to_ast x) stmts)
+  | Else _ -> failwith "else stmt does not exist in AST"
+  | IfElse (e, stmts, else_stmts) ->
+    IfElse
+      ( e
+      , List.map (fun x -> help_to_ast x) stmts
+      , List.map (fun x -> help_to_ast x) else_stmts )
+  | While (e, stmts) -> While (e, List.map (fun x -> help_to_ast x) stmts)
+  | Class (e, stmts) -> Class (e, List.map (fun x -> help_to_ast x) stmts)
+  | Block (_, stmt) -> help_to_ast stmt
+  | LvledStmt (_, stmt) -> help_to_ast stmt
+  | Return x -> Return x
+  | Assign (l, r) -> Assign (l, r)
+  | Expression e -> Expression e
 ;;
 
 let check_is_first_block_empty block =
@@ -314,119 +385,115 @@ let%test _ =
   check_is_first_block_empty
     [ Block
         ( 0
-        , If
+        , IfElse
             ( Const (Integer 0)
             , [ Block
                   ( 1
-                  , If
+                  , IfElse
                       ( Const (Integer 0)
-                      , [ LvledStmt (4, Expression (Const (Integer 5))) ] ) )
-              ] ) )
+                      , [ LvledStmt (4, Expression (Const (Integer 5))) ]
+                      , [] ) )
+              ]
+            , [] ) )
     ]
   = false
 ;;
 
 let%test _ =
   check_is_first_block_empty
-    [ Block (0, If (Const (Integer 0), []))
+    [ Block (0, IfElse (Const (Integer 0), [], []))
     ; Block
         ( 0
-        , If
+        , IfElse
             ( Const (Integer 0)
             , [ Block
-                  (1, If (Const (Integer 0), [ Block (1, If (Const (Integer 0), [])) ]))
-              ] ) )
+                  ( 1
+                  , IfElse
+                      ( Const (Integer 0)
+                      , [ Block (1, IfElse (Const (Integer 0), [], [])) ]
+                      , [] ) )
+              ]
+            , [] ) )
     ]
   = true
 ;;
 
+let merge_if_else else_stmts = function
+  | IfElse (e, s, s2) ->
+    if s2 = [] then return (IfElse (e, s, else_stmts)) else fail "parse else error"
+  | _ -> fail "unexpected stmt"
+;;
+
 let remove_lvling list =
   let rec rvrs acc = function
-    | [] -> acc
-    | [ ParserError ] -> [ ParserError ]
+    | [] -> return acc
     | Block (_, stmt) :: t ->
-      let reversed_stmt = rvrs [] (take_block_from_stmt stmt) in
-      (match reversed_stmt with
-      | [ ParserError ] -> [ ParserError ]
-      | _ -> rvrs (insert_to_stmt reversed_stmt stmt :: acc) t)
+      (match stmt with
+      | IfElse (_, _, _) as iff ->
+        (match acc with
+        | [] ->
+          rvrs [] (take_block_from_stmt stmt)
+          >>= fun rstmt -> rvrs (insert_to_stmt rstmt stmt :: acc) t
+        | h :: t1 ->
+          (match h with
+          | Else s -> merge_if_else s iff >>= fun ifelse -> rvrs (ifelse :: t1) t
+          | _ ->
+            rvrs [] (take_block_from_stmt stmt)
+            >>= fun rstmt -> rvrs (insert_to_stmt rstmt stmt :: acc) t))
+      | _ ->
+        rvrs [] (take_block_from_stmt stmt)
+        >>= fun rstmt -> rvrs (insert_to_stmt rstmt stmt :: acc) t)
     | LvledStmt (_, stmt) :: t -> rvrs (stmt :: acc) t
-    | _ -> []
+    | _ -> return []
   in
-  rvrs [] list
+  rvrs [] list >>= fun res -> return (List.map (fun x -> help_to_ast x) res)
 ;;
 
-let%test _ =
-  remove_lvling
-    [ Block
-        ( 0
-        , If
-            ( Const (Integer 0)
-            , [ LvledStmt (1, Expression (Const (Integer 1)))
-              ; LvledStmt (2, Expression (Const (Integer 2)))
-              ] ) )
-    ; Block
-        ( 1
-        , If
-            ( Const (Integer 1)
-            , [ LvledStmt (3, Expression (Const (Integer 3)))
-              ; LvledStmt (4, Expression (Const (Integer 4)))
-              ] ) )
-    ]
-  = [ If
-        ( Const (Integer 1)
-        , [ Expression (Const (Integer 4)); Expression (Const (Integer 3)) ] )
-    ; If
-        ( Const (Integer 0)
-        , [ Expression (Const (Integer 2)); Expression (Const (Integer 1)) ] )
-    ]
-;;
-
-(* failwith "unreachable" probably because ast is bad *)
 let flatten list =
   let rec insert_ acc_lines = function
-    | [] -> acc_lines
+    | [] -> return acc_lines
     | Block (n, stmt) :: t ->
       (match acc_lines with
       | [] -> insert_ (Block (n, stmt) :: acc_lines) t
       | x :: t1 ->
         (match x with
-        | ParserError -> [ ParserError ]
         | Block (m, stmt1) ->
           if m > n
           then (
             match check_is_first_block_empty (take_block_from_stmt stmt1) with
-            | true -> [ ParserError ]
+            | true -> fail "check tabs. block is empty"
             | _ -> insert_ (Block (n, stmt) :: acc_lines) t)
           else if m = n
           then (
             match check_is_first_block_empty (take_block_from_stmt stmt1) with
-            | true -> [ ParserError ]
+            | true -> fail "check tabs. block is empty"
             | _ -> insert_ (Block (n, stmt) :: acc_lines) t)
           else (
             let subblock = insert_ (take_block_from_stmt stmt1) [ Block (n, stmt) ] in
-            insert_ (Block (m, insert_to_stmt subblock stmt1) :: t1) t)
+            subblock >>= fun sb -> insert_ (Block (m, insert_to_stmt sb stmt1) :: t1) t)
         | LvledStmt (m, _) ->
-          if m < n then [ ParserError ] else insert_ (Block (n, stmt) :: acc_lines) t
-        | _ -> failwith "unreachable"))
+          if m < n then fail "parser error" else insert_ (Block (n, stmt) :: acc_lines) t
+        | _ -> fail "unreachable"))
     | LvledStmt (n, stmt) :: t ->
       (match acc_lines with
       | [] -> insert_ (LvledStmt (n, stmt) :: acc_lines) t
       | x :: t1 ->
         (match x with
-        | ParserError -> [ ParserError ]
         | Block (m, stmt1) ->
           if m >= n
           then (
             match check_is_first_block_empty (take_block_from_stmt stmt1) with
-            | true -> [ ParserError ]
+            | true -> fail "check tabs. block is empty"
             | _ -> insert_ (LvledStmt (n, stmt) :: acc_lines) t)
           else (
             let subblock = insert_ (take_block_from_stmt stmt1) [ LvledStmt (n, stmt) ] in
-            insert_ (Block (m, insert_to_stmt subblock stmt1) :: t1) t)
+            subblock >>= fun sb -> insert_ (Block (m, insert_to_stmt sb stmt1) :: t1) t)
         | LvledStmt (m, _) ->
-          if m = n then insert_ (LvledStmt (n, stmt) :: acc_lines) t else [ ParserError ]
-        | _ -> failwith "unreachable"))
-    | _ -> failwith "unreachable"
+          if m = n
+          then insert_ (LvledStmt (n, stmt) :: acc_lines) t
+          else fail "parser error"
+        | _ -> fail "unreachable"))
+    | _ -> fail "unreachable"
   in
   insert_ [] list
 ;;
@@ -438,7 +505,9 @@ let prog =
           eolspace *> peek_char_fail
           >>= function
           | x when is_valid_first_char x ->
-            access_method expr
+            class_field
+            <|> class_instance expr
+            <|> access_method expr
             <|> access_field
             <|> method_call expr
             <|> local_var
@@ -463,11 +532,15 @@ let prog =
   let stmt =
     fix (fun _ ->
         let pexpr =
-          many (token "\t") >>= fun tabs -> expr >>| expr_stmt (List.length tabs)
+          many (string "\t" <|> string tab_as_spaces)
+          >>= fun tabs -> expr >>| expr_stmt (List.length tabs)
         in
-        let passign = many (token "\t") >>= fun tabs -> assign expr (List.length tabs) in
+        let passign =
+          many (token "\t" <|> string tab_as_spaces)
+          >>= fun tabs -> assign expr (List.length tabs)
+        in
         let predict =
-          many (token "\t")
+          many (string "\t" <|> string tab_as_spaces)
           >>= fun tabs ->
           let lvl = List.length tabs in
           peek_char_fail
@@ -481,15 +554,14 @@ let prog =
           | 'c' -> parse_class lvl
           | _ -> expr >>| expr_stmt lvl
         in
-        space *> choice [ passign; predict; pexpr ])
+        choice [ passign; predict; pexpr ])
   in
-  sep_by (token "\n") (eolspace *> stmt)
+  take_while (fun c -> is_eol c) *> sep_by (token "\n") stmt
+  <* take_while (fun c -> is_eol c)
   >>= fun lines ->
-  match flatten lines with
-  | x ->
-    if check_is_first_block_empty x
-    then return [ ParserError ]
-    else return (remove_lvling (flatten lines))
+  flatten lines
+  >>= fun res ->
+  if check_is_first_block_empty res then fail "parser error" else remove_lvling res
 ;;
 
 let%test _ = parse prog "5" = Ok [ Expression (Const (Integer 5)) ]
@@ -566,33 +638,34 @@ let%test _ =
 
 let%test _ =
   parse prog "if 0:\n\t4"
-  = Ok [ If (Const (Integer 0), [ Expression (Const (Integer 4)) ]) ]
+  = Ok [ IfElse (Const (Integer 0), [ Expression (Const (Integer 4)) ], []) ]
 ;;
 
 let%test _ =
   parse prog "if 0:\n\t1\n\tif 1:\n\t\t2\n\t1\n\t1"
   = Ok
-      [ If
+      [ IfElse
           ( Const (Integer 0)
           , [ Expression (Const (Integer 1))
-            ; If (Const (Integer 1), [ Expression (Const (Integer 2)) ])
+            ; IfElse (Const (Integer 1), [ Expression (Const (Integer 2)) ], [])
             ; Expression (Const (Integer 1))
             ; Expression (Const (Integer 1))
-            ] )
+            ]
+          , [] )
       ]
 ;;
 
 let%test _ =
   parse prog "if 0:\n\t0\nif 1:\n\t1"
   = Ok
-      [ If (Const (Integer 0), [ Expression (Const (Integer 0)) ])
-      ; If (Const (Integer 1), [ Expression (Const (Integer 1)) ])
+      [ IfElse (Const (Integer 0), [ Expression (Const (Integer 0)) ], [])
+      ; IfElse (Const (Integer 1), [ Expression (Const (Integer 1)) ], [])
       ]
 ;;
 
 let%test _ =
   parse prog "if \"a\":\n\t0"
-  = Ok [ If (Const (String "a"), [ Expression (Const (Integer 0)) ]) ]
+  = Ok [ IfElse (Const (String "a"), [ Expression (Const (Integer 0)) ], []) ]
 ;;
 
 let%test _ =
@@ -631,7 +704,7 @@ let%test _ =
 ;;
 
 let%test _ =
-  parse prog "for i in range(1, 10):\n\n\t1"
+  parse prog "for i in range(1, 10):\n    1"
   = Ok
       [ For
           ( Var (VarName (Local, "i"))
@@ -654,9 +727,112 @@ let%test _ =
           , [ MethodDef
                 ( "test"
                 , [ "self"; "x" ]
-                , [ Assign ([ FieldAccess ("self", "x") ], [ Var (VarName (Local, "x")) ])
+                , [ Assign ([ Var (VarName (Class, "x")) ], [ Var (VarName (Local, "x")) ])
                   ; Return [ Var (VarName (Local, "x")) ]
                   ] )
             ] )
+      ]
+;;
+
+let%test _ =
+  parse prog "a = A()"
+  = Ok [ Assign ([ Var (VarName (Local, "a")) ], [ ClassToInstance ("A", []) ]) ]
+;;
+
+let%test _ =
+  parse prog "self.x = x"
+  = Ok [ Assign ([ Var (VarName (Class, "x")) ], [ Var (VarName (Local, "x")) ]) ]
+;;
+
+(* "def fact(n):\n\
+     \tif n < 0:\n\
+     \t\treturn\n\
+     \tif n == 0 or n == 1:\n\
+     \t\treturn 1\n\
+     \treturn n * fact(n-1)" *)
+(*{|
+    def fact(n):
+      if n < 0 :
+        return n
+      if n == 0 or n == 1:
+        return 1
+      return n * fact(n-1)
+    |}  *)
+let%test _ =
+  parse
+    prog
+    "def fact(n):\n\
+     \tif n < 0:\n\
+     \t\treturn\n\
+     \tif n == 0 or n == 1:\n\
+     \t\treturn 1\n\
+     \treturn n * fact(n-1)"
+  = Ok
+      [ MethodDef
+          ( "fact"
+          , [ "n" ]
+          , [ IfElse
+                (Ls (Var (VarName (Local, "n")), Const (Integer 0)), [ Return [] ], [])
+            ; IfElse
+                ( BoolOp
+                    ( Or
+                    , Eq (Var (VarName (Local, "n")), Const (Integer 0))
+                    , Eq (Var (VarName (Local, "n")), Const (Integer 1)) )
+                , [ Return [ Const (Integer 1) ] ]
+                , [] )
+            ; Return
+                [ ArithOp
+                    ( Mul
+                    , Var (VarName (Local, "n"))
+                    , MethodCall
+                        ( "fact"
+                        , [ ArithOp (Sub, Var (VarName (Local, "n")), Const (Integer 1)) ]
+                        ) )
+                ]
+            ] )
+      ]
+;;
+
+let%test _ =
+  parse
+    prog
+    "class Node:\n\
+     \tdef init(v):\n\
+     \t\tself.value = v\n\
+     \tdef get():\n\
+     \t\treturn self.value\n\
+     node1 = Node()\n\
+     node1.init(5)\n\
+     node2 = Node()\n\
+     node2.init(10)\n\
+     [node1.get(), node2.get()]"
+  = Ok
+      [ Class
+          ( "Node"
+          , [ MethodDef
+                ( "init"
+                , [ "v" ]
+                , [ Assign
+                      ([ Var (VarName (Class, "value")) ], [ Var (VarName (Local, "v")) ])
+                  ] )
+            ; MethodDef ("get", [], [ Return [ Var (VarName (Class, "value")) ] ])
+            ] )
+      ; Assign ([ Var (VarName (Local, "node1")) ], [ ClassToInstance ("Node", []) ])
+      ; Expression (MethodAccess ("node1", "init", [ Const (Integer 5) ]))
+      ; Assign ([ Var (VarName (Local, "node2")) ], [ ClassToInstance ("Node", []) ])
+      ; Expression (MethodAccess ("node2", "init", [ Const (Integer 10) ]))
+      ; Expression
+          (List [ MethodAccess ("node1", "get", []); MethodAccess ("node2", "get", []) ])
+      ]
+;;
+
+let%test _ =
+  parse prog "if 5:\n\t5\nif 6:\n\t6\nelse:\n\t0\n\t1"
+  = Ok
+      [ IfElse (Const (Integer 5), [ Expression (Const (Integer 5)) ], [])
+      ; IfElse
+          ( Const (Integer 6)
+          , [ Expression (Const (Integer 6)) ]
+          , [ Expression (Const (Integer 0)); Expression (Const (Integer 1)) ] )
       ]
 ;;

@@ -3,7 +3,6 @@ type params = identifier list
 
 type modifier =
   | Local
-  | Global
   | Class
 
 type value =
@@ -11,6 +10,7 @@ type value =
   | Float of float
   | String of string
   | Bool of bool
+  | Void
 
 type arith_op =
   | Add
@@ -46,17 +46,14 @@ and expression =
   | MethodAccess of identifier * identifier * expression list
   | MethodCall of identifier * expression list
   | Lambda of params * expression
+  | ClassToInstance of identifier * rval
 
 type statements =
   | Expression of expression
   | Assign of expression list * rval
-  | Block of int * statements
   | MethodDef of identifier * params * statements list
-  | If of expression * statements list
-  | Else of statements list
+  | IfElse of expression * statements list * statements list
   | While of expression * statements list
   | For of expression * expression list * statements list
   | Class of identifier * statements list
   | Return of expression list
-  | LvledStmt of int * statements
-  | ParserError
