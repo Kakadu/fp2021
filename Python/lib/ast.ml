@@ -52,8 +52,7 @@ type statements =
   | Expression of expression
   | Assign of expression list * rval
   | MethodDef of identifier * params * statements list
-  | If of expression * statements list
-  | Else of statements list
+  | IfElse of expression * statements list * statements list
   | While of expression * statements list
   | For of expression * expression list * statements list
   | Class of identifier * statements list

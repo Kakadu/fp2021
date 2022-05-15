@@ -101,7 +101,6 @@ module Eval (M : MONADERROR) = struct
     ; scope : scope
     ; classes : class_ctx list
     ; instances : instance list
-    ; last_if : value * value (* was if before * value of if expr*)
     }
 
   let rec string_of_value = function
@@ -314,7 +313,7 @@ module Eval (M : MONADERROR) = struct
           get_with_key (fun x y -> x.var_id = y) field_name c.class_fields
           >>= fun vr -> return vr.v)
       | Lambda _ -> error (str_of_err NotImplementedFeature)
-      | _ -> error "expr can effect on ctx"
+      | _ -> return VNone
     in
     let try_eval_method params method_id inst_id methods =
       let cur_ctx =
@@ -433,20 +432,12 @@ module Eval (M : MONADERROR) = struct
           ctx.methods
         >>= fun c -> return { ctx with methods = c }
       | Instance _ -> error "unreachable")
-    | If (expr, stmts) ->
+    | IfElse (expr, if_stmts, else_stmts) ->
       eval_expr ctx expr
       >>= fun e ->
       if e.return_v = VBool true
-      then
-        eval_body ctx stmts
-        >>= fun c -> return { c with last_if = VBool true, VBool true }
-      else return { ctx with last_if = VBool true, VBool false }
-    | Else stmts ->
-      (match ctx.last_if with
-      | VBool false, _ -> error (str_of_err ElseFail)
-      | VBool true, VBool false -> eval_body ctx stmts
-      | VBool true, VBool true -> return ctx
-      | _ -> error (str_of_err ElseFail))
+      then eval_body ctx if_stmts >>= fun c -> return c
+      else eval_body ctx else_stmts >>= fun c -> return c
     | While (expr, stmts) ->
       let rec helper ctx stmts =
         eval_expr ctx expr
@@ -466,7 +457,6 @@ module Eval (M : MONADERROR) = struct
         ; scope = Global
         ; classes = []
         ; instances = []
-        ; last_if = VBool false, VBool false
         }
         body
       >>= fun cls_ctx ->
@@ -494,7 +484,6 @@ module Eval (M : MONADERROR) = struct
     ; classes = []
     ; return_v = VNone
     ; instances = []
-    ; last_if = VBool false, VBool false
     }
   ;;
 
@@ -569,11 +558,20 @@ let%test _ =
 ;;
 
 let%test _ =
+  parse_and_interpet "a = 0\nif 5 > 0:\n\ta = 5\nelse:\n\ta=0\na" = Result.return "5"
+;;
+
+let%test _ =
+  parse_and_interpet "a = 0\nif 5 < 0:\n\ta = 5\nelse:\n\ta=0\na" = Result.return "0"
+;;
+
+let%test _ =
   eval_prog
     global_ctx
-    [ If
+    [ IfElse
         ( Eq (Const (Integer 5), Const (Integer 5))
-        , [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 5)) ] ] )
+        , [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 5)) ] ]
+        , [] )
     ]
   = Result.return (VInt 10)
 ;;
@@ -581,10 +579,10 @@ let%test _ =
 let%test _ =
   eval_prog
     global_ctx
-    [ If
+    [ IfElse
         ( Eq (Const (Integer 5), Const (Integer 5))
-        , [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 5)) ] ] )
-    ; Else [ Return [ ArithOp (Add, Const (Integer 7), Const (Integer 7)) ] ]
+        , [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 5)) ] ]
+        , [ Return [ ArithOp (Add, Const (Integer 7), Const (Integer 7)) ] ] )
     ]
   = Result.return (VInt 10)
 ;;
@@ -592,10 +590,10 @@ let%test _ =
 let%test _ =
   eval_prog
     global_ctx
-    [ If
+    [ IfElse
         ( Eq (Const (Bool true), Const (Integer 5))
-        , [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 5)) ] ] )
-    ; Else [ Return [ ArithOp (Add, Const (Integer 7), Const (Integer 7)) ] ]
+        , [ Return [ ArithOp (Add, Const (Integer 5), Const (Integer 5)) ] ]
+        , [ Return [ ArithOp (Add, Const (Integer 7), Const (Integer 7)) ] ] )
     ]
   = Result.return (VInt 14)
 ;;
@@ -667,13 +665,14 @@ let%test _ =
     [ MethodDef
         ( "fact"
         , [ "n" ]
-        , [ If (Ls (Var (VarName (Local, "n")), Const (Integer 0)), [ Return [] ])
-          ; If
+        , [ IfElse (Ls (Var (VarName (Local, "n")), Const (Integer 0)), [ Return [] ], [])
+          ; IfElse
               ( BoolOp
                   ( Or
                   , Eq (Var (VarName (Local, "n")), Const (Integer 0))
                   , Eq (Var (VarName (Local, "n")), Const (Integer 1)) )
-              , [ Return [ Const (Integer 1) ] ] )
+              , [ Return [ Const (Integer 1) ] ]
+              , [] )
           ; Return
               [ ArithOp
                   ( Mul

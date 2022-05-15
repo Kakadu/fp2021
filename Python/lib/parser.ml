@@ -6,7 +6,7 @@ type help_statements =
   | Assign of expression list * rval
   | Block of int * help_statements
   | MethodDef of identifier * params * help_statements list
-  | If of expression * help_statements list
+  | IfElse of expression * help_statements list * help_statements list
   | Else of help_statements list
   | While of expression * help_statements list
   | For of expression * expression list * help_statements list
@@ -307,7 +307,7 @@ let assign expr tabs =
 let parse_if expr tabs =
   token "if" *> space1 *> expr
   <* token ":"
-  >>= fun if_expr -> return (Block (tabs, If (if_expr, [])))
+  >>= fun if_expr -> return (Block (tabs, IfElse (if_expr, [], [])))
 ;;
 
 let parse_else tabs =
@@ -333,7 +333,7 @@ let parse_for expr tabs =
 let take_block_from_stmt = function
   | MethodDef (_, _, stmts) -> stmts
   | For (_, _, stmts) -> stmts
-  | If (_, stmts) -> stmts
+  | IfElse (_, stmts, _) -> stmts
   | Else stmts -> stmts
   | While (_, stmts) -> stmts
   | Class (_, stmts) -> stmts
@@ -344,7 +344,7 @@ let insert_to_stmt new_stmts = function
   | MethodDef (i, p, _) -> MethodDef (i, p, new_stmts)
   | For (e1, e2, _) -> For (e1, e2, new_stmts)
   | Else _ -> Else new_stmts
-  | If (e, _) -> If (e, new_stmts)
+  | IfElse (e, _, else_stmts) -> IfElse (e, new_stmts, else_stmts)
   | While (e, _) -> While (e, new_stmts)
   | Class (e, _) -> Class (e, new_stmts)
   | _ -> failwith "unreachable"
@@ -354,8 +354,12 @@ let rec help_to_ast = function
   | MethodDef (i, p, stmts) ->
     Ast.MethodDef (i, p, List.map (fun x -> help_to_ast x) stmts)
   | For (e1, e2, stmts) -> For (e1, e2, List.map (fun x -> help_to_ast x) stmts)
-  | Else stmts -> Else (List.map (fun x -> help_to_ast x) stmts)
-  | If (e, stmts) -> If (e, List.map (fun x -> help_to_ast x) stmts)
+  | Else _ -> failwith "else stmt does not exist in AST"
+  | IfElse (e, stmts, else_stmts) ->
+    IfElse
+      ( e
+      , List.map (fun x -> help_to_ast x) stmts
+      , List.map (fun x -> help_to_ast x) else_stmts )
   | While (e, stmts) -> While (e, List.map (fun x -> help_to_ast x) stmts)
   | Class (e, stmts) -> Class (e, List.map (fun x -> help_to_ast x) stmts)
   | Block (_, stmt) -> help_to_ast stmt
@@ -381,71 +385,70 @@ let%test _ =
   check_is_first_block_empty
     [ Block
         ( 0
-        , If
+        , IfElse
             ( Const (Integer 0)
             , [ Block
                   ( 1
-                  , If
+                  , IfElse
                       ( Const (Integer 0)
-                      , [ LvledStmt (4, Expression (Const (Integer 5))) ] ) )
-              ] ) )
+                      , [ LvledStmt (4, Expression (Const (Integer 5))) ]
+                      , [] ) )
+              ]
+            , [] ) )
     ]
   = false
 ;;
 
 let%test _ =
   check_is_first_block_empty
-    [ Block (0, If (Const (Integer 0), []))
+    [ Block (0, IfElse (Const (Integer 0), [], []))
     ; Block
         ( 0
-        , If
+        , IfElse
             ( Const (Integer 0)
             , [ Block
-                  (1, If (Const (Integer 0), [ Block (1, If (Const (Integer 0), [])) ]))
-              ] ) )
+                  ( 1
+                  , IfElse
+                      ( Const (Integer 0)
+                      , [ Block (1, IfElse (Const (Integer 0), [], [])) ]
+                      , [] ) )
+              ]
+            , [] ) )
     ]
   = true
 ;;
 
+let merge_if_else else_stmts = function
+  | IfElse (e, s, s2) ->
+    if s2 = [] then return (IfElse (e, s, else_stmts)) else fail "parse else error"
+  | _ -> fail "unexpected stmt"
+;;
+
 let remove_lvling list =
   let rec rvrs acc = function
-    | [] -> acc
+    | [] -> return acc
     | Block (_, stmt) :: t ->
-      let reversed_stmt = rvrs [] (take_block_from_stmt stmt) in
-      rvrs (insert_to_stmt reversed_stmt stmt :: acc) t
+      (match stmt with
+      | IfElse (_, _, _) as iff ->
+        (match acc with
+        | [] ->
+          rvrs [] (take_block_from_stmt stmt)
+          >>= fun rstmt -> rvrs (insert_to_stmt rstmt stmt :: acc) t
+        | h :: t1 ->
+          (match h with
+          | Else s -> merge_if_else s iff >>= fun ifelse -> rvrs (ifelse :: t1) t
+          | _ ->
+            rvrs [] (take_block_from_stmt stmt)
+            >>= fun rstmt -> rvrs (insert_to_stmt rstmt stmt :: acc) t))
+      | _ ->
+        rvrs [] (take_block_from_stmt stmt)
+        >>= fun rstmt -> rvrs (insert_to_stmt rstmt stmt :: acc) t)
     | LvledStmt (_, stmt) :: t -> rvrs (stmt :: acc) t
-    | _ -> []
+    | _ -> return []
   in
-  List.map (fun x -> help_to_ast x) (rvrs [] list)
+  rvrs [] list >>= fun res -> return (List.map (fun x -> help_to_ast x) res)
 ;;
 
-let%test _ =
-  remove_lvling
-    [ Block
-        ( 0
-        , If
-            ( Const (Integer 0)
-            , [ LvledStmt (1, Expression (Const (Integer 1)))
-              ; LvledStmt (2, Expression (Const (Integer 2)))
-              ] ) )
-    ; Block
-        ( 1
-        , If
-            ( Const (Integer 1)
-            , [ LvledStmt (3, Expression (Const (Integer 3)))
-              ; LvledStmt (4, Expression (Const (Integer 4)))
-              ] ) )
-    ]
-  = [ If
-        ( Const (Integer 1)
-        , [ Expression (Const (Integer 4)); Expression (Const (Integer 3)) ] )
-    ; If
-        ( Const (Integer 0)
-        , [ Expression (Const (Integer 2)); Expression (Const (Integer 1)) ] )
-    ]
-;;
-
-(* failwith "unreachable" probably because ast is bad *)
 let flatten list =
   let rec insert_ acc_lines = function
     | [] -> return acc_lines
@@ -558,9 +561,7 @@ let prog =
   >>= fun lines ->
   flatten lines
   >>= fun res ->
-  if check_is_first_block_empty res
-  then fail "parser error"
-  else return (remove_lvling res)
+  if check_is_first_block_empty res then fail "parser error" else remove_lvling res
 ;;
 
 let%test _ = parse prog "5" = Ok [ Expression (Const (Integer 5)) ]
@@ -637,33 +638,34 @@ let%test _ =
 
 let%test _ =
   parse prog "if 0:\n\t4"
-  = Ok [ If (Const (Integer 0), [ Expression (Const (Integer 4)) ]) ]
+  = Ok [ IfElse (Const (Integer 0), [ Expression (Const (Integer 4)) ], []) ]
 ;;
 
 let%test _ =
   parse prog "if 0:\n\t1\n\tif 1:\n\t\t2\n\t1\n\t1"
   = Ok
-      [ If
+      [ IfElse
           ( Const (Integer 0)
           , [ Expression (Const (Integer 1))
-            ; If (Const (Integer 1), [ Expression (Const (Integer 2)) ])
+            ; IfElse (Const (Integer 1), [ Expression (Const (Integer 2)) ], [])
             ; Expression (Const (Integer 1))
             ; Expression (Const (Integer 1))
-            ] )
+            ]
+          , [] )
       ]
 ;;
 
 let%test _ =
   parse prog "if 0:\n\t0\nif 1:\n\t1"
   = Ok
-      [ If (Const (Integer 0), [ Expression (Const (Integer 0)) ])
-      ; If (Const (Integer 1), [ Expression (Const (Integer 1)) ])
+      [ IfElse (Const (Integer 0), [ Expression (Const (Integer 0)) ], [])
+      ; IfElse (Const (Integer 1), [ Expression (Const (Integer 1)) ], [])
       ]
 ;;
 
 let%test _ =
   parse prog "if \"a\":\n\t0"
-  = Ok [ If (Const (String "a"), [ Expression (Const (Integer 0)) ]) ]
+  = Ok [ IfElse (Const (String "a"), [ Expression (Const (Integer 0)) ], []) ]
 ;;
 
 let%test _ =
@@ -769,13 +771,15 @@ let%test _ =
       [ MethodDef
           ( "fact"
           , [ "n" ]
-          , [ If (Ls (Var (VarName (Local, "n")), Const (Integer 0)), [ Return [] ])
-            ; If
+          , [ IfElse
+                (Ls (Var (VarName (Local, "n")), Const (Integer 0)), [ Return [] ], [])
+            ; IfElse
                 ( BoolOp
                     ( Or
                     , Eq (Var (VarName (Local, "n")), Const (Integer 0))
                     , Eq (Var (VarName (Local, "n")), Const (Integer 1)) )
-                , [ Return [ Const (Integer 1) ] ] )
+                , [ Return [ Const (Integer 1) ] ]
+                , [] )
             ; Return
                 [ ArithOp
                     ( Mul
@@ -819,5 +823,16 @@ let%test _ =
       ; Expression (MethodAccess ("node2", "init", [ Const (Integer 10) ]))
       ; Expression
           (List [ MethodAccess ("node1", "get", []); MethodAccess ("node2", "get", []) ])
+      ]
+;;
+
+let%test _ =
+  parse prog "if 5:\n\t5\nif 6:\n\t6\nelse:\n\t0\n\t1"
+  = Ok
+      [ IfElse (Const (Integer 5), [ Expression (Const (Integer 5)) ], [])
+      ; IfElse
+          ( Const (Integer 6)
+          , [ Expression (Const (Integer 6)) ]
+          , [ Expression (Const (Integer 0)); Expression (Const (Integer 1)) ] )
       ]
 ;;
