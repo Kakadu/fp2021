@@ -357,7 +357,7 @@ module Eval (M : MONADERROR) = struct
       merge_return_vals [] res_list
       >>= fun v -> return { ctx with return_v = VList (List.rev v) }
 
-  and eval_body ctx body = fold_left (fun c stmt -> eval_stmt c stmt) ctx body
+  and eval_body ctx body = (fun c stmt -> fold_left eval_stmt c stmt) ctx body
 
   and eval_stmt ctx = function
     | Expression e -> eval_expr ctx e >>= fun upd -> return upd
@@ -473,7 +473,7 @@ module Eval (M : MONADERROR) = struct
     | Return exprs -> eval_return exprs ctx >>= fun v -> return v
 
   and eval_prog ctx stmts =
-    fold_left (fun ctx stmt -> eval_stmt ctx stmt) ctx stmts
+    (fun ctx stmt -> fold_left eval_stmt ctx stmt) ctx stmts
     >>= fun x -> return x.return_v
   ;;
 
